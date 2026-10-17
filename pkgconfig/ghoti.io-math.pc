@@ -1,0 +1,7 @@
+Name: Ghoti.io Math(BRANCH)
+Description: Deterministic elementary functions that give the same bits on every host.
+Version: (VERSION)
+URL: https://github.com/Ghoti-io/math
+Libs: -L(PC_LIB_DIR) -l(SUITE)-(PROJECT)(BRANCH)
+CFlags: -I(PC_INCLUDE_DIR)
+Requires: (REQUIRES)
