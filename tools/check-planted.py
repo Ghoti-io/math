@@ -12,28 +12,61 @@
 
 A test that has never been seen to fail may measure nothing.  For each defect
 below, this builds a copy of src/elementary with one literal replacement
-applied (the replacement must match exactly once and must change the file), links the
-copy with testTrig's object, and requires testTrig to fail on the oracle
-corpus, naming Trig.CorpusIsWithinOneUlp.  The unplanted copy is the control:
-it must pass, which is what makes a failure mean the defect and not the build.
+applied (the replacement must match exactly once and must change the file),
+links the copy with testTrig's object, and requires testTrig to fail on the
+oracle corpus, naming Trig.CorpusIsWithinOneUlp.  The unplanted copy is the
+control: it must pass, which is what makes a failure mean the defect and not
+the build.
 
-Three families:
+Four families:
 
   oracle   a defect in the library that the accuracy check must catch:
-           a coefficient perturbed, a reduction branch skipped or shortened,
-           a quadrant or sign wrong, a fast path taken too far
-  hash     a defect too small for the 1 ulp contract to see (a coefficient
+           a coefficient or table entry wrong by more than rounding, a
+           reduction branch skipped or shortened, a quadrant or sign wrong, a
+           fast path taken too far, a kernel term dropped
+  hash     a defect too small for the accuracy bounds to see (a coefficient
            perturbed by one unit in its last place) that the committed corpus
            hash must still catch, because a different bit on one target is
            what the cross-target gate exists for
+  kernel   a defect in the kernel's table that no corpus input can show, caught
+           by testTrig_kernel, which checks every row against an independent
+           series (built here from the planted copy of trig.c)
   corpus   a defect in the oracle's data, not the library: a wrong answer, a
            truncated file and a missing file, which testTrig must refuse
            (the oracle test fails, it does not skip)
+
+What is NOT planted, and why (story 3a).  Every defect that moves a result
+by less than a rounding for all but a vanishing share of inputs is invisible
+to any test that runs the function, however many inputs it has, and is
+accepted:
+
+  - one ulp of a polynomial tail coefficient S2, S3, C2, C3, T2 .. T6: the
+    term is at most z^2 .. z^6 (z <= 2^-8) times the coefficient's own
+    weight, so one ulp of it moves a result by under 2^-89 of itself (2^-103
+    for S3, C3), and changes a correctly rounded result for about one argument
+    in 2^36 or fewer.  Measured: 3e6 random arguments per direction in each of four ranges
+    (the table region, the direct region log-uniform and uniform, and the
+    reduced range 0.8 .. 1000) changed no result of sin, cos or tan for any of
+    these coefficients in either direction, while S0, C0 and T0 change about
+    one in 2^10 of the direct range and S1, C1 and T1 one in 2^22 or 2^20
+  - one ulp of a "lo" column (sin_lo, cos_lo) or of d0 or e0: each is a
+    rounding correction of about 2^-54 of the value it corrects, so one ulp
+    of it is 2^-107; testTrig_kernel checks d0 and e0 exactly against the
+    table's own definition (a one-ulp change is seen there) and the lo
+    columns to 2^-100 (a zeroed one is seen by the corpus and by that test, a
+    one-ulp change of one is not)
+  - rows 229 to 255 of the table, which no reduced argument reaches (a >
+    pi/4); testTrig_kernel checks them against the series, the corpus cannot
+
+Visible only through the corpus hash, by design: one ulp of S0, C0, T0
+(about one argument in 2^10 of the direct range), and of S1, C1 and T1 (one in
+2^22), for which gen_corpus.py carries 18 witnesses found by search.
 
 Run by `make check-planted` from the library directory, with the build's
 compile and link flags in the PLANT_* environment variables.
 """
 
+import math
 import os
 import re
 import shlex
@@ -48,12 +81,14 @@ cc = shlex.split(env["PLANT_CC"])
 cflags = shlex.split(env["PLANT_CFLAGS"])
 cxx = shlex.split(env["PLANT_CXX"])
 ldflags = shlex.split(env["PLANT_LDFLAGS"])
+cxx_include = shlex.split(env["PLANT_CXX_INCLUDE"])
 test_obj = env["PLANT_TEST_OBJ"]
 probe_cflags = shlex.split(env["PLANT_PROBE_CFLAGS"])
 ld_path = env["PLANT_LD_PATH"]
 SRC = Path("src/elementary")
 CORPUS = Path("tests/corpus")
 ORACLE_TEST = "Trig.CorpusIsWithinOneUlp"
+SOURCES = ("trig.c", "trig_tables.h", "trig_kernel_table.h")
 
 failures = []
 
@@ -63,11 +98,11 @@ def fail(msg):
     print("check-planted: FAIL: %s" % msg, file=sys.stderr)
 
 
-def variant(name, patches):
-    """Copy the sources, apply (file, old, new) patches, build, return the directory."""
+def stage(name, patches):
+    """Copy the sources, apply (file, old, new) patches, return the directory (or None)."""
     d = work / name
     d.mkdir(parents=True)
-    for f in ("trig.c", "trig_tables.h"):
+    for f in SOURCES:
         shutil.copy(SRC / f, d / f)
     for fname, old, new in patches:
         text = (d / fname).read_text()
@@ -79,6 +114,14 @@ def variant(name, patches):
         if (d / fname).read_text() == (SRC / fname).read_text():
             fail("%s: the replacement changed nothing" % name)
             return None
+    return d
+
+
+def variant(name, patches):
+    """stage(), then build the library copy and link it with testTrig's object."""
+    d = stage(name, patches)
+    if d is None:
+        return None
     r = subprocess.run(cc + cflags + ["-c", str(d / "trig.c"), "-o", str(d / "trig.o")],
                        capture_output=True, text=True)
     if r.returncode != 0:
@@ -88,6 +131,30 @@ def variant(name, patches):
                        capture_output=True, text=True)
     if r.returncode != 0:
         fail("%s: the planted test does not link:\n%s%s" % (name, r.stdout, r.stderr))
+        return None
+    return d
+
+
+def kernel_variant(name, patches):
+    """stage(), then build tests/unit/test_trig_kernel.cpp against the planted trig.c."""
+    d = stage(name, patches)
+    if d is None:
+        return None
+    text = Path("tests/unit/test_trig_kernel.cpp").read_text()
+    inc = '#include "../../src/elementary/trig.c"'
+    if text.count(inc) != 1:
+        fail("%s: test_trig_kernel.cpp no longer includes trig.c by that name" % name)
+        return None
+    (d / "test_trig_kernel.cpp").write_text(text.replace(inc, '#include "%s"' % (d / "trig.c").resolve()))
+    r = subprocess.run(cxx + cxx_include + ["-c", str(d / "test_trig_kernel.cpp"), "-o", str(d / "test_trig_kernel.o")],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        fail("%s: the planted kernel test does not compile:\n%s" % (name, r.stderr))
+        return None
+    r = subprocess.run(cxx + ["-o", str(d / "testTrigKernel"), str(d / "test_trig_kernel.o")] + ldflags,
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        fail("%s: the planted kernel test does not link:\n%s%s" % (name, r.stdout, r.stderr))
         return None
     return d
 
@@ -147,6 +214,49 @@ def expect_hash_fails(name, patches):
         print("  ok   %-34s caught by the corpus hash" % name)
 
 
+def run_kernel_test(d):
+    e = dict(env)
+    e["LD_LIBRARY_PATH"] = ld_path + (":" + e["LD_LIBRARY_PATH"] if e.get("LD_LIBRARY_PATH") else "")
+    r = subprocess.run([str(d / "testTrigKernel"), "--gtest_brief=1"], capture_output=True, text=True, env=e)
+    failed = sorted(set(re.findall(r"\[\s*FAILED\s*\]\s+(TrigKernel\.\w+)", r.stdout)))
+    return r.returncode, failed, r.stdout
+
+
+def expect_kernel_test_fails(name, patches, want):
+    d = kernel_variant(name, patches)
+    if d is None:
+        return
+    rc, failed, out = run_kernel_test(d)
+    if rc == 0:
+        fail("%s: testTrig_kernel passed with the defect planted" % name)
+    elif want not in failed:
+        fail("%s: testTrig_kernel failed (%s) but not %s:\n%s" % (name, failed, want, out[-1500:]))
+    else:
+        print("  ok   %-34s caught by %s" % (name, want))
+
+
+COLUMNS = ("sin_hi", "sin_lo", "cos_hi", "cos_lo", "tan", "d0", "cot", "e0")
+
+
+def row_patch(k, col, how):
+    """A (file, old, new) patch of table row k: column col one ulp up, or zero."""
+    text = (SRC / "trig_kernel_table.h").read_text()
+    m = re.search(r"^  /\* *%d \*/ \{(.*)\},$" % k, text, re.M)
+    if m is None:
+        fail("row %d of the table is not where the plant looks" % k)
+        return ("trig_kernel_table.h", "", "")
+    vals = [v.strip() for v in m.group(1).split(",")]
+    i = COLUMNS.index(col)
+    v = float.fromhex(vals[i])
+    if how == "zero":
+        vals[i] = "0x0.0p+0"
+    elif how == "up":
+        vals[i] = math.nextafter(v, math.inf).hex()
+    else:
+        vals[i] = math.nextafter(v, -math.inf).hex()
+    return ("trig_kernel_table.h", m.group(0), "  /* %3d */ {%s}," % (k, ", ".join(vals)))
+
+
 shutil.rmtree(work, ignore_errors=True)
 work.mkdir(parents=True)
 
@@ -171,19 +281,51 @@ if ctl is not None:
 
 # Oracle-class defects.
 T = "trig_tables.h"
+K = "trig_kernel_table.h"
 C = "trig.c"
-expect_oracle_fails("coefficient/sin S0 off by 2^-32", [(T, "0x1.1111111111111p-7", "0x1.1111111211111p-7")])
-expect_oracle_fails("coefficient/cos C0 off by 2^-36", [(T, "-0x1.6c16c16c16c15p-10", "-0x1.6c16c16d16c15p-10")])
-expect_oracle_fails("coefficient/-1/6 up one ulp", [(T, "#define GMATH_M1_6_HI -0x1.5555555555555p-3", "#define GMATH_M1_6_HI -0x1.5555555555556p-3")])
+# A coefficient wrong in its 9th or 11th hexadecimal digit (2^-36, 2^-44 of itself).
+expect_oracle_fails("coefficient/sin S0 off by 2^-36", [(K, "gmath_trig_sin_tail[GMATH_TRIG_SIN_DEGREE + 1] = {-0x1.5555555555555p-3", "gmath_trig_sin_tail[GMATH_TRIG_SIN_DEGREE + 1] = {-0x1.5555555655555p-3")])
+expect_oracle_fails("coefficient/sin S0 off by 2^-44", [(K, "gmath_trig_sin_tail[GMATH_TRIG_SIN_DEGREE + 1] = {-0x1.5555555555555p-3", "gmath_trig_sin_tail[GMATH_TRIG_SIN_DEGREE + 1] = {-0x1.5555555555655p-3")])
+expect_oracle_fails("coefficient/cos C0 off by 2^-36", [(K, "gmath_trig_cos_tail[GMATH_TRIG_COS_DEGREE + 1] = {-0x1.0000000000000p-1", "gmath_trig_cos_tail[GMATH_TRIG_COS_DEGREE + 1] = {-0x1.0000000100000p-1")])
+expect_oracle_fails("coefficient/tan T0 off by 2^-36", [(K, "gmath_trig_tan_tail[GMATH_TRIG_TAN_DEGREE + 1] = {0x1.5555555555555p-2", "gmath_trig_tan_tail[GMATH_TRIG_TAN_DEGREE + 1] = {0x1.5555555655555p-2")])
+expect_oracle_fails("coefficient/tan T1 off by 2^-24", [(K, "0x1.1111111111111p-3, 0x1.ba1ba1ba1ba4ep-5", "0x1.1111121111111p-3, 0x1.ba1ba1ba1ba4ep-5")])
+expect_oracle_fails("coefficient/sin S1 off by 2^-24", [(K, "0x1.1111111110ea6p-7", "0x1.1111121110ea6p-7")])
+expect_oracle_fails("coefficient/cos C1 off by 2^-24", [(K, "0x1.5555555554eaep-5", "0x1.5555565554eaep-5")])
 expect_oracle_fails("reduction/skipped (sin, cos, tan)", [(C, "#define GMATH_PIO4 0x1.921fb54442d18p-1", "#define GMATH_PIO4 0x1p20")])
 expect_oracle_fails("reduction/no reflection past 1/2", [(C, "if (f[7] & 0x80000000u) {", "if (0 && (f[7] & 0x80000000u)) {")])
 expect_oracle_fails("reduction/window of 160 bits not 256", [(C, "a[i] = gmath_two_over_pi[j0 + 2 + 7 - i]; /* least significant first */", "a[i] = i < 3 ? 0u : gmath_two_over_pi[j0 + 2 + 7 - i];")])
 expect_oracle_fails("reduction/pi/2 low word dropped", [(C, "hi * GMATH_PIO2_LO + lo * GMATH_PIO2_HI", "lo * GMATH_PIO2_HI")])
-expect_oracle_fails("reduction/remainder tail dropped", [(C, "s.lo + (u.lo + (tail + rl))", "s.lo + (u.lo + tail)")])
-expect_oracle_fails("quadrant/cos sign", [(C, "((n + 1) & 2) ? SIGN_BIT : 0", "(n & 2) ? SIGN_BIT : 0")])
-expect_oracle_fails("quadrant/sin sign", [(C, "(n & 2) ? sign ^ SIGN_BIT : sign", "sign")])
-expect_oracle_fails("quadrant/tan sign", [(C, "(n & 1) ? sign ^ SIGN_BIT : sign", "sign")])
-expect_oracle_fails("fast path/sin returns x up to 2^-20", [(C, "if (ax < 0x1p-28) {\n    return x;\n  }\n  double rh = ax;\n  double rl = 0.0;\n  int n = 0;\n  if (ax > GMATH_PIO4) {\n    n = reduce_any(ax, &rh, &rl);\n  }\n  gmath_dd r = (n & 1) ? kernel_cos(rh, rl) : kernel_sin(rh, rl);", "if (ax < 0x1p-20) {\n    return x;\n  }\n  double rh = ax;\n  double rl = 0.0;\n  int n = 0;\n  if (ax > GMATH_PIO4) {\n    n = reduce_any(ax, &rh, &rl);\n  }\n  gmath_dd r = (n & 1) ? kernel_cos(rh, rl) : kernel_sin(rh, rl);")])
+expect_oracle_fails("reduction/remainder tail dropped", [(C, "double r = ((pl + qh * l) + qh * ups) + (ph * cosm1 + ql * b);", "double r = ((pl + qh * (l * 0.0)) + qh * ups) + (ph * cosm1 + ql * b);")])
+expect_oracle_fails("quadrant/cos sign", [(C, "((n + 1) & 2) ? sg ^ SIGN_BIT : sg", "(n & 2) ? sg ^ SIGN_BIT : sg")])
+expect_oracle_fails("quadrant/sin sign", [(C, "(n & 2) ? sign ^ sg ^ SIGN_BIT : sign ^ sg", "sign ^ sg")])
+expect_oracle_fails("quadrant/tan sign", [(C, "(n & 1) ? sign ^ rs ^ SIGN_BIT : sign ^ rs", "sign ^ rs")])
+expect_oracle_fails("quadrant/sin loses the remainder's sign", [(C, "uint64_t sg = (n & 1) ? 0 : rs;", "uint64_t sg = 0;")])
+expect_oracle_fails("fast path/sin returns x up to 2^-20", [(C, "if (ax < 0x1p-28) {\n    return x;\n  }\n  double rh = ax, rl = 0.0, h, l;\n  uint64_t rs;\n  int n = 0;\n  if (ax > GMATH_PIO4) {\n    n = reduce_any(ax, &rh, &rl);\n  }\n  unpack_remainder(rh, rl, &h, &l, &rs);\n  /* Even quadrants", "if (ax < 0x1p-20) {\n    return x;\n  }\n  double rh = ax, rl = 0.0, h, l;\n  uint64_t rs;\n  int n = 0;\n  if (ax > GMATH_PIO4) {\n    n = reduce_any(ax, &rh, &rl);\n  }\n  unpack_remainder(rh, rl, &h, &l, &rs);\n  /* Even quadrants")])
+
+# The kernel (kernel_front and the formulas): each is a defect of the table-driven
+# method, not of a number.
+expect_oracle_fails("kernel/slice index off by one", [(C, "- GMATH_TRIG_INDEX_BASE) &", "- GMATH_TRIG_INDEX_BASE + 1) &")])
+expect_oracle_fails("kernel/b is h rounded to 5 bits too", [(C, "*b = h - double_of(hb & ~((1ull << GMATH_TRIG_SLICE_SHIFT) - 1));", "*b = h - double_of(hb & ~((1ull << (GMATH_TRIG_SLICE_SHIFT + 1)) - 1));")])
+expect_oracle_fails("kernel/direct path taken up to 2^-3", [(C, "#define GMATH_TRIG_DIRECT 0x1p-4", "#define GMATH_TRIG_DIRECT 0x1p-3")])
+expect_oracle_fails("kernel/cos correction sign of sin", [(C, "e[GMATH_TRIG_COS_LO], -e[GMATH_TRIG_SIN_HI],\n      -e[GMATH_TRIG_SIN_LO], b, l, ups, cosm1);\n  return e[GMATH_TRIG_COS_HI] + corr;", "e[GMATH_TRIG_COS_LO], e[GMATH_TRIG_SIN_HI],\n      e[GMATH_TRIG_SIN_LO], b, l, ups, cosm1);\n  return e[GMATH_TRIG_COS_HI] + corr;")])
+expect_oracle_fails("kernel/sin tail ups dropped", [(C, "*ups = u * (((s[3] * z + s[2]) * z + s[1]) * z + s[0]);", "*ups = (u * (((s[3] * z + s[2]) * z + s[1]) * z + s[0])) * 0.0;")])
+expect_oracle_fails("kernel/cos tail cosm1 dropped", [(C, "*cosm1 = z * (((c[3] * z + c[2]) * z + c[1]) * z + c[0]);", "*cosm1 = (z * (((c[3] * z + c[2]) * z + c[1]) * z + c[0])) * 0.0;")])
+expect_oracle_fails("kernel/tan d0 dropped", [(C, "((cs - th * cc) + e[GMATH_TRIG_TAN_D0])", "((cs - th * cc) + 0.0)")])
+expect_oracle_fails("kernel/cot e0 dropped", [(C, "((cc - kh * cs) + e[GMATH_TRIG_COT_E0])", "((cc - kh * cs) + 0.0)")])
+expect_oracle_fails("kernel/tan divides by cos_hi only", [(C, "/ (ch + cc);", "/ ch;")])
+expect_oracle_fails("kernel/cot refinement dropped", [(C, "return q1 + rem * q1;", "return q1 + rem * 0.0;")])
+expect_oracle_fails("kernel/tan direct tail dropped", [(C, "double rest = l + (h * z) * poly;", "double rest = l;")])
+
+# Table entries wrong by one ulp in a column that is more than a rounding
+# correction, in the first, a middle and the last reachable row, and in the
+# direct row.
+for k, col in ((0, "sin_hi"), (37, "cos_hi"), (100, "tan"), (150, "cot"), (228, "sin_hi"), (64, "cos_hi"), (255 - 27, "tan")):
+    expect_oracle_fails("table/row %d %s up one ulp" % (k, col), [row_patch(k, col, "up")])
+expect_oracle_fails("table/row 256 (a = 0) cos_hi up one ulp", [row_patch(256, "cos_hi", "up")])
+# A rounding correction dropped altogether (a zeroed entry is the "wrong entry"
+# the one-ulp plants above cannot reach in these columns).
+for k, col in ((100, "d0"), (37, "e0"), (150, "sin_lo"), (200, "cos_lo")):
+    expect_oracle_fails("table/row %d %s zeroed" % (k, col), [row_patch(k, col, "zero")])
 
 # The fast reduction (reduce_fast): a wrong constant, a limit set too high and
 # the last part of pi/2 dropped.  (The 2^-55 floor under which it hands over to
@@ -200,9 +342,40 @@ expect_oracle_fails("fast/limit 2^24 not 2^20", [(C, "#define GMATH_CW_LIMIT 0x1
 expect_oracle_fails("fast/limit 2^40 not 2^20", [(C, "#define GMATH_CW_LIMIT 0x1p20", "#define GMATH_CW_LIMIT 0x1p40")])
 expect_oracle_fails("fast/tail t4 dropped from lo", [(C, "double lo = (a.lo + b.lo) - nd * GMATH_CW_P4;", "double lo = a.lo + b.lo;")])
 
-# Hash-class defects: below the contract, above the committed bits.
-expect_hash_fails("coefficient/sin S0 up one ulp", [(T, "0x1.1111111111111p-7", "0x1.1111111111112p-7")])
-expect_hash_fails("coefficient/cos 1/24 up one ulp", [(T, "#define GMATH_1_24_HI 0x1.5555555555555p-5", "#define GMATH_1_24_HI 0x1.5555555555556p-5")])
+# Hash-class defects: below the contract, above the committed bits.  One ulp
+# of S0, C0 and T0 changes about one argument in 2^10 of the direct range, and
+# one ulp of S1, C1 and T1 about one in 2^22, for which the corpus has the
+# witnesses of gen_corpus.py (KERNEL_WITNESSES).
+SIN_TAIL = "gmath_trig_sin_tail[GMATH_TRIG_SIN_DEGREE + 1] = {"
+COS_TAIL = "gmath_trig_cos_tail[GMATH_TRIG_COS_DEGREE + 1] = {"
+TAN_TAIL = "gmath_trig_tan_tail[GMATH_TRIG_TAN_DEGREE + 1] = {"
+expect_hash_fails("coefficient/sin S0 up one ulp", [(K, SIN_TAIL + "-0x1.5555555555555p-3", SIN_TAIL + "-0x1.5555555555556p-3")])
+expect_hash_fails("coefficient/cos C0 up one ulp", [(K, COS_TAIL + "-0x1.0000000000000p-1", COS_TAIL + "-0x1.fffffffffffffp-2")])
+expect_hash_fails("coefficient/tan T0 up one ulp", [(K, TAN_TAIL + "0x1.5555555555555p-2", TAN_TAIL + "0x1.5555555555556p-2")])
+expect_hash_fails("coefficient/sin S1 up one ulp", [(K, "0x1.1111111110ea6p-7", "0x1.1111111110ea7p-7")])
+expect_hash_fails("coefficient/sin S1 down one ulp", [(K, "0x1.1111111110ea6p-7", "0x1.1111111110ea5p-7")])
+expect_hash_fails("coefficient/cos C1 up one ulp", [(K, "0x1.5555555554eaep-5", "0x1.5555555554eafp-5")])
+expect_hash_fails("coefficient/cos C1 down one ulp", [(K, "0x1.5555555554eaep-5", "0x1.5555555554eadp-5")])
+expect_hash_fails("coefficient/tan T1 up one ulp", [(K, "0x1.1111111111111p-3, 0x1.ba1ba1ba1ba4ep-5", "0x1.1111111111112p-3, 0x1.ba1ba1ba1ba4ep-5")])
+expect_hash_fails("coefficient/tan T1 down one ulp", [(K, "0x1.1111111111111p-3, 0x1.ba1ba1ba1ba4ep-5", "0x1.1111111111110p-3, 0x1.ba1ba1ba1ba4ep-5")])
+
+# Kernel-class defects: wrong table entries that no input of the corpus can
+# show (rounding corrections, rows no argument reaches), seen by testTrig_kernel.
+KT = "TrigKernel.TableRowsMatchAnIndependentSeries"
+ktc = kernel_variant("kernel-control", [])
+if ktc is not None:
+    rc, failed, out = run_kernel_test(ktc)
+    if rc != 0:
+        fail("control: testTrig_kernel fails on the unplanted copy:\n%s" % out[-1500:])
+    else:
+        print("  ok   control: the unplanted copy passes testTrig_kernel")
+expect_kernel_test_fails("table/row 100 d0 up one ulp", [row_patch(100, "d0", "up")], KT)
+expect_kernel_test_fails("table/row 37 e0 down one ulp", [row_patch(37, "e0", "down")], KT)
+expect_kernel_test_fails("table/row 240 cos_hi up one ulp (unreachable)", [row_patch(240, "cos_hi", "up")], KT)
+expect_kernel_test_fails("table/row 5 sin_lo zeroed", [row_patch(5, "sin_lo", "zero")], KT)
+expect_kernel_test_fails("table/row 128 cot up one ulp", [row_patch(128, "cot", "up")], KT)
+expect_kernel_test_fails("ktest/slice index not masked", [(C, ") & (GMATH_TRIG_ROWS - 1);", ");")], "TrigKernel.TheRowIndexIsInRangeForEveryReducedArgument")
+expect_kernel_test_fails("ktest/slice index off by one", [(C, "- GMATH_TRIG_INDEX_BASE) &", "- GMATH_TRIG_INDEX_BASE + 1) &")], "TrigKernel.TheRowIndexIsInRangeForEveryReducedArgument")
 
 # Corpus-class defects: the oracle's data is wrong or missing.
 def corpus_variant(name, edit):

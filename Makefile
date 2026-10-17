@@ -508,6 +508,7 @@ check-planted: $(OBJ_DIR)/tests/test_trig.o $(HASH_PROBE) ## Fail unless each pl
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_trig.o' PLANT_PROBE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX_INCLUDE='$(INCLUDE) -Itests' \
 	 PLANT_PROBE='$(HASH_PROBE)' PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted' \
 	 python3 tools/check-planted.py
 
@@ -531,8 +532,9 @@ oracle-build: ## Build the oracle image from its pinned Containerfile
 oracle-version: ## Fail unless the oracle image is present and matches its pin
 	@GHOTI_ORACLE_REQUIRED=1 $(ORACLE) version
 
-oracle-fit: ## Refit the kernel coefficients into src/elementary/trig_tables.h (changes every result)
+oracle-fit: ## Regenerate src/elementary/trig_tables.h (reduction constants) and trig_kernel_table.h (kernel table and tails; changes every result)
 	@$(ORACLE) fit > src/elementary/trig_tables.h.new && mv src/elementary/trig_tables.h.new src/elementary/trig_tables.h
+	@$(ORACLE) fit-kernel > src/elementary/trig_kernel_table.h.new && mv src/elementary/trig_kernel_table.h.new src/elementary/trig_kernel_table.h
 
 oracle-corpus: ## Regenerate tests/corpus from the oracle (then make corpus-hash-update)
 	@$(ORACLE) corpus --out $(CORPUS_DIR) --seed $(ORACLE_SEED)

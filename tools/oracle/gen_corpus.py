@@ -51,6 +51,15 @@ The inputs, by category (the same inputs for all three functions):
             k goes past the 2^20 limit to 32 times it, so that a limit set
             too high is seen.  Appended after every category above, so the
             earlier entries of a given seed are the same as before it existed.
+  kernel    the table-driven kernel (src/elementary/trig.c, kernel_front): for
+            every table row a reduced argument can reach (a = 2^e (1 + s/64) up
+            to pi/4, 229 rows) the double a itself, the double just below the
+            next row, and two random points between, as an unreduced argument
+            (the even quadrants) and the same reduced argument made odd by
+            adding pi/2 (cos for sin, cot for tan); the neighbours of 2^-4,
+            where the table starts and the direct polynomial ends; the direct
+            path's odd quadrant (cot of a small remainder) at every binade;
+            and the KERNEL_WITNESSES below.  Appended last, as above.
 """
 
 import argparse
@@ -222,6 +231,79 @@ def cw_inputs(rng, PI, add, n_k):
             d = math.nextafter(d, math.inf)
 
 
+# Inputs on which a one-ulp change of a polynomial tail coefficient of the
+# kernel (S1, C1 and T1 in trig_kernel_table.h, in either direction) changes
+# the result of sin, cos or tan respectively.  Such a change moves the value by
+# about 2^-75 of the result, so a random input shows it with probability about
+# 2^-22; these were found by searching 8e7 random arguments in [0, 2^-4]
+# against the committed kernel (story 3a, scratch search; the corpus does not
+# depend on the kernel, only on these bit patterns).  They are in the corpus so
+# that the committed hash sees such a change: check-planted plants each one.
+# Coefficients S2, S3, C2, C3 and T2 .. T6 move a result with probability below
+# 2^-36 and have no witness; tools/check-planted.py says so.
+KERNEL_WITNESSES = (
+    0x3fa8177328d74efc,  # S1 down one ulp
+    0x3fa173f1421eb6d9,  # S1 down one ulp
+    0x3fad6a7f3b6c56e2,  # S1 down one ulp
+    0x3fabd80469dd093f,  # S1 up one ulp
+    0x3fac4f4f9d50546b,  # S1 up one ulp
+    0x3fadd8a144cf5ac7,  # S1 up one ulp
+    0x3fa5dba950c429a7,  # C1 down one ulp
+    0x3fae68a4786a2108,  # C1 down one ulp
+    0x3fa51712cd4d9e66,  # C1 down one ulp
+    0x3faa68098377bf85,  # C1 up one ulp
+    0x3fad26df605d750d,  # C1 up one ulp
+    0x3fad56ed36991ab4,  # C1 up one ulp
+    0x3fabf7cc2dee8692,  # T1 down one ulp
+    0x3fa7d9824798c298,  # T1 down one ulp
+    0x3fab17ea33fb9c0a,  # T1 down one ulp
+    0x3f96787c8d06d814,  # T1 up one ulp
+    0x3fabe2c5dc230706,  # T1 up one ulp
+    0x3fa8aade69d4fb73,  # T1 up one ulp
+)
+
+
+def kernel_inputs(rng, PI, add):
+    half_pi = PI / 2
+    nrows = 0
+    for k in range(256):
+        e = -4 + k // 64
+        a = math.ldexp(1.0 + (k % 64) / 64.0, e)
+        if a > 0.7853981633974483:
+            break
+        nrows += 1
+        nxt = math.ldexp(1.0 + ((k % 64) + 1) / 64.0, e)
+        pts = [a, math.nextafter(nxt, 0)]
+        for _ in range(2):
+            pts.append(a + (nxt - a) * (rng.getrandbits(52) / (1 << 52)))
+        for h in pts:
+            if h > 0.7853981633974483:
+                continue
+            add(h)
+            add(float(half_pi + Fraction(h)))  # reduced to h again, with an odd quadrant
+    assert nrows == 229
+    # the direct/table boundary
+    d = 2.0 ** -4
+    lo = hi = d
+    for _ in range(8):
+        lo = math.nextafter(lo, 0)
+        hi = math.nextafter(hi, 1)
+        for h in (lo, hi):
+            add(h)
+            add(float(half_pi + Fraction(h)))
+    add(d)
+    add(float(half_pi + Fraction(d)))
+    # the direct path's odd quadrant: cot of a remainder at every binade
+    for e in range(-28, -4):
+        for _ in range(3):
+            h = math.ldexp(1.0 + rng.getrandbits(52) / (1 << 52), e)
+            add(float(half_pi + Fraction(h)))
+            add(float(half_pi - Fraction(h)))
+            add(float(3 * half_pi + Fraction(h)))
+    for w in KERNEL_WITNESSES:
+        add(double_of(w))
+
+
 def gen_inputs(rng, n_uniform, n_small, n_bits, n_kpi2_small, n_kpi2_big, cf_step, n_cw_k):
     seen = set()
     inputs = []
@@ -293,6 +375,8 @@ def gen_inputs(rng, n_uniform, n_small, n_bits, n_kpi2_small, n_kpi2_big, cf_ste
                 add(d)
     # the fast reduction's edges, last so that nothing above moves
     cw_inputs(rng, PI, add, n_cw_k)
+    # the kernel's table rows and tails, after that
+    kernel_inputs(rng, PI, add)
     return inputs
 
 

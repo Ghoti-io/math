@@ -7,10 +7,12 @@ Deterministic elementary functions that give the same bits on every host. It is 
 
 `gmath_sin`, `gmath_cos` and `gmath_tan` on `double` (`ghoti.io/math/elementary.h`):
 within 1 ulp of the true value for every finite argument up to `DBL_MAX`
-(measured at most 0.52 ulp over the corpus), the same bits on every target, using only
+(measured at most 0.53 ulp over the corpus), the same bits on every target, using only
 `+ - * /` and integer arithmetic. The argument is reduced exactly (Cody-Waite below 2^20 where
 that is provably as good, Payne-Hanek otherwise), so a huge argument near a
-multiple of pi/2 is as accurate as any other. `make bench` times the three
+multiple of pi/2 is as accurate as any other. The reduced argument is then
+looked up in a 16 KB table (sin, cos, tan and cot of its leading six bits) and
+corrected by a short polynomial in double. `make bench` times the three
 against the host libm.
 `atan2`, `exp`, `log`, `pow` and `hypot` are still to come.
 
@@ -19,7 +21,7 @@ library in the shape family runs in `make test`.
 
 ### How the accuracy is checked
 
-`tests/corpus/` holds 17,580 inputs per function with the correctly rounded
+`tests/corpus/` holds 19,431 inputs per function with the correctly rounded
 result and the exact value's distance from it, written by MPFR (through
 gmpy2, cross-checked against mpmath) in a pinned container
 (`tools/oracle/containers/mpfr`; `make oracle-build`, `make oracle-version`).
@@ -30,7 +32,8 @@ When the container is present `make test` also checks a fresh sample drawn that
 day; `GHOTI_ORACLE_REQUIRED=1` makes its absence a failure instead of a printed
 SKIPPED. `make check-planted` builds the library with a coefficient perturbed, a
 reduction branch skipped and a dozen other defects and requires each to fail.
-`make oracle-fit` refits the kernel coefficients; `make oracle-corpus` and
+`make oracle-fit` regenerates the reduction constants and the kernel's table and
+polynomials (`src/elementary/trig_tables.h`, `trig_kernel_table.h`); `make oracle-corpus` and
 `make corpus-hash-update` regenerate the corpus and its hash after a deliberate
 change.
 

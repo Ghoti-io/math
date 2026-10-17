@@ -12,6 +12,7 @@
 
     oracle.py version                       check the image against its pin
     oracle.py fit                           print src/elementary/trig_tables.h
+    oracle.py fit-kernel                    print src/elementary/trig_kernel_table.h
     oracle.py corpus --out DIR --seed N     write the committed-size corpus
     oracle.py fresh  --out DIR --seed N     write a small sample drawn now
 
@@ -77,7 +78,7 @@ def check_pin():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=("version", "fit", "corpus", "fresh"))
+    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "corpus", "fresh"))
     ap.add_argument("--out")
     ap.add_argument("--seed", type=int)
     a = ap.parse_args()
@@ -96,6 +97,8 @@ def main():
         return 0
     if a.cmd == "fit":
         return engine_run(ref, ["python", "tools/oracle/fit_coeffs.py"]).returncode
+    if a.cmd == "fit-kernel":
+        return engine_run(ref, ["python", "tools/oracle/fit_kernel.py"]).returncode
     if a.out is None or a.seed is None:
         sys.stderr.write("oracle.py: %s needs --out and --seed\n" % a.cmd)
         return 2

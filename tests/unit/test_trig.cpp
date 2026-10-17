@@ -29,16 +29,37 @@
 
 namespace {
 
-// The contract is 1 ulp (kContract).  The second bound is what makes a
-// perturbation of a coefficient in its last place show: the functions measure
-// 0.5 ulp plus a few hundredths over the committed corpus (0.5031 at most) and
-// over four other samples of the same size (0.5067 at most), and a polynomial
-// that is wrong in its last place is worse than that without being worse than
-// 1.  The committed corpus is held to kTight; a sample drawn today may hold a
-// new worst case a little above the old ones, so it is held to kTightFresh.
+// The contract is 1 ulp (kContract).  The other bounds are what the kernel
+// measures plus a margin, so that a table entry or coefficient that is wrong
+// by more than rounding, which is worse than that without being worse than 1,
+// still shows.  (One that is wrong by a unit in the last place of a tail
+// coefficient moves no result of the corpus by more than a rounding and is
+// caught by the committed hash and the table-row test instead; see
+// tools/check-planted.py.)
+//
+// The kernel (a table of sin, cos, tan and cot of the leading six bits of the
+// reduced argument and a short correction in double; trig.c) rounds its
+// correction, so its results are no longer within 0.50x ulp.  tan, with about
+// five roundings in the correction and a division, is the worst.  Measured, in
+// ulp of the exact value (story 3a, 2026-10-17):
+//
+//                                       sin      cos      tan
+//   committed corpus (17,580 each)      0.5053   0.5111   0.5254
+//   four oracle samples of 120,000 each, uniform +-pi/4, log-uniform
+//   2^-28 .. pi/4 and log-uniform 0.8 .. 2^20
+//                                       0.5151   0.5154   0.5364
+//   six `oracle.py fresh` samples (27,539 entries per function in all)
+//                                       0.5051   0.5073   0.5155
+//   4.6e8 random arguments, against the previous double-double kernel
+//   (accurate to about 2^-64)           0.5234   0.5234   0.5640
+//
+// kTight is held on the committed corpus, 0.01 above its measured worst case.
+// A sample drawn today may hold a new worst case a little above the old ones,
+// so it is held to kTightFresh, 0.01 above the worst of everything above (the
+// random arguments).  All of these are far below the contract.
 constexpr double kContract = 1.0;
-constexpr double kTight = 0.5200;
-constexpr double kTightFresh = 0.5500;
+constexpr double kTight[3] = {0.5150, 0.5210, 0.5350};       // sin, cos, tan
+constexpr double kTightFresh[3] = {0.5350, 0.5350, 0.5750};  // sin, cos, tan
 
 struct Entry {
   uint64_t x;
@@ -163,12 +184,14 @@ TEST(Trig, CorpusIsWithinOneUlp) {
   } fns[] = {{"sin", gmath_sin}, {"cos", gmath_cos}, {"tan", gmath_tan}};
   uint64_t hash = GMATH_FNV_BASIS;
   size_t total = 0;
+  int fi = -1;
   for (const auto & fn : fns) {
+    fi++;
     std::vector<Entry> corpus = Load(dir, fn.name);
     ASSERT_GE(corpus.size(), MinEntries()) << dir << "/" << fn.name << ".corpus is missing or short";
     Stats s = Check(fn.name, fn.f, corpus);
     EXPECT_EQ(s.over, 0u) << fn.name;
-    EXPECT_LE(s.max_err, committed ? kTight : kTightFresh) << fn.name << " is within the contract but no longer as accurate as it was";
+    EXPECT_LE(s.max_err, committed ? kTight[fi] : kTightFresh[fi]) << fn.name << " is within the contract but no longer as accurate as it was";
     for (const Entry & e : corpus) {
       hash = gmath_fnv_double(hash, fn.f(DoubleOf(e.x)));
     }
