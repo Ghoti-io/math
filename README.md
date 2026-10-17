@@ -7,9 +7,11 @@ Deterministic elementary functions that give the same bits on every host. It is 
 
 `gmath_sin`, `gmath_cos` and `gmath_tan` on `double` (`ghoti.io/math/elementary.h`):
 within 1 ulp of the true value for every finite argument up to `DBL_MAX`
-(measured at most 0.51 ulp over the corpus), the same bits on every target, using only
-`+ - * /` and integer arithmetic. The argument is reduced exactly (Payne-Hanek),
-so a huge argument near a multiple of pi/2 is as accurate as any other.
+(measured at most 0.52 ulp over the corpus), the same bits on every target, using only
+`+ - * /` and integer arithmetic. The argument is reduced exactly (Cody-Waite below 2^20 where
+that is provably as good, Payne-Hanek otherwise), so a huge argument near a
+multiple of pi/2 is as accurate as any other. `make bench` times the three
+against the host libm.
 `atan2`, `exp`, `log`, `pow` and `hypot` are still to come.
 
 Also `gmath_version_string()` and `gmath_version_number()`, and the gates every
@@ -17,7 +19,7 @@ library in the shape family runs in `make test`.
 
 ### How the accuracy is checked
 
-`tests/corpus/` holds 15,523 inputs per function with the correctly rounded
+`tests/corpus/` holds 17,580 inputs per function with the correctly rounded
 result and the exact value's distance from it, written by MPFR (through
 gmpy2, cross-checked against mpmath) in a pinned container
 (`tools/oracle/containers/mpfr`; `make oracle-build`, `make oracle-version`).

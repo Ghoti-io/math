@@ -42,6 +42,15 @@ The inputs, by category (the same inputs for all three functions):
   cf        for each binary exponent, the doubles whose x*2/pi is nearest an
             integer, found from the continued fraction of 2^q * 2/pi (the
             worst cases for argument reduction)
+  cw        the edges of the fast reduction for |x| < 2^20 (src/elementary/
+            trig.c, reduce_fast): the doubles either side of 2^20, near k*pi/2
+            for small k and for k up to the largest it handles, at the offsets
+            where its remainder is anywhere from 2^-62 to 2^-24 (the floor
+            under which it hands over to the exact reduction is 2^-55), and
+            near (k + 1/2) * pi/2 where its quotient is the least certain.
+            k goes past the 2^20 limit to 32 times it, so that a limit set
+            too high is seen.  Appended after every category above, so the
+            earlier entries of a given seed are the same as before it existed.
 """
 
 import argparse
@@ -163,7 +172,57 @@ def cf_cases(q, pi_over_2_inv):
     return [math.ldexp(float(m), q) for m in out]
 
 
-def gen_inputs(rng, n_uniform, n_small, n_bits, n_kpi2_small, n_kpi2_big, cf_step):
+def cw_inputs(rng, PI, add, n_k):
+    """Edge cases of the fast reduction (see the module docstring)."""
+    L = 2.0 ** 20
+    for s in (1.0, -1.0):
+        for base in (L, L / 2, L * 2):
+            d = base
+            for _ in range(8):
+                d = math.nextafter(d, 0)
+                add(s * d)
+            d = base
+            add(s * d)
+            for _ in range(8):
+                d = math.nextafter(d, math.inf)
+                add(s * d)
+    for _ in range(60):
+        e = rng.uniform(19.0, 22.0)
+        add((1 if rng.getrandbits(1) else -1) * 2.0 ** e)
+    kmax = int(L * 2 / math.pi) + 1
+    ks = list(range(1, 9)) + list(range(kmax - 4, kmax + 3))
+    for _ in range(n_k):
+        ks.append(int(2.0 ** rng.uniform(0, math.log2(kmax))))
+    for _ in range(n_k // 2):
+        ks.append(int(2.0 ** rng.uniform(math.log2(kmax) - 1, math.log2(kmax * 32))))
+    for k in ks:
+        t = float(PI * k / 2)
+        if not (math.pi / 4 < t < 64 * L):
+            continue
+        d = t
+        for _ in range(3):
+            d = math.nextafter(d, 0)
+            add(d)
+        d = t
+        add(d)
+        for _ in range(3):
+            d = math.nextafter(d, math.inf)
+            add(d)
+        u = math.ulp(t)
+        for e in range(-62, -23, 2):
+            j = max(1, round(2.0 ** e / u))
+            add(t + j * u)
+            add(t - j * u)
+        h = float(PI * (2 * k + 1) / 4)
+        d = h
+        for _ in range(3):
+            d = math.nextafter(d, 0)
+        for _ in range(7):
+            add(d)
+            d = math.nextafter(d, math.inf)
+
+
+def gen_inputs(rng, n_uniform, n_small, n_bits, n_kpi2_small, n_kpi2_big, cf_step, n_cw_k):
     seen = set()
     inputs = []
 
@@ -232,6 +291,8 @@ def gen_inputs(rng, n_uniform, n_small, n_bits, n_kpi2_small, n_kpi2_big, cf_ste
         for d in cf_cases(q, inv):
             if finite(d):
                 add(d)
+    # the fast reduction's edges, last so that nothing above moves
+    cw_inputs(rng, PI, add, n_cw_k)
     return inputs
 
 
@@ -243,10 +304,10 @@ def main():
     a = ap.parse_args()
     if a.size == "committed":
         sizes = dict(n_uniform=4000, n_small=2000, n_bits=3500, n_kpi2_small=250,
-                     n_kpi2_big=350, cf_step=1)
+                     n_kpi2_big=350, cf_step=1, n_cw_k=40)
     else:
         sizes = dict(n_uniform=600, n_small=300, n_bits=500, n_kpi2_small=40,
-                     n_kpi2_big=60, cf_step=7)
+                     n_kpi2_big=60, cf_step=7, n_cw_k=12)
     rng = random.Random(a.seed)
     inputs = gen_inputs(rng, **sizes)
     os.makedirs(a.out, exist_ok=True)

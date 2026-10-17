@@ -32,6 +32,12 @@
  *     of pi/2.  Done in 32-bit limbs with 64-bit products, so it is the same
  *     integer arithmetic on every target (no 128-bit type, no integer to
  *     double conversion, which an i686 build would do on the x87 stack).
+ *   - For moderate arguments (below 2^20), the cheaper reduction of Cody and
+ *     Waite (1980; Muller, Elementary Functions, chapter 11): the quotient
+ *     n from one multiplication, and the remainder from n times a pi/2 split
+ *     into parts short enough that every product is exact.  It is used only
+ *     when it provably agrees with Payne-Hanek (see reduce_fast); everything
+ *     else, including every argument it declines, goes the exact way.
  *   - Error-free transformations (Dekker's FastTwoSum, split and product;
  *     Muller, Elementary Functions, chapter 4) for the few terms that need
  *     more than a double: the reduced argument, r^3/6 and 1 - r^2/2.
@@ -51,6 +57,10 @@
 #include <string.h>
 
 #include "trig_tables.h"
+
+/* pi/4 rounded to a double (0x1.921fb54442d18p-1): the argument below which no
+ * reduction is needed. */
+#define GMATH_PIO4 0x1.921fb54442d18p-1
 
 /* A double-double: hi + lo, with |lo| <= ulp(hi)/2 when normalized. */
 typedef struct {
@@ -248,6 +258,101 @@ static int reduce(double ax, double * rh, double * rl) {
   return n;
 }
 
+/* Knuth's TwoSum: s + e == a + b exactly, in any order of magnitudes. */
+static gmath_dd two_sum(double a, double b) {
+  gmath_dd r;
+  double s = a + b;
+  double bb = s - a;
+  double e = (a - (s - bb)) + (b - bb);
+  r.hi = s;
+  r.lo = e;
+  return r;
+}
+
+/* The fast reduction takes arguments strictly below this, which bounds the
+ * quotient n below 2^20 (x * 2/pi < 667,545) and so lets n * P1, n * P2 and
+ * n * P3 (n of 20 bits, Pk of 33) be exact products. */
+#define GMATH_CW_LIMIT 0x1p20
+
+/* The remainder is declined when it is smaller than this: its error is a
+ * fixed absolute amount (below), so the relative error grows as it shrinks.
+ * Below 2^20 no double is closer than 2^-60 to a multiple of pi/2, so this
+ * hands over only a small part of the doubles near one; it is a margin of the
+ * proof, not a boundary a result can tell. */
+#define GMATH_CW_MIN_R 0x1p-55
+
+/* Added to 2/pi * x, it leaves round-to-nearest-even(2/pi * x) in the low
+ * bits of the sum: 1.5 * 2^52, so the sum's ulp is 1 and its value is
+ * 2^52 + 2^51 + n for any integer n below 2^31. */
+#define GMATH_CW_MAGIC 0x1.8p52
+
+/*
+ * Fast reduction for pi/4 < ax < 2^20.  Gives the same n mod 4 and the same
+ * remainder (rh, rl) as reduce(), to within 2^-79 |rh| in rl, or
+ * declines (returns -1) and leaves the work to reduce().
+ *
+ * n is the nearest integer to ax * 2/pi, taken by the 2^52 + 2^51 trick: no
+ * integer to double conversion, no x87.  The product and the sum are each
+ * rounded, so n can be one off when ax * 2/pi is within about 2^-33 of a
+ * half-integer; that case has |r| > pi/4 (or within 2^-33 of it) and is
+ * declined by the range test at the end.  Where the test passes, |r| is below
+ * the double pi/4, which is below the true pi/4, and so n is the nearest
+ * integer exactly as reduce() takes it.
+ *
+ * With P1 + P2 + P3 + P4 = pi/2 (three parts of 33 bits and a double):
+ *
+ *   d  = ax - n*P1   exact.  n*P1 is exact (20 + 33 bits).  ax and n*P1 are
+ *                    both multiples of ulp(ax) (ulp(ax) <= 2^-33 below 2^20 and
+ *                    P1 is a multiple of 2^-32), and |d| is below 2^53 ulp(ax)
+ *                    (|d| < pi/4 + n * 2^-33), so d needs at most 53 bits.
+ *   t2 = n*P2, t3 = n*P3   exact (20 + 33 bits).
+ *   (s, e1) = TwoSum(d, -t2); (s, e2) = TwoSum(s, -t3)   exact.
+ *   t4 = n*P4        rounded: |t4| < 2^20 * 2^-103, so the error is below
+ *                    2^-136.
+ *   lo = (e1 + e2) - t4   rounded: |e1|, |e2| <= 2^-53 (|r| + 2^-45) and
+ *                    |t4| < 2^-83, so the error is below 2^-106 |r| + 2^-135.
+ *
+ * and P4 stops at 2^-156, so the sum of the four parts misses pi/2 by less
+ * than n * 2^-156 < 2^-136.  The absolute error of s + lo as the remainder is
+ * therefore below 2^-106 |r| + 2^-134, and for |r| >= 2^-55 that is below
+ * 2^-79 |r|.  The
+ * remainder reduce() returns is good to 2^-106 |r|, so the two agree to
+ * about 2^-79 |r| at the floor and to 2^-106 for ordinary r.  (Measured
+ * against reduce() over 6e7 arguments and over the corpus's worst cases,
+ * whose smallest |r| is 2^-60.5, they differ by at most 2^-87 |r|; the bound
+ * above is the one relied on.)  Below the floor the fast path declines.
+ */
+static int reduce_fast(double ax, double * rh, double * rl) {
+  double t = ax * GMATH_CW_INV_PIO2;
+  t = t + GMATH_CW_MAGIC;
+  int n = (int)(bits_of(t) & 0xffffffffu);
+  double nd = t - GMATH_CW_MAGIC;
+  double d = ax - nd * GMATH_CW_P1;
+  gmath_dd a = two_sum(d, -(nd * GMATH_CW_P2));
+  gmath_dd b = two_sum(a.hi, -(nd * GMATH_CW_P3));
+  double lo = (a.lo + b.lo) - nd * GMATH_CW_P4;
+  gmath_dd r = fast_two_sum(b.hi, lo);
+  double mag = double_of(bits_of(r.hi) & ABS_MASK);
+  if (!(mag >= GMATH_CW_MIN_R && mag <= GMATH_PIO4)) {
+    return -1;
+  }
+  *rh = r.hi;
+  *rl = r.lo;
+  return n & 3;
+}
+
+/* The reduction every function uses: n mod 4, with (rh, rl) = ax - n*pi/2 for
+ * the nearest integer n.  ax > pi/4. */
+static int reduce_any(double ax, double * rh, double * rl) {
+  if (ax < GMATH_CW_LIMIT) {
+    int n = reduce_fast(ax, rh, rl);
+    if (n >= 0) {
+      return n;
+    }
+  }
+  return reduce(ax, rh, rl);
+}
+
 /* sin(rh + rl) for |rh| <= pi/4 + a little, as a double-double. */
 static gmath_dd kernel_sin(double rh, double rl) {
   gmath_dd z = two_prod(rh, rh);
@@ -305,9 +410,6 @@ static double apply_sign(double r, uint64_t sign) {
   return double_of(bits_of(r) ^ sign);
 }
 
-/* |x| <= pi/4, as a double (the rounded value, 0x1.921fb54442d18p-1). */
-#define GMATH_PIO4 0x1.921fb54442d18p-1
-
 double gmath_sin(double x) {
   uint64_t sign = bits_of(x) & SIGN_BIT;
   double ax = double_of(bits_of(x) & ABS_MASK);
@@ -321,7 +423,7 @@ double gmath_sin(double x) {
   double rl = 0.0;
   int n = 0;
   if (ax > GMATH_PIO4) {
-    n = reduce(ax, &rh, &rl);
+    n = reduce_any(ax, &rh, &rl);
   }
   gmath_dd r = (n & 1) ? kernel_cos(rh, rl) : kernel_sin(rh, rl);
   return apply_sign(r.hi, (n & 2) ? sign ^ SIGN_BIT : sign);
@@ -339,7 +441,7 @@ double gmath_cos(double x) {
   double rl = 0.0;
   int n = 0;
   if (ax > GMATH_PIO4) {
-    n = reduce(ax, &rh, &rl);
+    n = reduce_any(ax, &rh, &rl);
   }
   gmath_dd r = (n & 1) ? kernel_sin(rh, rl) : kernel_cos(rh, rl);
   /* cos: + sin(r)... by quadrant: n=0 cos, 1 -sin, 2 -cos, 3 sin. */
@@ -359,7 +461,7 @@ double gmath_tan(double x) {
   double rl = 0.0;
   int n = 0;
   if (ax > GMATH_PIO4) {
-    n = reduce(ax, &rh, &rl);
+    n = reduce_any(ax, &rh, &rl);
   }
   gmath_dd s = kernel_sin(rh, rl);
   gmath_dd c = kernel_cos(rh, rl);

@@ -37,6 +37,10 @@ to double and the error of the rounded polynomial is measured on a dense grid.
 
 Also printed: the bits of 2/pi as 32-bit words for the Payne-Hanek reduction
 (Payne and Hanek, 1983), pi/2 as a double-double, and -1/6 as a double-double.
+For the fast reduction of moderate arguments (Cody and Waite, 1980; Muller,
+Elementary Functions, chapter 11): 2/pi as a double, and pi/2 split as
+P1 + P2 + P3 + P4 with P1..P3 of 33 significant bits each, so that n * Pk is
+exact for any n below 2^20, and P4 the double nearest the remainder.
 """
 
 import sys
@@ -134,6 +138,13 @@ def dd_split(v):
     return hi, lo
 
 
+def round_bits(v, bits):
+    """v rounded to the nearest number with the given count of significant bits."""
+    e = int(mp.floor(mp.log(abs(v), 2)))
+    scale = mpf(2) ** (bits - 1 - e)
+    return mp.nint(v * scale) / scale
+
+
 def hexd(d):
     return float(d).hex()
 
@@ -184,6 +195,15 @@ def main():
     q_hi, q_lo = dd_split(mpf(-1) / 6)
     t_hi, t_lo = dd_split(mpf(1) / 24)
 
+    cw = []
+    rem = pio2
+    for _ in range(3):
+        part = round_bits(rem, 33)
+        cw.append(part)
+        rem -= part
+    cw.append(mpf(float(rem)))
+    inv2pi = float(2 / pi)
+
     out = []
     w = out.append
     w("""/*
@@ -231,6 +251,14 @@ def main():
     w("/* pi/2 as a double-double: hi + lo, relative error 2^-107. */")
     w("#define GMATH_PIO2_HI %s" % hexd(p_hi))
     w("#define GMATH_PIO2_LO %s\n" % hexd(p_lo))
+    w("/* The fast reduction: n = round(x * 2/pi), r = x - n*(P1 + P2 + P3 + P4).")
+    w(" * P1..P3 have 33 significant bits and so n * Pk is exact for n < 2^20;")
+    w(" * P4 is the double nearest what is left of pi/2.  The four sum to pi/2 with")
+    w(" * an error below 2^-156. */")
+    w("#define GMATH_CW_INV_PIO2 %s" % hexd(inv2pi))
+    for i, part in enumerate(cw):
+        w("#define GMATH_CW_P%d %s" % (i + 1, hexd(float(part))))
+    w("")
     w("/* -1/6 as a double-double. */")
     w("#define GMATH_M1_6_HI %s" % hexd(q_hi))
     w("#define GMATH_M1_6_LO %s\n" % hexd(q_lo))

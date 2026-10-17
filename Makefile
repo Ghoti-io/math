@@ -373,7 +373,7 @@ $(APP_DIR)/examples/%$(EXE_EXTENSION): examples/%.c $(APP_DIR)/$(STATIC_TARGET) 
 
 .PHONY: clean cloc docs docs-pdf examples coverage check-symbols check-stamps check-aliasing
 .PHONY: check-fp-contract check-edges check-libm check-no-x87 check-gates libver-gen
-.PHONY: check-corpus-hash check-planted check-oracle-fresh oracle-build oracle-version oracle-fit oracle-corpus oracle-fresh corpus-hash-update
+.PHONY: bench check-corpus-hash check-planted check-oracle-fresh oracle-build oracle-version oracle-fit oracle-corpus oracle-fresh corpus-hash-update
 .PHONY: all install test test-quiet test-asan test-valgrind test-valgrind-quiet test-watch uninstall watch
 .PHONY: all-debug install-debug test-debug test-valgrind-debug test-watch-debug uninstall-debug watch-debug
 .PHONY: fuzz fuzz-clean
@@ -477,6 +477,7 @@ CORPUS_DIR := tests/corpus
 HASH_PROBE := $(APP_DIR)/tools/corpus-hash$(EXE_EXTENSION)
 ORACLE := python3 tools/oracle/oracle.py
 ORACLE_SEED := 20261017
+BENCH_REPEATS ?= 20
 # TESTFLAGS is a backtick expression for the shell; the planted-defect script
 # splits its flags itself and needs them expanded.
 GTEST_FLAGS := $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cflags gtest 2>/dev/null)
@@ -485,6 +486,16 @@ $(HASH_PROBE): tools/corpus-hash.c tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGE
 		$(FLAGS_STAMP) | $(APP_DIR)/$(TARGET) $(LIBVER_GEN)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY)
+
+BENCH_PROBE := $(APP_DIR)/tools/bench-trig$(EXE_EXTENSION)
+
+$(BENCH_PROBE): tools/bench-trig.c $(APP_DIR)/$(STATIC_TARGET) \
+		$(FLAGS_STAMP) | $(APP_DIR)/$(TARGET) $(LIBVER_GEN)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+
+bench: $(BENCH_PROBE) ## Time sin, cos and tan against the host libm, per argument range (a measurement, not a test)
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(BENCH_PROBE) $(BENCH_REPEATS)
 
 check-corpus-hash: $(HASH_PROBE) ## Fail if the hash over the trig corpus is not the committed one (AD-17)
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" tools/check-corpus-hash.sh $(HASH_PROBE) $(CORPUS_DIR) $(CORPUS_DIR)/trig.hash

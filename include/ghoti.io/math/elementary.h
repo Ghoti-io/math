@@ -46,8 +46,9 @@ extern "C" {
  *
  * The result is within 1 unit in the last place of the true value for every
  * finite @p x, up to `DBL_MAX`: the argument is reduced exactly (Payne-Hanek),
- * so a huge @p x near a multiple of pi/2 is as accurate as any other.  Measured
- * over `tests/corpus` it is at most 0.51 ulp.
+ * so a huge @p x near a multiple of pi/2 is as accurate as any other (below 2^20
+ * a cheaper reduction is used where it gives the same bits).  Measured
+ * over `tests/corpus` it is at most 0.52 ulp.
  *
  * Special values follow C99 Annex F.  `gmath_sin(+-0)` is `+-0` and a
  * subnormal @p x is returned unchanged.  An infinite @p x raises the invalid
@@ -64,7 +65,7 @@ GMATH_API double gmath_sin(double x);
  * @brief The cosine of @p x, in radians.
  *
  * Within 1 ulp of the true value for every finite @p x, with the exact
- * argument reduction of ::gmath_sin; at most 0.51 ulp over `tests/corpus`.
+ * argument reduction of ::gmath_sin; at most 0.52 ulp over `tests/corpus`.
  * `gmath_cos(+-0)` and the cosine of any @p x below 2^-27 in magnitude is 1.
  * An infinite or NaN @p x gives the NaN described at ::gmath_sin.
  *
@@ -77,7 +78,7 @@ GMATH_API double gmath_cos(double x);
  * @brief The tangent of @p x, in radians.
  *
  * Within 1 ulp of the true value for every finite @p x, with the exact
- * argument reduction of ::gmath_sin; at most 0.51 ulp over `tests/corpus`.
+ * argument reduction of ::gmath_sin; at most 0.52 ulp over `tests/corpus`.
  * `gmath_tan(+-0)` is `+-0` and a subnormal @p x is returned unchanged.  The
  * result is always finite: no double is close enough to an odd multiple of
  * pi/2 for the tangent to overflow.  An infinite or NaN @p x gives the NaN

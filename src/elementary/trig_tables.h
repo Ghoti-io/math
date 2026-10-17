@@ -54,6 +54,16 @@ static const uint32_t gmath_two_over_pi[GMATH_TWO_OVER_PI_WORDS] = {
 #define GMATH_PIO2_HI 0x1.921fb54442d18p+0
 #define GMATH_PIO2_LO 0x1.1a62633145c07p-54
 
+/* The fast reduction: n = round(x * 2/pi), r = x - n*(P1 + P2 + P3 + P4).
+ * P1..P3 have 33 significant bits and so n * Pk is exact for n < 2^20;
+ * P4 is the double nearest what is left of pi/2.  The four sum to pi/2 with
+ * an error below 2^-156. */
+#define GMATH_CW_INV_PIO2 0x1.45f306dc9c883p-1
+#define GMATH_CW_P1 0x1.921fb54400000p+0
+#define GMATH_CW_P2 0x1.0b4611a600000p-34
+#define GMATH_CW_P3 0x1.3198a2e000000p-69
+#define GMATH_CW_P4 0x1.b839a252049c1p-104
+
 /* -1/6 as a double-double. */
 #define GMATH_M1_6_HI -0x1.5555555555555p-3
 #define GMATH_M1_6_LO -0x1.5555555555555p-57

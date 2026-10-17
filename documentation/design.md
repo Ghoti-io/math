@@ -29,8 +29,25 @@ truncation error of `2^-168` is far below one ulp of the result. Only integer
 arithmetic is used: a 128-bit type is not available on i686 and an integer to
 double conversion compiles to an x87 `fild` there, which `check-no-x87` refuses,
 so a 53-bit integer becomes a double through the bit pattern of `2^52 + k`.
-There is one reduction path: the table is indexed from the exponent of `x`,
-`|x|` up to `DBL_MAX` takes the same code as `|x| = 1`.
+The table is indexed from the exponent of `x`, so `|x|` up to `DBL_MAX` takes
+the same code as `|x| = 1`.
+
+**Fast reduction.** For `pi/4 < |x| < 2^20` the quotient is one multiplication
+(`n = round(x * 2/pi)`, taken through the `2^52 + 2^51` trick, which needs no
+integer to double conversion) and the remainder is `x - n*P1 - n*P2 - n*P3 -
+n*P4` with `pi/2 = P1 + P2 + P3 + P4`, `P1..P3` of 33 bits and `P4` a double
+(Cody and Waite, 1980). Every product with `P1..P3` is exact because `n` has at
+most 20 bits, `x - n*P1` is exact, and the sums are Knuth's TwoSum, so the
+remainder is a double-double accurate to `2^-134` absolute. That is
+`2^-79` of the remainder or better for `|r| >= 2^-55`, and the fast path hands
+anything smaller (no double below `2^20` is closer than `2^-60` to a multiple
+of `pi/2`) to Payne-Hanek, as it does a quotient the rounding put one off
+(`|r|` above the double `pi/4`). Where it answers it returns the same `n` and
+the same `rh` as Payne-Hanek and an `rl` that differs by under `2^-79 |r|`
+(measured at most `2^-87`), so the results are the same bits: the committed
+hash over the original 46,569 results did not change. `trig.c` states the
+proof, `test_trig_reduce.cpp` compares the two reductions, and `make bench`
+times them.
 
 **Kernels.** `sin r = r - r^3/6 + r^5 S(r^2)` and
 `cos r = 1 - r^2/2 + r^4/24 + r^6 C(r^2)`, with `r^3/6`, `r^2/2` and `r^4/24`

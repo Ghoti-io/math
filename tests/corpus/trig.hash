@@ -1,4 +1,4 @@
 # FNV-1a 64 over the little-endian bytes of every result, sin then cos then tan, in corpus order.
 # Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig and the cross-target scripts.
-hash be79636bc18b46a1
-count 46569
+hash 48c7d448404dbaa9
+count 52740

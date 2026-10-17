@@ -183,7 +183,22 @@ expect_oracle_fails("reduction/remainder tail dropped", [(C, "s.lo + (u.lo + (ta
 expect_oracle_fails("quadrant/cos sign", [(C, "((n + 1) & 2) ? SIGN_BIT : 0", "(n & 2) ? SIGN_BIT : 0")])
 expect_oracle_fails("quadrant/sin sign", [(C, "(n & 2) ? sign ^ SIGN_BIT : sign", "sign")])
 expect_oracle_fails("quadrant/tan sign", [(C, "(n & 1) ? sign ^ SIGN_BIT : sign", "sign")])
-expect_oracle_fails("fast path/sin returns x up to 2^-20", [(C, "if (ax < 0x1p-28) {\n    return x;\n  }\n  double rh = ax;\n  double rl = 0.0;\n  int n = 0;\n  if (ax > GMATH_PIO4) {\n    n = reduce(ax, &rh, &rl);\n  }\n  gmath_dd r = (n & 1) ? kernel_cos(rh, rl) : kernel_sin(rh, rl);", "if (ax < 0x1p-20) {\n    return x;\n  }\n  double rh = ax;\n  double rl = 0.0;\n  int n = 0;\n  if (ax > GMATH_PIO4) {\n    n = reduce(ax, &rh, &rl);\n  }\n  gmath_dd r = (n & 1) ? kernel_cos(rh, rl) : kernel_sin(rh, rl);")])
+expect_oracle_fails("fast path/sin returns x up to 2^-20", [(C, "if (ax < 0x1p-28) {\n    return x;\n  }\n  double rh = ax;\n  double rl = 0.0;\n  int n = 0;\n  if (ax > GMATH_PIO4) {\n    n = reduce_any(ax, &rh, &rl);\n  }\n  gmath_dd r = (n & 1) ? kernel_cos(rh, rl) : kernel_sin(rh, rl);", "if (ax < 0x1p-20) {\n    return x;\n  }\n  double rh = ax;\n  double rl = 0.0;\n  int n = 0;\n  if (ax > GMATH_PIO4) {\n    n = reduce_any(ax, &rh, &rl);\n  }\n  gmath_dd r = (n & 1) ? kernel_cos(rh, rl) : kernel_sin(rh, rl);")])
+
+# The fast reduction (reduce_fast): a wrong constant, a limit set too high and
+# the last part of pi/2 dropped.  (The 2^-55 floor under which it hands over to
+# the exact reduction is not planted: no double below the limit is closer than
+# 2^-60 to a multiple of pi/2, so removing the floor changes no result by more
+# than about 2^-21 ulp, and a plant that nothing can see is not one.)  Each
+# plant here is a result that is wrong only for some of the arguments the fast path takes, which is why the
+# corpus has the edges of its range (gen_corpus.py, cw_inputs).
+expect_oracle_fails("fast/P1 wrong in its last bit", [(T, "#define GMATH_CW_P1 0x1.921fb54400000p+0", "#define GMATH_CW_P1 0x1.921fb54480000p+0")])
+expect_oracle_fails("fast/P2 wrong in its last bit", [(T, "#define GMATH_CW_P2 0x1.0b4611a600000p-34", "#define GMATH_CW_P2 0x1.0b4611a640000p-34")])
+expect_oracle_fails("fast/P3 wrong in its 8th hex digit", [(T, "#define GMATH_CW_P3 0x1.3198a2e000000p-69", "#define GMATH_CW_P3 0x1.3198a2f000000p-69")])
+expect_oracle_fails("fast/P4 dropped", [(T, "#define GMATH_CW_P4 0x1.b839a252049c1p-104", "#define GMATH_CW_P4 0x0p+0")])
+expect_oracle_fails("fast/limit 2^24 not 2^20", [(C, "#define GMATH_CW_LIMIT 0x1p20", "#define GMATH_CW_LIMIT 0x1p24")])
+expect_oracle_fails("fast/limit 2^40 not 2^20", [(C, "#define GMATH_CW_LIMIT 0x1p20", "#define GMATH_CW_LIMIT 0x1p40")])
+expect_oracle_fails("fast/tail t4 dropped from lo", [(C, "double lo = (a.lo + b.lo) - nd * GMATH_CW_P4;", "double lo = a.lo + b.lo;")])
 
 # Hash-class defects: below the contract, above the committed bits.
 expect_hash_fails("coefficient/sin S0 up one ulp", [(T, "0x1.1111111111111p-7", "0x1.1111111111112p-7")])
@@ -239,7 +254,8 @@ if ctl is not None:
 
     # The committed hash file: a changed hash, an emptied file and a missing one.
     exe = work / "control" / "corpus-hash"
-    for label, content in (("changed hash", "hash 0000000000000000\ncount 46569\n"),
+    real_count = re.search(r"count (\d+)", (CORPUS / "trig.hash").read_text()).group(1)
+    for label, content in (("changed hash", "hash 0000000000000000\ncount %s\n" % real_count),
                            ("changed count", None),
                            ("emptied file", ""), ("missing file", False)):
         hf = work / ("hash-" + label.replace(" ", "-"))
