@@ -255,7 +255,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates examples
+TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -373,6 +373,7 @@ $(APP_DIR)/examples/%$(EXE_EXTENSION): examples/%.c $(APP_DIR)/$(STATIC_TARGET) 
 
 .PHONY: clean cloc docs docs-pdf examples coverage check-symbols check-stamps check-aliasing
 .PHONY: check-fp-contract check-edges check-libm check-no-x87 check-gates libver-gen
+.PHONY: check-corpus-hash check-planted check-oracle-fresh oracle-build oracle-version oracle-fit oracle-corpus oracle-fresh corpus-hash-update
 .PHONY: all install test test-quiet test-asan test-valgrind test-valgrind-quiet test-watch uninstall watch
 .PHONY: all-debug install-debug test-debug test-valgrind-debug test-watch-debug uninstall-debug watch-debug
 .PHONY: fuzz fuzz-clean
@@ -450,6 +451,80 @@ check-no-x87: $(APP_DIR)/$(STATIC_TARGET) ## Fail if an x86 object holds an x87 
 
 check-gates: ## Prove each gate fails on its planted violation and passes its control
 	@CC='$(CC)' GATE_PROJECT='$(PROJECT)' GATE_ALLOWED='$(EDGES_ALLOWED)' GATE_LIBM_EXEMPT='$(LIBM_EXEMPT)' tools/check-gates.sh
+
+####################################################################
+# sin, cos and tan against the multiple-precision oracle (CAP-1, AD-22)
+####################################################################
+#
+# tests/corpus holds the oracle's committed answers (MPFR, in the pinned image
+# tools/oracle/containers/mpfr); testTrig checks every result against them and
+# needs no container. The container is needed to regenerate the corpus, to fit
+# the kernel coefficients, and for the fresh sample below.
+#
+#   check-corpus-hash  the hash of the library's results over the corpus is the
+#                      committed one (tests/corpus/trig.hash). The same program
+#                      is built for every other target by suite/tools/xarch and
+#                      xwin, which is what makes the hash a cross-target check.
+#   check-planted      a perturbed coefficient, a skipped reduction branch and
+#                      the other defects in tools/check-planted.py are each
+#                      built into a copy of the library and must fail testTrig;
+#                      the unplanted copy must pass.
+#   check-oracle-fresh a sample drawn now, in the container, checked by testTrig.
+#                      Without the container it prints SKIPPED and passes;
+#                      GHOTI_ORACLE_REQUIRED=1 makes that a failure.
+
+CORPUS_DIR := tests/corpus
+HASH_PROBE := $(APP_DIR)/tools/corpus-hash$(EXE_EXTENSION)
+ORACLE := python3 tools/oracle/oracle.py
+ORACLE_SEED := 20261017
+# TESTFLAGS is a backtick expression for the shell; the planted-defect script
+# splits its flags itself and needs them expanded.
+GTEST_FLAGS := $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cflags gtest 2>/dev/null)
+
+$(HASH_PROBE): tools/corpus-hash.c tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) \
+		$(FLAGS_STAMP) | $(APP_DIR)/$(TARGET) $(LIBVER_GEN)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY)
+
+check-corpus-hash: $(HASH_PROBE) ## Fail if the hash over the trig corpus is not the committed one (AD-17)
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" tools/check-corpus-hash.sh $(HASH_PROBE) $(CORPUS_DIR) $(CORPUS_DIR)/trig.hash
+
+corpus-hash-update: $(HASH_PROBE) ## Rewrite tests/corpus/trig.hash from this build (after a deliberate change)
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(HASH_PROBE) $(CORPUS_DIR) | awk 'BEGIN{print "# FNV-1a 64 over the little-endian bytes of every result, sin then cos then tan, in corpus order."; print "# Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig and the cross-target scripts."} $$1=="math.trig.hash"{print "hash " $$2} $$1=="math.trig.count"{print "count " $$2}' > $(CORPUS_DIR)/trig.hash
+	@cat $(CORPUS_DIR)/trig.hash
+
+check-planted: $(OBJ_DIR)/tests/test_trig.o $(HASH_PROBE) ## Fail unless each planted defect fails testTrig and the control passes
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_trig.o' PLANT_PROBE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
+	 PLANT_PROBE='$(HASH_PROBE)' PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted' \
+	 python3 tools/check-planted.py
+
+check-oracle-fresh: $(APP_DIR)/testTrig$(EXE_EXTENSION) ## Check a sample drawn now against the oracle (skips loudly without the container)
+	@mkdir -p $(BUILD_DIR); rm -rf $(BUILD_DIR)/oracle-fresh; \
+	seed=$${GMATH_ORACLE_SEED:-$$(date +%s)}; rc=0; \
+	$(ORACLE) fresh --out $(BUILD_DIR)/oracle-fresh --seed $$seed || rc=$$?; \
+	if [ $$rc -eq 0 ]; then \
+		printf 'check-oracle-fresh: seed %s\n' "$$seed"; \
+		GMATH_TRIG_CORPUS_DIR=$(BUILD_DIR)/oracle-fresh GMATH_TRIG_MIN_ENTRIES=2000 \
+			LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(APP_DIR)/testTrig$(EXE_EXTENSION) --gtest_brief=1 --gtest_filter=Trig.CorpusIsWithinOneUlp \
+			|| { printf 'check-oracle-fresh: FAIL with seed %s\n' "$$seed" >&2; exit 1; }; \
+	elif [ $$rc -eq 3 ]; then \
+		printf 'check-oracle-fresh: SKIPPED (no oracle container here); the committed corpus was checked by testTrig\n'; \
+	else exit $$rc; fi
+
+oracle-build: ## Build the oracle image from its pinned Containerfile
+	podman build -t ghoti-math-oracle-mpfr:2.3.2 \
+		-f tools/oracle/containers/mpfr/Containerfile tools/oracle/containers/mpfr
+
+oracle-version: ## Fail unless the oracle image is present and matches its pin
+	@GHOTI_ORACLE_REQUIRED=1 $(ORACLE) version
+
+oracle-fit: ## Refit the kernel coefficients into src/elementary/trig_tables.h (changes every result)
+	@$(ORACLE) fit > src/elementary/trig_tables.h.new && mv src/elementary/trig_tables.h.new src/elementary/trig_tables.h
+
+oracle-corpus: ## Regenerate tests/corpus from the oracle (then make corpus-hash-update)
+	@$(ORACLE) corpus --out $(CORPUS_DIR) --seed $(ORACLE_SEED)
 
 ####################################################################
 # Symbols

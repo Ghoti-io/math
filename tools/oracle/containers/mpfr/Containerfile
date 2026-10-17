@@ -1,0 +1,30 @@
+# The multiple-precision oracle for math's sin, cos and tan (CAP-1, AD-22).
+#
+# MPFR, through gmpy2, is the reference: its sin, cos and tan are correctly
+# rounded at the working precision for every argument, huge ones included, which
+# is the property the corpus relies on.  mpmath is the second reference: a
+# different implementation (pure Python over gmpy2's integers) that
+# gen_corpus.py makes agree with MPFR on every corpus entry, and that fit_coeffs.py
+# uses for the Remez fit.  Neither is a text to read; the corpus holds only
+# their results.
+#
+# Everything the build reads is pinned.  The base is the same digest as
+# libs/font's fontTools image (python:3.14-slim).  The packages are exact
+# versions with SHA-256 hashes, installed with --require-hashes.  The run-time
+# check is the real guarantee: tools/oracle/oracle.py compares the line
+# `mpfr-version` prints with the pin in IMAGES, in every mode.
+FROM docker.io/library/python:3.14-slim@sha256:7bf6c3111fe094f8ee1a1cbcdc63c4cfb345b0e3df42d5aa9a90b3b4b022ab6d
+
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    PYTHONHASHSEED=0
+
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --no-compile --require-hashes -r /tmp/requirements.txt \
+ && rm /tmp/requirements.txt
+
+COPY mpfr-version /usr/local/bin/mpfr-version
+RUN chmod 755 /usr/local/bin/mpfr-version && /usr/local/bin/mpfr-version
+
+ENTRYPOINT []
+CMD ["mpfr-version"]

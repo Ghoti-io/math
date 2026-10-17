@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+# Prints what the oracle is, in the one line the pin check compares.
+import sys
+import gmpy2
+import mpmath
+
+print("mpfr %s gmpy2 %s mpmath %s python %d.%d.%d" % (
+    gmpy2.mpfr_version().split()[-1], gmpy2.version(), mpmath.__version__,
+    *sys.version_info[:3]))

@@ -28,6 +28,7 @@
 #define GHOTI_IO_GMATH_GMATH_H
 
 #include <ghoti.io/math/core.h>
+#include <ghoti.io/math/elementary.h>
 #include <ghoti.io/math/macros.h>
 
 #endif // GHOTI_IO_GMATH_GMATH_H

@@ -5,8 +5,32 @@ Deterministic elementary functions that give the same bits on every host. It is 
 
 ## What is implemented
 
-The scaffold only: `gmath_version_string()` and `gmath_version_number()`, and
-the gates every library in the shape family runs in `make test`.
+`gmath_sin`, `gmath_cos` and `gmath_tan` on `double` (`ghoti.io/math/elementary.h`):
+within 1 ulp of the true value for every finite argument up to `DBL_MAX`
+(measured at most 0.51 ulp over the corpus), the same bits on every target, using only
+`+ - * /` and integer arithmetic. The argument is reduced exactly (Payne-Hanek),
+so a huge argument near a multiple of pi/2 is as accurate as any other.
+`atan2`, `exp`, `log`, `pow` and `hypot` are still to come.
+
+Also `gmath_version_string()` and `gmath_version_number()`, and the gates every
+library in the shape family runs in `make test`.
+
+### How the accuracy is checked
+
+`tests/corpus/` holds 15,523 inputs per function with the correctly rounded
+result and the exact value's distance from it, written by MPFR (through
+gmpy2, cross-checked against mpmath) in a pinned container
+(`tools/oracle/containers/mpfr`; `make oracle-build`, `make oracle-version`).
+`make test` checks every result against it with no container, and checks the
+hash of all the results against `tests/corpus/trig.hash`, the value the other
+targets must print (`suite/tools/xarch/shape.sh`, `suite/tools/xwin/shape.sh`).
+When the container is present `make test` also checks a fresh sample drawn that
+day; `GHOTI_ORACLE_REQUIRED=1` makes its absence a failure instead of a printed
+SKIPPED. `make check-planted` builds the library with a coefficient perturbed, a
+reduction branch skipped and a dozen other defects and requires each to fail.
+`make oracle-fit` refits the kernel coefficients; `make oracle-corpus` and
+`make corpus-hash-update` regenerate the corpus and its hash after a deliberate
+change.
 
 ## Building
 

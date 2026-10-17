@@ -1,0 +1,7 @@
+# The oracle images, pinned.  One line per oracle, tab-separated: <name> <image-ref> <version line> <what it answers>.
+# The image is built here (`make oracle-build`) from containers/<name>/Containerfile: the base is pinned by
+# digest, the packages by exact version and SHA-256.  Two builds of one Containerfile are not two copies of one
+# image, so the real guarantee is the run-time check: oracle.py compares the line `mpfr-version` prints with
+# the third field, in every run, and refuses on any difference.  Raising a pin is deliberate: a new MPFR is new
+# answers, and the corpus is regenerated and reviewed with it.
+mpfr	localhost/ghoti-math-oracle-mpfr:2.3.2	mpfr 4.2.2 gmpy2 2.3.2 mpmath 1.4.1 python 3.14.7	sin, cos and tan of any double to 600 + exponent bits, correctly rounded by MPFR and cross-checked by mpmath; the minimax fit of the kernel coefficients

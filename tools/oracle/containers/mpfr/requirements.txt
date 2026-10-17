@@ -1,0 +1,7 @@
+# Exact versions and the SHA-256 of each file pip installs; pip --require-hashes
+# refuses anything else.  The hashes are of the files PyPI served on 2026-10-17.
+# gmpy2's wheel carries the MPFR it reports through gmpy2.mpfr_version().
+gmpy2==2.3.2 \
+    --hash=sha256:debbece10ebf1ed74a92cf8aedbe557f6bc6365b21ee6a346944f28a24bb4d19
+mpmath==1.4.1 \
+    --hash=sha256:dc4f0ea2304480d4a9a48a94c1020571558ade522b44a6912efac63a586e140f
