@@ -1,4 +1,13 @@
-# FNV-1a 64 over the little-endian bytes of every result, sin then cos then tan, in corpus order.
-# Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig and the cross-target scripts.
-hash 835a83744bde3f42
-count 58293
+# FNV-1a 64 over the little-endian bytes of every result, sin cos tan atan2 exp log pow hypot, in corpus order.
+# `hash` and `count` are over all eight; each `fn` line is one function alone.
+# Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig, testElementary and the cross-target scripts.
+hash ae10e9bade86bedb
+count 114419
+fn sin 11acb5a2c504505f 19431
+fn cos 916569145387ecaf 19431
+fn tan cb49df35ecf003fa 19431
+fn atan2 c72b31442d4013d2 13169
+fn exp 0d2229936f5e1826 7798
+fn log 97cbf2c41acbd551 9776
+fn pow fa3c3c10abfa40da 15544
+fn hypot 1dfcd9c635b23a67 9839

@@ -8,12 +8,16 @@
 # Ghoti.io Math is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License version 3 as
 # published by the Free Software Foundation.
-"""Runs the multiple-precision oracle for gmath_sin, gmath_cos and gmath_tan.
+"""Runs the multiple-precision oracle for gmath_sin, gmath_cos, gmath_tan, gmath_atan2,
+gmath_exp, gmath_log, gmath_pow and gmath_hypot.
 
     oracle.py version                       check the image against its pin
     oracle.py fit                           print src/elementary/trig_tables.h
     oracle.py fit-kernel                    print src/elementary/trig_kernel_table.h
-    oracle.py corpus --out DIR --seed N     write the committed-size corpus
+    oracle.py fit-explog                    print src/elementary/explog_tables.h
+    oracle.py fit-atan2                     print src/elementary/atan2_table.h
+    oracle.py fit-hypot                     print src/elementary/hypot_table.h
+    oracle.py corpus --out DIR --seed N     write the committed-size corpus (sin, cos, tan, atan2, exp, log, pow, hypot)
     oracle.py fresh  --out DIR --seed N     write a small sample drawn now
 
 The reference runs in the pinned image named by containers/IMAGES, never on
@@ -78,7 +82,7 @@ def check_pin():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "corpus", "fresh"))
+    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "fit-explog", "fit-atan2", "fit-hypot", "corpus", "fresh"))
     ap.add_argument("--out")
     ap.add_argument("--seed", type=int)
     a = ap.parse_args()
@@ -99,6 +103,12 @@ def main():
         return engine_run(ref, ["python", "tools/oracle/fit_coeffs.py"]).returncode
     if a.cmd == "fit-kernel":
         return engine_run(ref, ["python", "tools/oracle/fit_kernel.py"]).returncode
+    if a.cmd == "fit-explog":
+        return engine_run(ref, ["python", "tools/oracle/fit_explog.py"]).returncode
+    if a.cmd == "fit-atan2":
+        return engine_run(ref, ["python", "tools/oracle/fit_atan2.py"]).returncode
+    if a.cmd == "fit-hypot":
+        return engine_run(ref, ["python", "tools/oracle/fit_hypot.py"]).returncode
     if a.out is None or a.seed is None:
         sys.stderr.write("oracle.py: %s needs --out and --seed\n" % a.cmd)
         return 2
@@ -108,8 +118,12 @@ def main():
         sys.stderr.write("oracle.py: --out must be inside %s\n" % ROOT)
         return 2
     size = "committed" if a.cmd == "corpus" else "fresh"
-    return engine_run(ref, ["python", "tools/oracle/gen_corpus.py", "--out", out,
-                            "--seed", str(a.seed), "--size", size]).returncode
+    for script in ("gen_corpus.py", "gen_corpus_elem.py"):
+        rc = engine_run(ref, ["python", "tools/oracle/" + script, "--out", out,
+                              "--seed", str(a.seed), "--size", size]).returncode
+        if rc != 0:
+            return rc
+    return 0
 
 
 sys.exit(main())

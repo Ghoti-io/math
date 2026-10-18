@@ -173,6 +173,25 @@ size_t MinEntries() {
   return env && *env ? std::strtoul(env, nullptr, 10) : 10000;
 }
 
+// The `fn NAME HASH COUNT` line of tests/corpus/trig.hash.
+bool CommittedHash(const char * name, unsigned long long * hash, unsigned long long * count) {
+  std::ifstream in("tests/corpus/trig.hash");
+  std::string line;
+  while (std::getline(in, line)) {
+    if (line.empty() || line[0] == '#') {
+      continue;
+    }
+    std::istringstream ls(line);
+    std::string key, fname;
+    ls >> key >> fname;
+    if (key == "fn" && fname == name) {
+      ls >> std::hex >> *hash >> std::dec >> *count;
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace
 
 TEST(Trig, CorpusIsWithinOneUlp) {
@@ -182,8 +201,6 @@ TEST(Trig, CorpusIsWithinOneUlp) {
     const char * name;
     Fn f;
   } fns[] = {{"sin", gmath_sin}, {"cos", gmath_cos}, {"tan", gmath_tan}};
-  uint64_t hash = GMATH_FNV_BASIS;
-  size_t total = 0;
   int fi = -1;
   for (const auto & fn : fns) {
     fi++;
@@ -192,31 +209,17 @@ TEST(Trig, CorpusIsWithinOneUlp) {
     Stats s = Check(fn.name, fn.f, corpus);
     EXPECT_EQ(s.over, 0u) << fn.name;
     EXPECT_LE(s.max_err, committed ? kTight[fi] : kTightFresh[fi]) << fn.name << " is within the contract but no longer as accurate as it was";
-    for (const Entry & e : corpus) {
-      hash = gmath_fnv_double(hash, fn.f(DoubleOf(e.x)));
-    }
-    total += corpus.size();
-  }
-  if (committed) {
-    std::ifstream in("tests/corpus/trig.hash");
-    std::string key;
-    unsigned long long want_hash = 0, want_count = 0;
-    std::string line;
-    while (std::getline(in, line)) {
-      if (line.empty() || line[0] == '#') {
-        continue;
+    if (committed) {
+      uint64_t hash = GMATH_FNV_BASIS;
+      for (const Entry & e : corpus) {
+        hash = gmath_fnv_double(hash, fn.f(DoubleOf(e.x)));
       }
-      std::istringstream ls(line);
-      ls >> key;
-      if (key == "hash") {
-        ls >> std::hex >> want_hash;
-      } else if (key == "count") {
-        ls >> std::dec >> want_count;
-      }
+      unsigned long long want_hash = 0, want_count = 0;
+      ASSERT_TRUE(CommittedHash(fn.name, &want_hash, &want_count)) << "tests/corpus/trig.hash has no line for " << fn.name;
+      ASSERT_NE(want_count, 0u) << "tests/corpus/trig.hash is missing or empty";
+      EXPECT_EQ(corpus.size(), want_count) << fn.name;
+      EXPECT_EQ(hash, want_hash) << "the results of " << fn.name << " over the committed corpus changed";
     }
-    ASSERT_NE(want_count, 0u) << "tests/corpus/trig.hash is missing or empty";
-    EXPECT_EQ(total, want_count);
-    EXPECT_EQ(hash, want_hash) << "the results over the committed corpus changed";
   }
 }
 

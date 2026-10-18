@@ -94,6 +94,95 @@ GMATH_API double gmath_cos(double x);
  */
 GMATH_API double gmath_tan(double x);
 
+/**
+ * @brief e raised to the power @p x.
+ *
+ * Within 1 ulp of the true value for every finite @p x: measured at most 0.51
+ * ulp over `tests/corpus` and over 750,000 random arguments, and 0.75 for a
+ * result in the subnormal range, which is rounded twice (once to 53 bits and
+ * once by the scaling).  The reduction `x = n ln2/128 + r` is Tang's
+ * table-driven one with a 128-entry double-double table, so the result is not
+ * always the correctly rounded one.
+ *
+ * Special values follow C99 Annex F.  `gmath_exp(+-0)` is 1, `gmath_exp(+inf)`
+ * is `+inf`, `gmath_exp(-inf)` is `+0`.  A @p x above about 709.78 overflows to
+ * `+inf` (raising overflow and inexact) and one below about -745.13 underflows
+ * to `+0` (raising underflow and inexact); between -745.13 and -708.40 the
+ * result is subnormal.  A NaN gives the quiet NaN described at ::gmath_sin.
+ *
+ * @param x The exponent.
+ * @return e^@p x.
+ */
+GMATH_API double gmath_exp(double x);
+
+/**
+ * @brief The natural logarithm of @p x.
+ *
+ * Within 1 ulp of the true value for every positive finite @p x, subnormals
+ * included: measured at most 0.51 ulp.  Near 1 the relative accuracy is kept
+ * (the table has two rows whose multiplier is exactly 1).  `gmath_log(1)` is `+0`, `gmath_log(+-0)` is `-inf` (raising
+ * divide-by-zero), a negative @p x (and `-inf`) gives the NaN described at
+ * ::gmath_sin and raises invalid, `gmath_log(+inf)` is `+inf`, a NaN gives
+ * that NaN.
+ *
+ * @param x The argument.
+ * @return ln(@p x).
+ */
+GMATH_API double gmath_log(double x);
+
+/**
+ * @brief @p x raised to the power @p y.
+ *
+ * Within 1 ulp of the true value whenever the result is finite or rounds to
+ * zero or infinity: measured at most 0.51 ulp, 0.75 for a result in the
+ * subnormal range.  A result that is exactly representable (an integer power
+ * of two, `3^5`) is returned exactly.  The special cases are C99 Annex F.9.4.4,
+ * including `pow(x, +-0) == 1` and `pow(1, y) == 1` for every @p x and @p y,
+ * NaNs among them; `pow(-1, +-inf) == 1`; a finite negative @p x with a finite
+ * non-integer @p y is invalid and gives the NaN described at ::gmath_sin;
+ * `pow(+-0, y)` is `+-inf` (divide-by-zero) for a negative @p y and `+-0` for a
+ * positive one, signed when @p y is an odd integer.  Overflow and underflow
+ * raise the exceptions IEEE 754 names.
+ *
+ * @param x The base.
+ * @param y The exponent.
+ * @return @p x raised to @p y.
+ */
+GMATH_API double gmath_pow(double x, double y);
+
+/**
+ * @brief The angle of the point (@p x, @p y), in radians, in (-pi, pi].
+ *
+ * Within 1 ulp of the true value: measured at most 0.56 ulp.  Follows C99 Annex F.9.1.4: the quadrant is
+ * chosen by the signs of both arguments, including the signs of zeros
+ * (`atan2(+-0, -0) == +-pi`, `atan2(+-0, +0) == +-0`), `atan2(+-inf, -inf)` is
+ * `+-3pi/4`, `atan2(+-inf, +inf)` is `+-pi/4`, an infinite and a finite
+ * argument give `0`, `+-pi/2` or `+-pi`.  The results for the multiples of
+ * pi/4 are the correctly rounded constants.  A NaN gives the NaN described at
+ * ::gmath_sin.
+ *
+ * @param y The ordinate.
+ * @param x The abscissa.
+ * @return atan2(@p y, @p x).
+ */
+GMATH_API double gmath_atan2(double y, double x);
+
+/**
+ * @brief sqrt(@p x * @p x + @p y * @p y), without spurious overflow or underflow.
+ *
+ * Within 1 ulp of the true value: measured at most 0.5000 ulp over the corpus and
+ * 0.75 for a subnormal result, which is rounded twice.  The result is
+ * infinite if either argument is infinite, even if the other is a NaN; it is
+ * otherwise NaN if either is a NaN; and `gmath_hypot(+-0, +-0)` is `+0`.
+ * Overflow is raised only when the result does not fit.  The square root is
+ * computed here, from `+ - * /`, not by the host.
+ *
+ * @param x One leg.
+ * @param y The other leg.
+ * @return The length of the hypotenuse.
+ */
+GMATH_API double gmath_hypot(double x, double y);
+
 #ifdef __cplusplus
 }
 #endif

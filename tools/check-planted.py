@@ -62,6 +62,11 @@ Visible only through the corpus hash, by design: one ulp of S0, C0, T0
 (about one argument in 2^10 of the direct range), and of S1, C1 and T1 (one in
 2^22), for which gen_corpus.py carries 18 witnesses found by search.
 
+Since story 4 the corpus hash covers eight functions: the probe the hash plants
+build links the planted trig.o with the library's own objects for the other five
+(PLANT_OTHER_OBJS), and the committed hash file has a line per function.
+tools/check-planted-elem.py does the same for atan2, exp, log, pow and hypot.
+
 Run by `make check-planted` from the library directory, with the build's
 compile and link flags in the PLANT_* environment variables.
 """
@@ -85,6 +90,7 @@ cxx_include = shlex.split(env["PLANT_CXX_INCLUDE"])
 test_obj = env["PLANT_TEST_OBJ"]
 probe_cflags = shlex.split(env["PLANT_PROBE_CFLAGS"])
 ld_path = env["PLANT_LD_PATH"]
+other_objs = shlex.split(env["PLANT_OTHER_OBJS"])
 SRC = Path("src/elementary")
 CORPUS = Path("tests/corpus")
 ORACLE_TEST = "Trig.CorpusIsWithinOneUlp"
@@ -184,7 +190,7 @@ def expect_oracle_fails(name, patches):
 
 def build_probe(d, extra=()):
     exe = d / "corpus-hash"
-    r = subprocess.run(cc + probe_cflags + list(extra) + ["tools/corpus-hash.c", str(d / "trig.o"), "-o", str(exe), "-lm"],
+    r = subprocess.run(cc + probe_cflags + list(extra) + ["tools/corpus-hash.c", str(d / "trig.o")] + other_objs + ["-o", str(exe), "-lm"],
                        capture_output=True, text=True)
     if r.returncode != 0:
         fail("%s: the probe does not build:\n%s" % (d.name, r.stderr))
@@ -427,7 +433,7 @@ if ctl is not None:
 
     # The committed hash file: a changed hash, an emptied file and a missing one.
     exe = work / "control" / "corpus-hash"
-    real_count = re.search(r"count (\d+)", (CORPUS / "trig.hash").read_text()).group(1)
+    real_count = re.search(r"^count (\d+)", (CORPUS / "trig.hash").read_text(), re.M).group(1)
     for label, content in (("changed hash", "hash 0000000000000000\ncount %s\n" % real_count),
                            ("changed count", None),
                            ("emptied file", ""), ("missing file", False)):

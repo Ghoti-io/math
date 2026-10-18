@@ -478,6 +478,7 @@ HASH_PROBE := $(APP_DIR)/tools/corpus-hash$(EXE_EXTENSION)
 ORACLE := python3 tools/oracle/oracle.py
 ORACLE_SEED := 20261017
 BENCH_REPEATS ?= 20
+PLANT_JOBS ?= 4
 # TESTFLAGS is a backtick expression for the shell; the planted-defect script
 # splits its flags itself and needs them expanded.
 GTEST_FLAGS := $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cflags gtest 2>/dev/null)
@@ -488,31 +489,46 @@ $(HASH_PROBE): tools/corpus-hash.c tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGE
 	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY)
 
 BENCH_PROBE := $(APP_DIR)/tools/bench-trig$(EXE_EXTENSION)
+BENCH_PROBE_ELEM := $(APP_DIR)/tools/bench-elementary$(EXE_EXTENSION)
 
 $(BENCH_PROBE): tools/bench-trig.c $(APP_DIR)/$(STATIC_TARGET) \
 		$(FLAGS_STAMP) | $(APP_DIR)/$(TARGET) $(LIBVER_GEN)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
 
-bench: $(BENCH_PROBE) ## Time sin, cos and tan against the host libm, per argument range (a measurement, not a test)
+$(BENCH_PROBE_ELEM): tools/bench-elementary.c $(APP_DIR)/$(STATIC_TARGET) \
+		$(FLAGS_STAMP) | $(APP_DIR)/$(TARGET) $(LIBVER_GEN)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+
+bench: $(BENCH_PROBE) $(BENCH_PROBE_ELEM) ## Time sin, cos, tan, atan2, exp, log, pow and hypot against the host libm, per argument range (a measurement, not a test)
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(BENCH_PROBE) $(BENCH_REPEATS)
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(BENCH_PROBE_ELEM) $(BENCH_REPEATS)
 
 check-corpus-hash: $(HASH_PROBE) ## Fail if the hash over the trig corpus is not the committed one (AD-17)
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" tools/check-corpus-hash.sh $(HASH_PROBE) $(CORPUS_DIR) $(CORPUS_DIR)/trig.hash
 
 corpus-hash-update: $(HASH_PROBE) ## Rewrite tests/corpus/trig.hash from this build (after a deliberate change)
-	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(HASH_PROBE) $(CORPUS_DIR) | awk 'BEGIN{print "# FNV-1a 64 over the little-endian bytes of every result, sin then cos then tan, in corpus order."; print "# Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig and the cross-target scripts."} $$1=="math.trig.hash"{print "hash " $$2} $$1=="math.trig.count"{print "count " $$2}' > $(CORPUS_DIR)/trig.hash
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(HASH_PROBE) $(CORPUS_DIR) | awk 'BEGIN{print "# FNV-1a 64 over the little-endian bytes of every result, sin cos tan atan2 exp log pow hypot, in corpus order."; print "# `hash` and `count` are over all eight; each `fn` line is one function alone."; print "# Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig, testElementary and the cross-target scripts."} $$1=="math.trig.hash"{print "hash " $$2} $$1=="math.trig.count"{print "count " $$2} $$1 ~ /^math\.[a-z0-9]+\.hash$$/ && $$1!="math.trig.hash"{split($$1,a,"."); h[a[2]]=$$2; o[++n]=a[2]} $$1 ~ /^math\.[a-z0-9]+\.count$$/ && $$1!="math.trig.count"{split($$1,a,"."); c[a[2]]=$$2} END{for(i=1;i<=n;i++) print "fn " o[i] " " h[o[i]] " " c[o[i]]}' > $(CORPUS_DIR)/trig.hash
 	@cat $(CORPUS_DIR)/trig.hash
 
-check-planted: $(OBJ_DIR)/tests/test_trig.o $(HASH_PROBE) ## Fail unless each planted defect fails testTrig and the control passes
+check-planted: $(OBJ_DIR)/tests/test_trig.o $(OBJ_DIR)/tests/test_elementary.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect fails testTrig or testElementary and the control passes
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_trig.o' PLANT_PROBE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX_INCLUDE='$(INCLUDE) -Itests' \
 	 PLANT_PROBE='$(HASH_PROBE)' PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted' \
+	 PLANT_OTHER_OBJS='$(OBJ_DIR)/elementary/explog.o $(OBJ_DIR)/elementary/atan2.o $(OBJ_DIR)/elementary/hypot.o' \
 	 python3 tools/check-planted.py
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_elementary.o' PLANT_PROBE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX_INCLUDE='$(INCLUDE) -Itests' \
+	 PLANT_PROBE='$(HASH_PROBE)' PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-elem' \
+	 PLANT_TRIG_OBJ='$(OBJ_DIR)/elementary/trig.o' PLANT_OBJ_DIR='$(OBJ_DIR)/elementary' PLANT_JOBS='$(PLANT_JOBS)' \
+	 python3 tools/check-planted-elem.py
 
-check-oracle-fresh: $(APP_DIR)/testTrig$(EXE_EXTENSION) ## Check a sample drawn now against the oracle (skips loudly without the container)
+check-oracle-fresh: $(APP_DIR)/testTrig$(EXE_EXTENSION) $(APP_DIR)/testElementary$(EXE_EXTENSION) ## Check a sample drawn now against the oracle (skips loudly without the container)
 	@mkdir -p $(BUILD_DIR); rm -rf $(BUILD_DIR)/oracle-fresh; \
 	seed=$${GMATH_ORACLE_SEED:-$$(date +%s)}; rc=0; \
 	$(ORACLE) fresh --out $(BUILD_DIR)/oracle-fresh --seed $$seed || rc=$$?; \
@@ -521,8 +537,11 @@ check-oracle-fresh: $(APP_DIR)/testTrig$(EXE_EXTENSION) ## Check a sample drawn 
 		GMATH_TRIG_CORPUS_DIR=$(BUILD_DIR)/oracle-fresh GMATH_TRIG_MIN_ENTRIES=2000 \
 			LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(APP_DIR)/testTrig$(EXE_EXTENSION) --gtest_brief=1 --gtest_filter=Trig.CorpusIsWithinOneUlp \
 			|| { printf 'check-oracle-fresh: FAIL with seed %s\n' "$$seed" >&2; exit 1; }; \
+		GMATH_TRIG_CORPUS_DIR=$(BUILD_DIR)/oracle-fresh GMATH_TRIG_MIN_ENTRIES=2000 \
+			LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(APP_DIR)/testElementary$(EXE_EXTENSION) --gtest_brief=1 --gtest_filter=Elementary.CorpusIsWithinOneUlp \
+			|| { printf 'check-oracle-fresh: FAIL (testElementary) with seed %s\n' "$$seed" >&2; exit 1; }; \
 	elif [ $$rc -eq 3 ]; then \
-		printf 'check-oracle-fresh: SKIPPED (no oracle container here); the committed corpus was checked by testTrig\n'; \
+		printf 'check-oracle-fresh: SKIPPED (no oracle container here); the committed corpus was checked by testTrig and testElementary\n'; \
 	else exit $$rc; fi
 
 oracle-build: ## Build the oracle image from its pinned Containerfile
@@ -532,9 +551,12 @@ oracle-build: ## Build the oracle image from its pinned Containerfile
 oracle-version: ## Fail unless the oracle image is present and matches its pin
 	@GHOTI_ORACLE_REQUIRED=1 $(ORACLE) version
 
-oracle-fit: ## Regenerate src/elementary/trig_tables.h (reduction constants) and trig_kernel_table.h (kernel table and tails; changes every result)
+oracle-fit: ## Regenerate src/elementary/trig_tables.h (reduction constants), trig_kernel_table.h (kernel table and tails), explog_tables.h, atan2_table.h and hypot_table.h (changes every result)
 	@$(ORACLE) fit > src/elementary/trig_tables.h.new && mv src/elementary/trig_tables.h.new src/elementary/trig_tables.h
 	@$(ORACLE) fit-kernel > src/elementary/trig_kernel_table.h.new && mv src/elementary/trig_kernel_table.h.new src/elementary/trig_kernel_table.h
+	@$(ORACLE) fit-explog > src/elementary/explog_tables.h.new && mv src/elementary/explog_tables.h.new src/elementary/explog_tables.h
+	@$(ORACLE) fit-atan2 > src/elementary/atan2_table.h.new && mv src/elementary/atan2_table.h.new src/elementary/atan2_table.h
+	@$(ORACLE) fit-hypot > src/elementary/hypot_table.h.new && mv src/elementary/hypot_table.h.new src/elementary/hypot_table.h
 
 oracle-corpus: ## Regenerate tests/corpus from the oracle (then make corpus-hash-update)
 	@$(ORACLE) corpus --out $(CORPUS_DIR) --seed $(ORACLE_SEED)

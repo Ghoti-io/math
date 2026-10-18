@@ -41,7 +41,12 @@
 /// @cond HIDDEN_SYMBOLS
 
 /* Public functions. */
+#define gmath_atan2 GHOTIIO_MATH(gmath_atan2)
 #define gmath_cos GHOTIIO_MATH(gmath_cos)
+#define gmath_exp GHOTIIO_MATH(gmath_exp)
+#define gmath_hypot GHOTIIO_MATH(gmath_hypot)
+#define gmath_log GHOTIIO_MATH(gmath_log)
+#define gmath_pow GHOTIIO_MATH(gmath_pow)
 #define gmath_sin GHOTIIO_MATH(gmath_sin)
 #define gmath_tan GHOTIIO_MATH(gmath_tan)
 #define gmath_version_number GHOTIIO_MATH(gmath_version_number)

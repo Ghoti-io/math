@@ -124,6 +124,18 @@ int main(int argc, char ** argv) {
   volatile fn_t libm_fns[3] = {sin, cos, tan};
   (void)fns[0].libm_ptr;
 
+  /* Warm-up: a few tenths of a second of work, so that the first range is not timed while the clock ramps. */
+  {
+    double t0 = now();
+    volatile double w = 0.5;
+    while (now() - t0 < 0.3) {
+      for (int i = 0; i < 2000; i++) {
+        w = w + gmath_sin(w) * 1e-9 + 0.5;
+      }
+    }
+    sink += w;
+  }
+
   printf("%-14s %-4s %10s %10s %8s\n", "range", "fn", "gmath ns", "libm ns", "ratio");
   for (size_t k = 0; k < sizeof ranges / sizeof ranges[0]; k++) {
     rng_state = 0x9e3779b97f4a7c15ull + k;
