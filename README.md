@@ -8,8 +8,17 @@ Deterministic elementary functions that give the same bits on every host. It is 
 `gmath_sin`, `gmath_cos`, `gmath_tan`, `gmath_atan2`, `gmath_exp`, `gmath_log`, `gmath_pow` and
 `gmath_hypot` on `double` (`ghoti.io/math/elementary.h`): within 1 ulp of the true value
 (measured at most 0.57 ulp, apart from results in the subnormal range of `exp`, `pow` and
-`hypot`, which are rounded twice and are within 0.75), the same bits on every target, using only
-`+ - * /` and integer arithmetic, with the special values and exceptions of C99 Annex F.
+`hypot`, which are rounded twice and are within 0.75), the same bits on every target, using
+IEEE operations in a fixed order and integer arithmetic, with the special values and exceptions
+of C99 Annex F.
+
+And the functions of `<math.h>` that C specifies exactly (`ghoti.io/math/basic.h`), so that a
+shape library takes nothing from libm: `gmath_sqrt` (correctly rounded: the target's instruction
+where it rounds correctly, a portable method with the same bits elsewhere, both gated),
+`gmath_floor`, `gmath_ceil`, `gmath_trunc`, `gmath_round` (half away from zero), `gmath_rint`
+(half to even, whatever the rounding mode), `gmath_fabs`, `gmath_copysign`, `gmath_scalbn`,
+`gmath_ldexp`, `gmath_frexp` and `gmath_ilogb`. There is no `fma`: fusing is forbidden (AD-17).
+`make check-libm` refuses every libm symbol, in this library and in the shape libraries.
 
 * `sin`, `cos`, `tan`: the argument is reduced exactly (Cody-Waite below 2^20 where that is
   provably as good, Payne-Hanek otherwise), so a huge argument near a multiple of pi/2 is as
@@ -23,11 +32,14 @@ Deterministic elementary functions that give the same bits on every host. It is 
   that is exactly representable (`3^5`, `2^-1074`) is returned exactly.
 * `atan2`: the octant reflection added in a double-double to a table-driven arctangent of the
   quotient, whose remainder is formed exactly.
-* `hypot`: the squares as exact sums, the square root by Newton's iteration from a table start
-  and one correction from the exact residual, so there is no host `sqrt`, and no spurious
-  overflow or underflow.
+* `hypot`: the squares as exact sums, the correctly rounded `gmath_sqrt` of their sum and one
+  correction from the exact residual, so there is no host `sqrt`, and no spurious overflow or
+  underflow.
+* `sqrt`: see `documentation/design.md`; the portable method is Newton's iteration from a table
+  start, the estimate of Markstein's with an exact residual, and a last exact test of the residual
+  that makes the rounding right.
 
-`make bench` times all eight against the host libm, per argument range.
+`make bench` times all of them against the host libm, per argument range.
 
 Also `gmath_version_string()` and `gmath_version_number()`, and the gates every
 library in the shape family runs in `make test`.
@@ -36,12 +48,14 @@ library in the shape family runs in `make test`.
 
 `tests/corpus/` holds the oracle's answers for every function: 19,431 inputs each for
 `sin`, `cos` and `tan` and 7,798 to 15,544 for the others, with the correctly rounded
-result and the exact value's distance from it, written by MPFR (through gmpy2,
+result and the exact value's distance from it (for `sqrt`, the rounding functions and the exponent
+functions, which have one correct answer, 2,341 to 47,036 inputs and the answer itself, which the test
+requires to the bit), written by MPFR (through gmpy2,
 cross-checked against mpmath) in a pinned container (`tools/oracle/containers/mpfr`; `make
 oracle-build`, `make oracle-version`). The special values of Annex F are in it too, checked
 in the generator against a second statement of the rules.
 `make test` checks every result against it with no container, and checks the
-hash of all the results against `tests/corpus/trig.hash` (the value over all eight, and one per function), the value the other
+hash of all the results against `tests/corpus/trig.hash` (the value over all nineteen, and one per function), the value the other
 targets must print (`suite/tools/xarch/shape.sh`, `suite/tools/xwin/shape.sh`).
 When the container is present `make test` also checks a fresh sample drawn that
 day; `GHOTI_ORACLE_REQUIRED=1` makes its absence a failure instead of a printed

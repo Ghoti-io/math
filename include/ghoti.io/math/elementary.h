@@ -23,12 +23,14 @@
  *
  * Elementary functions on `double` that give the same bits on every target.
  *
- * Each function uses only IEEE 754 addition, subtraction, multiplication and
- * division in a fixed order, and integer arithmetic.  It never calls the C
- * library's `<math.h>`, never relies on a fused multiply-add, and never
- * computes in extended precision, so the result does not depend on the libm,
- * the CPU or the byte order of the host (AD-17, AD-22).  The library must be
- * built with `-ffp-contract=off` and, on 32-bit x86, with SSE math;
+ * Each function uses IEEE 754 addition, subtraction, multiplication and
+ * division in a fixed order, integer arithmetic and, in `gmath_hypot`, this
+ * library's own correctly rounded square root (basic.h).  It never calls the
+ * C library's `<math.h>` (`make check-libm` refuses every libm symbol), never
+ * relies on a fused multiply-add, and never computes in extended precision, so
+ * the result does not depend on the libm, the CPU or the byte order of the host
+ * (AD-17, AD-22).  The library must be built with `-ffp-contract=off` and, on
+ * 32-bit x86, with SSE math;
  * `make check-fp-contract` and `make check-no-x87` enforce both.
  */
 
@@ -175,7 +177,8 @@ GMATH_API double gmath_atan2(double y, double x);
  * infinite if either argument is infinite, even if the other is a NaN; it is
  * otherwise NaN if either is a NaN; and `gmath_hypot(+-0, +-0)` is `+0`.
  * Overflow is raised only when the result does not fit.  The square root is
- * computed here, from `+ - * /`, not by the host.
+ * ::gmath_sqrt (the instruction where the target's rounds correctly, the portable
+ * method elsewhere; the same bits), not libm's.
  *
  * @param x One leg.
  * @param y The other leg.

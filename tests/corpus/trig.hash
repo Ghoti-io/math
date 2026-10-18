@@ -1,8 +1,8 @@
-# FNV-1a 64 over the little-endian bytes of every result, sin cos tan atan2 exp log pow hypot, in corpus order.
-# `hash` and `count` are over all eight; each `fn` line is one function alone.
+# FNV-1a 64 over the little-endian bytes of every result, sin cos tan atan2 exp log pow hypot sqrt floor ceil trunc round rint fabs copysign scalbn frexp ilogb, in corpus order.
+# `hash` and `count` are over all nineteen; each `fn` line is one function alone; sqrt_portable, sqrt_hardware and ldexp are variants, outside the total, that must equal sqrt and scalbn.
 # Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig, testElementary and the cross-target scripts.
-hash ae10e9bade86bedb
-count 114419
+hash e0bed489c359d746
+count 288856
 fn sin 11acb5a2c504505f 19431
 fn cos 916569145387ecaf 19431
 fn tan cb49df35ecf003fa 19431
@@ -10,4 +10,18 @@ fn atan2 c72b31442d4013d2 13169
 fn exp 0d2229936f5e1826 7798
 fn log 97cbf2c41acbd551 9776
 fn pow fa3c3c10abfa40da 15544
-fn hypot 1dfcd9c635b23a67 9839
+fn hypot 7187a8850afde137 9839
+fn sqrt b854953ee667de3a 47036
+fn floor 46ae086321df2329 17047
+fn ceil ed9339884d35dd1b 17047
+fn trunc a18c54f3b5f36ae9 17047
+fn round a7c7f36b20fd8577 17047
+fn rint a64aa0c26fccc945 17047
+fn fabs 182c10f319fda391 17047
+fn copysign be74c52f71262bb3 2341
+fn scalbn 17a1e96d3c3da909 6193
+fn frexp 3ef6b116a5a883ff 8293
+fn ilogb a75ea8d334960067 8292
+fn sqrt_portable b854953ee667de3a 47036
+fn sqrt_hardware b854953ee667de3a 47036
+fn ldexp 17a1e96d3c3da909 6193

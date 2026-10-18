@@ -164,13 +164,61 @@ Measured 0.5345 ulp over the corpus.
 
 ## hypot
 
-`src/elementary/hypot.c`, `hypot_table.h` from `tools/oracle/fit_hypot.py`. No
-host `sqrt`: with `a >= b` scaled by a power of two when `a` is outside `[2^-300, 2^300]`, `a^2 +
-b^2` is formed as an exact sum of products (`a = ah + al` with `ah` of 26 bits), `1/sqrt`
-comes from a 4 KB start (within `2^-10`) and two Newton steps, `c` is the square root with 26 bits
-so that `c^2` is exact, and `h = c + (S - c^2)/(c + s0)`, which is `sqrt` to better than `2^-60`.
-The result is within 0.5 ulp. If `b < 2^-27 a`, `a` is the result. An infinity beats a
-NaN, as C99 F.9.4.3 says. There is no spurious overflow (the scale) or underflow.
+`src/elementary/hypot.c`. With `a >= b` scaled by a power of two when `a` is outside `[2^-300,
+2^300]`, `a^2 + b^2` is formed as an exact sum of products (`a = ah + al` with `ah` of 26 bits),
+`s0` is `gmath_sqrt` of its rounded value (correctly rounded, so `sqrt(S)` to `2^-53`), `c` is `s0`
+with 26 bits so that `c^2` is exact, and `h = c + (S - c^2)/(c + s0)`, which is `sqrt` to better than
+`2^-60`. The result is within 0.5 ulp. If `b < 2^-27 a`, `a` is the result. An infinity beats a
+NaN, as C99 F.9.4.3 says. There is no spurious overflow (the scale) or underflow. Story 4 computed
+the square root here from a table and two Newton steps; story 4a replaced that by the library's own
+`gmath_sqrt` (below), and `hypot` is faster by about a quarter on a target with the instruction (4.6 ns against 6.3, 6.0 against 8.3, 4.5 against 6.2).
+
+## sqrt, the rounding functions and the exponent functions (story 4a)
+
+AD-22 as amended on 2026-10-18 has `math` supply everything the shape family takes from `<math.h>`,
+and `make check-libm` refuses every libm symbol in `math` itself and in the three shape libraries.
+`src/elementary/sqrt_impl.h`, `sqrt.c`, `round.c`, `scale.c`; public in `basic.h`.
+
+`gmath_sqrt` is correctly rounded (IEEE 754 requires it of `sqrt`), so every implementation gives
+the same bits. Two are provided and gated against each other:
+
+* **the instruction** (`sqrtsd` on x86-64 and on i686 with SSE math, `fsqrt` on aarch64, `sqdbr` on
+  s390x, `fsqrt` on powerpc when the compiler says the optional instruction exists
+  (`_ARCH_PPCSQ`), `fsqrtd` on sparc64, `fsqrt.d` on riscv with a double-precision FPU), through
+  inline assembly. Not `__builtin_sqrt`: that is a call to libm unless the compiler is told
+  `-fno-math-errno`, and often at `-O0` regardless, and a call is what the link gate refuses. The
+  library builds with `-fno-math-errno` as well. The instruction's NaN has a sign and payload of its
+  own choosing (x86 makes it negative), so a NaN result is replaced by the library's one quiet NaN.
+* **the portable method**, in integer and double arithmetic only: the argument is scaled to `m` in
+  `[1, 4)` by an even power of two (a subnormal first by `2^54`, exactly), `1/sqrt(m)` comes from the
+  512-entry start that `hypot` used to own (`hypot_table.h`, within `2^-10`) and two Newton steps
+  (`2^-38`), `c` is `m r` with 26 bits so that `c^2` and `R = m - c^2` are exact, and
+  `y = c + R (r/2)(1 + (s0 - c) r/2)`, which is the root to within `0.5 ulp + 2^-61 y`. The
+  correctly rounded root is then `y` or a neighbour, and an exact test of the residual
+  `rho = m - y^2` (formed as `(m - p) - e` with `p + e = y^2` by Dekker's product, `y` split in two
+  halves of 26 bits by rounding) chooses: `y` rounds up iff `rho > y u` and down iff `rho <= -y u`
+  with `u = 2^-52`. No ties exist (the square of a midpoint has 107 bits and `m` has 53), and the `u^2/4`
+  that the exact boundaries carry is below the granularity `2^-104` of `rho`, which is why one is a
+  strict and the other a non-strict comparison. `testSqrt_internal` hands the correction an estimate
+  that is one ulp wrong each way, since the estimate in practice only falls short and the round-down
+  branch and the equality cases would otherwise never run.
+
+`-DGMATH_SQRT_PORTABLE` builds the whole library, `hypot` included, on the portable method.
+`gmath_sqrt_portable` and `gmath_sqrt_hardware` are forced entry points; `gmath_sqrt_has_hardware`
+says whether the instruction exists. `corpus-hash` runs both over the corpus and exits 1 when they
+differ, and `suite/tools/xarch/shape.sh` builds the probe with and without the flag on every target.
+
+`floor`, `ceil`, `trunc`, `round` (half away from zero), `rint` (half to even; the rounding mode is
+not read), `fabs`, `copysign`: on the bit pattern. With `e` the unbiased exponent and `0 <= e <= 51`
+the low `52 - e` stored bits are the fraction, masked off or added to by integer operations; a
+`floor` or `ceil` that must move by one adds `+-1.0` to an integer of magnitude below `2^52`, which is
+exact. Zero results keep the sign Annex F gives them. `scalbn` (= `ldexp`) writes the exponent field,
+and for a subnormal result shifts the integer significand with one round to nearest even, so there is
+no double rounding; `frexp` and `ilogb` read it. Each has one correct answer, so the oracle for them
+is the exact reference (`tools/oracle/gen_corpus_exact.py`: MPFR and exact rationals or integers,
+which must agree), and the test requires equality to the bit. Not provided, because nothing needs
+them and the gate refuses them: `fmod`, `modf`, `fma` (AD-17 forbids fusing), `lrint` and its kin,
+`fmin`, `fmax`, `cbrt`, `exp2`, `log2` and the float (`f`) forms.
 
 ## Speed
 
@@ -187,11 +235,28 @@ absolute figures move with the clock. `gmath` over libm (the story 4 specificati
 | `log` | 1.05 to 1.2 | 0.98 (subnormal argument) |
 | `pow` | 1.4 (typical), 1.4 (integer exponents), 1.3 (x near 1) | 0.8 (results near overflow and underflow) |
 | `atan2` | 0.4 to 0.5 | 1.3 (subnormal arguments) |
-| `hypot` | 1.1 (similar magnitude), 1.6 | 1.7 (legs of independent size: the early exit is taken by chance) |
+| `hypot` | 1.0 (similar magnitude), 1.05 | 1.2 (legs of independent size: the early exit is taken by chance); story 4 measured 1.15, 1.4 and 1.7 before `hypot` took the correctly rounded `gmath_sqrt` |
 
-The host's libm may use fused multiply-adds (and a hardware `sqrt`), which this
-library may not, so `pow` and `hypot` cost more flops here. As an experiment, `hypot`
-with a hardware `sqrt` in place of the table and the two Newton steps measured 1.1
-against libm on the host's GCC 14 build (8.4 ns against 7.8) where the shipped
-version measures 1.5 there: that difference is what keeping the square root in
-`+ - * /` costs, and it was paid on purpose.
+And the exact functions of story 4a (ns per call including about 1.5 ns of loop and call
+overhead, best of seven runs of 100 repeats, one core pinned; `gmath` over libm; libm through a
+volatile pointer, so that its `sqrt` is not an inline `sqrtsd` and its `floor` not an inline
+`roundsd`):
+
+| function | `gmath` over libm | note |
+|---|---|---|
+| `sqrt`, the instruction | 0.9 (1.8 ns against 2.0) | subnormal argument 0.99 (both pay the assist) |
+| `sqrt`, the portable method | 3.7 (7 ns against 1.9) | the fallback for a target without a correctly rounding instruction (32-bit powerpc here); subnormal 1.65 |
+| `floor`, `ceil` | 1.2 to 1.3 | libm's is `roundsd` (SSE4.1, an ifunc) |
+| `trunc`, `fabs` | 1.0 to 1.1 | |
+| `rint` | 1.3 | libm's is `roundsd` |
+| `round` | 0.6 to 0.8 | libm's has no single instruction |
+| `hypot` | 0.4 to 1.2, see above | |
+
+The first version of `floor`, `ceil` and `rint` branched on whether a magnitude is below one and on
+the sign, and measured 1.7 to 3.2 times libm because those branches are decided by the data and are
+mispredicted half the time; they now select with masks and have no branch but the one for NaN and
+for the integers beyond 2^52.
+
+The host's libm may use fused multiply-adds, which this library may not, so `pow` and `hypot` cost
+more flops here. Story 4 measured `hypot` with a hardware `sqrt` in place of its table and two Newton
+steps at 1.1 against libm where its own square root measured 1.5; story 4a took the first.

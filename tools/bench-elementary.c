@@ -21,9 +21,13 @@
 /**
  * @file
  *
- * Time gmath_atan2, gmath_exp, gmath_log, gmath_pow and gmath_hypot against the
- * host's libm, per argument range (the same method as bench-trig.c, which
- * does sin, cos and tan).  Not part of `make test` (it measures, it asserts
+ * Time gmath_atan2, gmath_exp, gmath_log, gmath_pow and gmath_hypot, and (story
+ * 4a) gmath_sqrt in both variants, floor, ceil, trunc, round, rint and fabs,
+ * against the host's libm, per argument range (the same method as
+ * bench-trig.c, which does sin, cos and tan).  The libm functions are called
+ * through a volatile pointer, which is a call the compiler cannot turn into
+ * sqrtsd or roundsd; ours are direct calls into the library, which is the way
+ * a caller uses them.  Not part of `make test` (it measures, it asserts
  * nothing); `make bench` builds and runs it.  The numbers describe this
  * machine and this compiler and mean nothing elsewhere; print them with the CPU
  * and compiler.
@@ -40,6 +44,7 @@
 
 #define _POSIX_C_SOURCE 200809L
 
+#include <ghoti.io/math/basic.h>
 #include <ghoti.io/math/elementary.h>
 
 #include <math.h>
@@ -121,6 +126,14 @@ static double ours_log(double x) { return gmath_log(x); }
 static double ours_pow(double x, double y) { return gmath_pow(x, y); }
 static double ours_atan2(double y, double x) { return gmath_atan2(y, x); }
 static double ours_hypot(double x, double y) { return gmath_hypot(x, y); }
+static double ours_sqrt(double x) { return gmath_sqrt(x); }
+static double ours_sqrt_portable(double x) { return gmath_sqrt_portable(x); }
+static double ours_floor(double x) { return gmath_floor(x); }
+static double ours_ceil(double x) { return gmath_ceil(x); }
+static double ours_trunc(double x) { return gmath_trunc(x); }
+static double ours_round(double x) { return gmath_round(x); }
+static double ours_rint(double x) { return gmath_rint(x); }
+static double ours_fabs(double x) { return gmath_fabs(x); }
 
 /* Argument kinds.  Two-argument kinds fill both arrays. */
 enum {
@@ -137,7 +150,9 @@ enum {
   A_AXIS,  /* one coordinate log-uniform [a, b), the other in [0.5, 2] */
   H_ANG,   /* a point in the first quadrant at a uniform angle, radius log-uniform [a, b) */
   H_RATIO, /* x log-uniform [a, b), y = x times a uniform [0.05, 1] */
-  H_SPREAD /* both log-uniform [a, b) */
+  H_SPREAD,/* both log-uniform [a, b) */
+  R_HALF,  /* an integer in [a, b] plus one half, random sign */
+  R_SQ     /* the square of a number uniform in [a, b]: a perfect square */
 };
 
 typedef struct {
@@ -222,6 +237,17 @@ static void fill(const range_t * r, double * xs, double * ys) {
       xs[i] = loguniform(r->a, r->b, 1);
       ys[i] = loguniform(r->a, r->b, 1);
       break;
+    case R_HALF:
+      xs[i] = floor(uniform(r->a, r->b)) + 0.5;
+      if (next_u64() & 1) {
+        xs[i] = -xs[i];
+      }
+      break;
+    case R_SQ: {
+      double u = uniform(r->a, r->b);
+      xs[i] = u * u;
+      break;
+    }
     }
   }
 }
@@ -255,6 +281,24 @@ static void run2(const char * fname, fn2_t ours, volatile fn2_t * libm, const ra
     printf("%-34s %-6s %10.1f %10.1f %7.2fx\n", ranges[k].name, fname, a, b, a / b);
   }
 }
+
+/* The ranges of sqrt and the rounding functions: a positive number for sqrt, both signs for the rest. */
+static const range_t sqrt_r[] = {
+  {"x in [1, 2]", U1, 1, 2},
+  {"x in [0, 1e6]", U1, 0, 1e6},
+  {"x in [1e-3, 1e3] (common)", L1, 1e-3, 1e3},
+  {"x in [2^-1000, 2^1000]", L1, 0x1p-1000, 0x1p1000},
+  {"x subnormal", L1, 0x1p-1074, 0x1p-1022},
+  {"x a perfect square (u^2, u in [1, 1e6])", R_SQ, 1, 1e6},
+};
+static const range_t round_r[] = {
+  {"x in [-1000, 1000] (common)", U1, -1000, 1000},
+  {"x in [-1, 1]", U1, -1, 1},
+  {"|x| in 1e-3 .. 1e3", S1, 1e-3, 1e3},
+  {"x = n + 1/2, n in [0, 1e6]", R_HALF, 0, 1e6},
+  {"|x| in 2^50 .. 2^80 (integers already)", S1, 0x1p50, 0x1p80},
+  {"x subnormal", L1, 0x1p-1074, 0x1p-1022},
+};
 
 int main(int argc, char ** argv) {
   int repeats = argc > 1 ? atoi(argv[1]) : 20;
@@ -309,7 +353,8 @@ int main(int argc, char ** argv) {
     sink += w;
   }
 
-  volatile fn1_t libm_exp = exp, libm_log = log;
+  volatile fn1_t libm_exp = exp, libm_log = log, libm_sqrt = sqrt, libm_floor = floor, libm_ceil = ceil, libm_trunc = trunc,
+      libm_round = round, libm_rint = rint, libm_fabs = fabs;
   volatile fn2_t libm_pow = pow, libm_atan2 = atan2, libm_hypot = hypot;
 
   printf("%-34s %-6s %10s %10s %8s\n", "range", "fn", "gmath ns", "libm ns", "ratio");
@@ -318,6 +363,15 @@ int main(int argc, char ** argv) {
   run2("pow", ours_pow, &libm_pow, pow_r, sizeof pow_r / sizeof pow_r[0], repeats, &sink);
   run2("atan2", ours_atan2, &libm_atan2, atan2_r, sizeof atan2_r / sizeof atan2_r[0], repeats, &sink);
   run2("hypot", ours_hypot, &libm_hypot, hypot_r, sizeof hypot_r / sizeof hypot_r[0], repeats, &sink);
+  printf("# gmath_sqrt uses the %s\n", gmath_sqrt_has_hardware() ? "hardware instruction" : "portable method");
+  run1("sqrt", ours_sqrt, &libm_sqrt, sqrt_r, sizeof sqrt_r / sizeof sqrt_r[0], repeats, &sink);
+  run1("sqrtsw", ours_sqrt_portable, &libm_sqrt, sqrt_r, sizeof sqrt_r / sizeof sqrt_r[0], repeats, &sink);
+  run1("floor", ours_floor, &libm_floor, round_r, sizeof round_r / sizeof round_r[0], repeats, &sink);
+  run1("ceil", ours_ceil, &libm_ceil, round_r, sizeof round_r / sizeof round_r[0], repeats, &sink);
+  run1("trunc", ours_trunc, &libm_trunc, round_r, sizeof round_r / sizeof round_r[0], repeats, &sink);
+  run1("round", ours_round, &libm_round, round_r, sizeof round_r / sizeof round_r[0], repeats, &sink);
+  run1("rint", ours_rint, &libm_rint, round_r, sizeof round_r / sizeof round_r[0], repeats, &sink);
+  run1("fabs", ours_fabs, &libm_fabs, round_r, sizeof round_r / sizeof round_r[0], repeats, &sink);
   if (sink == 12345.678) {
     puts("");
   }

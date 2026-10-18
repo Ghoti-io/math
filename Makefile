@@ -10,7 +10,7 @@
 #
 #   check-fp-contract  every compile-flag set names -ffp-contract=off
 #   check-edges        #includes and NEEDED entries stay inside EDGES_ALLOWED
-#   check-libm         no libm transcendental is referenced or defined
+#   check-libm         no libm function is referenced or defined
 #   check-no-x87       no x87 instruction in the objects (the i686 arm is run
 #                      by suite/tools/xarch/shape.sh, which needs a cross compiler)
 #   check-gates        plants a violation for each of the above and requires
@@ -35,9 +35,10 @@ DEPS := cutil
 # it is not a violation to include what a dependency's header already pulls in).
 EDGES_ALLOWED := cutil
 
-# yes only for math: the one library whose objects check-libm does not judge
-# (AD-22). Anything else saying yes fails check-gates.
-LIBM_EXEMPT := yes
+# no, for every library: nothing is exempt from check-libm (AD-22, amended
+# 2026-10-18: math supplies sqrt, floor and the rest itself, so its own objects
+# are judged too). Anything else fails check-gates.
+LIBM_EXEMPT := no
 
 BUILD ?= release
 MAJOR_VERSION := 0
@@ -208,7 +209,7 @@ CC := cc
 # shape is reported at level 1 and silent at 0, 2, and 3. Do not simplify it
 # to `*(int *)&local`, which fires at every level from 1 up and certifies
 # nothing. check-aliasing is the measurement.
-CFLAGS := -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 $(OPT_CFLAGS) -ffp-contract=off $(ARCH_FP_FLAGS) -g $(EXTRA_CFLAGS)
+CFLAGS := -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 $(OPT_CFLAGS) -ffp-contract=off -fno-math-errno $(ARCH_FP_FLAGS) -g $(EXTRA_CFLAGS)
 ifeq ($(OS_NAME), Windows)
 CFLAGS += -DGMATH_STATIC
 CXXFLAGS += -DGMATH_STATIC
@@ -373,7 +374,7 @@ $(APP_DIR)/examples/%$(EXE_EXTENSION): examples/%.c $(APP_DIR)/$(STATIC_TARGET) 
 
 .PHONY: clean cloc docs docs-pdf examples coverage check-symbols check-stamps check-aliasing
 .PHONY: check-fp-contract check-edges check-libm check-no-x87 check-gates libver-gen
-.PHONY: bench check-corpus-hash check-planted check-oracle-fresh oracle-build oracle-version oracle-fit oracle-corpus oracle-fresh corpus-hash-update
+.PHONY: oracle-selfcheck bench check-corpus-hash check-planted check-planted-exact check-oracle-fresh oracle-build oracle-version oracle-fit oracle-corpus oracle-fresh corpus-hash-update
 .PHONY: all install test test-quiet test-asan test-valgrind test-valgrind-quiet test-watch uninstall watch
 .PHONY: all-debug install-debug test-debug test-valgrind-debug test-watch-debug uninstall-debug watch-debug
 .PHONY: fuzz fuzz-clean
@@ -443,8 +444,8 @@ check-edges: $(APP_DIR)/$(TARGET) ## Fail on an #include or NEEDED edge outside 
 	@tools/check-edges.sh --allowed '$(EDGES_ALLOWED)' --self $(PROJECT) --includes .
 	@tools/check-edges.sh --allowed '$(EDGES_ALLOWED)' --self $(PROJECT) --links $(APP_DIR)
 
-check-libm: $(APP_DIR)/$(TARGET) $(APP_DIR)/$(STATIC_TARGET) ## Fail if a libm transcendental is referenced or defined (AD-22)
-	@tools/check-libm.sh $(if $(filter yes,$(LIBM_EXEMPT)),--exempt) $(APP_DIR)/$(TARGET) $(APP_DIR)/$(STATIC_TARGET)
+check-libm: $(APP_DIR)/$(TARGET) $(APP_DIR)/$(STATIC_TARGET) ## Fail if any libm function is referenced or defined (AD-22)
+	@tools/check-libm.sh $(APP_DIR)/$(TARGET) $(APP_DIR)/$(STATIC_TARGET)
 
 check-no-x87: $(APP_DIR)/$(STATIC_TARGET) ## Fail if an x86 object holds an x87 instruction (AD-17)
 	@tools/check-no-x87.sh $(APP_DIR)/$(STATIC_TARGET)
@@ -509,16 +510,16 @@ check-corpus-hash: $(HASH_PROBE) ## Fail if the hash over the trig corpus is not
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" tools/check-corpus-hash.sh $(HASH_PROBE) $(CORPUS_DIR) $(CORPUS_DIR)/trig.hash
 
 corpus-hash-update: $(HASH_PROBE) ## Rewrite tests/corpus/trig.hash from this build (after a deliberate change)
-	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(HASH_PROBE) $(CORPUS_DIR) | awk 'BEGIN{print "# FNV-1a 64 over the little-endian bytes of every result, sin cos tan atan2 exp log pow hypot, in corpus order."; print "# `hash` and `count` are over all eight; each `fn` line is one function alone."; print "# Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig, testElementary and the cross-target scripts."} $$1=="math.trig.hash"{print "hash " $$2} $$1=="math.trig.count"{print "count " $$2} $$1 ~ /^math\.[a-z0-9]+\.hash$$/ && $$1!="math.trig.hash"{split($$1,a,"."); h[a[2]]=$$2; o[++n]=a[2]} $$1 ~ /^math\.[a-z0-9]+\.count$$/ && $$1!="math.trig.count"{split($$1,a,"."); c[a[2]]=$$2} END{for(i=1;i<=n;i++) print "fn " o[i] " " h[o[i]] " " c[o[i]]}' > $(CORPUS_DIR)/trig.hash
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(HASH_PROBE) $(CORPUS_DIR) | awk 'BEGIN{print "# FNV-1a 64 over the little-endian bytes of every result, sin cos tan atan2 exp log pow hypot sqrt floor ceil trunc round rint fabs copysign scalbn frexp ilogb, in corpus order."; print "# `hash` and `count` are over all nineteen; each `fn` line is one function alone; sqrt_portable, sqrt_hardware and ldexp are variants, outside the total, that must equal sqrt and scalbn."; print "# Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig, testElementary and the cross-target scripts."} $$1=="math.trig.hash"{print "hash " $$2} $$1=="math.trig.count"{print "count " $$2} $$1 ~ /^math\.[a-z0-9_]+\.hash$$/ && $$1!="math.trig.hash"{split($$1,a,"."); h[a[2]]=$$2; o[++n]=a[2]} $$1 ~ /^math\.[a-z0-9_]+\.count$$/ && $$1!="math.trig.count"{split($$1,a,"."); c[a[2]]=$$2} END{for(i=1;i<=n;i++) print "fn " o[i] " " h[o[i]] " " c[o[i]]}' > $(CORPUS_DIR)/trig.hash
 	@cat $(CORPUS_DIR)/trig.hash
 
-check-planted: $(OBJ_DIR)/tests/test_trig.o $(OBJ_DIR)/tests/test_elementary.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect fails testTrig or testElementary and the control passes
+check-planted: check-planted-exact $(OBJ_DIR)/tests/test_trig.o $(OBJ_DIR)/tests/test_elementary.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect fails testTrig, testElementary or testBasic and the control passes
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_trig.o' PLANT_PROBE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX_INCLUDE='$(INCLUDE) -Itests' \
 	 PLANT_PROBE='$(HASH_PROBE)' PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted' \
-	 PLANT_OTHER_OBJS='$(OBJ_DIR)/elementary/explog.o $(OBJ_DIR)/elementary/atan2.o $(OBJ_DIR)/elementary/hypot.o' \
+	 PLANT_OTHER_OBJS='$(filter-out $(OBJ_DIR)/elementary/trig.o,$(filter $(OBJ_DIR)/elementary/%.o,$(LIBOBJECTS)))' \
 	 python3 tools/check-planted.py
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
@@ -528,7 +529,16 @@ check-planted: $(OBJ_DIR)/tests/test_trig.o $(OBJ_DIR)/tests/test_elementary.o $
 	 PLANT_TRIG_OBJ='$(OBJ_DIR)/elementary/trig.o' PLANT_OBJ_DIR='$(OBJ_DIR)/elementary' PLANT_JOBS='$(PLANT_JOBS)' \
 	 python3 tools/check-planted-elem.py
 
-check-oracle-fresh: $(APP_DIR)/testTrig$(EXE_EXTENSION) $(APP_DIR)/testElementary$(EXE_EXTENSION) ## Check a sample drawn now against the oracle (skips loudly without the container)
+check-planted-exact: $(OBJ_DIR)/tests/test_basic.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect in sqrt, the rounding and the exponent functions fails testBasic or the corpus hash
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_basic.o' PLANT_PROBE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX_INCLUDE='$(INCLUDE) -Itests' \
+	 PLANT_PROBE='$(HASH_PROBE)' PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-exact' \
+	 PLANT_TRIG_OBJ='$(OBJ_DIR)/elementary/trig.o' PLANT_OBJ_DIR='$(OBJ_DIR)/elementary' PLANT_JOBS='$(PLANT_JOBS)' \
+	 python3 tools/check-planted-exact.py
+
+check-oracle-fresh: $(APP_DIR)/testTrig$(EXE_EXTENSION) $(APP_DIR)/testElementary$(EXE_EXTENSION) $(APP_DIR)/testBasic$(EXE_EXTENSION) ## Check a sample drawn now against the oracle (skips loudly without the container)
 	@mkdir -p $(BUILD_DIR); rm -rf $(BUILD_DIR)/oracle-fresh; \
 	seed=$${GMATH_ORACLE_SEED:-$$(date +%s)}; rc=0; \
 	$(ORACLE) fresh --out $(BUILD_DIR)/oracle-fresh --seed $$seed || rc=$$?; \
@@ -540,8 +550,11 @@ check-oracle-fresh: $(APP_DIR)/testTrig$(EXE_EXTENSION) $(APP_DIR)/testElementar
 		GMATH_TRIG_CORPUS_DIR=$(BUILD_DIR)/oracle-fresh GMATH_TRIG_MIN_ENTRIES=2000 \
 			LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(APP_DIR)/testElementary$(EXE_EXTENSION) --gtest_brief=1 --gtest_filter=Elementary.CorpusIsWithinOneUlp \
 			|| { printf 'check-oracle-fresh: FAIL (testElementary) with seed %s\n' "$$seed" >&2; exit 1; }; \
+		GMATH_TRIG_CORPUS_DIR=$(BUILD_DIR)/oracle-fresh GMATH_TRIG_MIN_ENTRIES=1000 \
+			LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(APP_DIR)/testBasic$(EXE_EXTENSION) --gtest_brief=1 --gtest_filter=Basic.CorpusIsExact \
+			|| { printf 'check-oracle-fresh: FAIL (testBasic) with seed %s\n' "$$seed" >&2; exit 1; }; \
 	elif [ $$rc -eq 3 ]; then \
-		printf 'check-oracle-fresh: SKIPPED (no oracle container here); the committed corpus was checked by testTrig and testElementary\n'; \
+		printf 'check-oracle-fresh: SKIPPED (no oracle container here); the committed corpus was checked by testTrig, testElementary and testBasic\n'; \
 	else exit $$rc; fi
 
 oracle-build: ## Build the oracle image from its pinned Containerfile
@@ -557,6 +570,9 @@ oracle-fit: ## Regenerate src/elementary/trig_tables.h (reduction constants), tr
 	@$(ORACLE) fit-explog > src/elementary/explog_tables.h.new && mv src/elementary/explog_tables.h.new src/elementary/explog_tables.h
 	@$(ORACLE) fit-atan2 > src/elementary/atan2_table.h.new && mv src/elementary/atan2_table.h.new src/elementary/atan2_table.h
 	@$(ORACLE) fit-hypot > src/elementary/hypot_table.h.new && mv src/elementary/hypot_table.h.new src/elementary/hypot_table.h
+
+oracle-selfcheck: ## Show that the generator of the exact functions' corpora fails on a planted defect in either statement of an answer (host; needs the oracle image)
+	@tools/oracle/check-generator-plants.sh
 
 oracle-corpus: ## Regenerate tests/corpus from the oracle (then make corpus-hash-update)
 	@$(ORACLE) corpus --out $(CORPUS_DIR) --seed $(ORACLE_SEED)

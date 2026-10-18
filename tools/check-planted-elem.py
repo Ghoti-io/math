@@ -60,7 +60,7 @@ test that runs the function, however many inputs it has, and is accepted:
     arctangent's atan F lo) by one unit in the last place: each is a rounding
     correction of about 2^-54 of the value, so one ulp of it is 2^-107.  A
     zeroed one is planted and seen
-  - the starting table of gmath_hypot's reciprocal square root: it only starts
+  - the starting table of the reciprocal square root (gmath_hypot's, now the portable gmath_sqrt's: it only starts
     a Newton iteration, which converges to the same value from any start within
     2^-9; an entry that is off by up to 2^-9 changes no result.  A start that is
     wrong by more is seen by testElementary_tables, which checks each entry
@@ -94,7 +94,7 @@ from pathlib import Path
 SRC = Path("src/elementary")
 CORPUS = Path("tests/corpus")
 ORACLE_TEST = "Elementary.CorpusIsWithinOneUlp"
-SOURCES = ("elem_common.h", "explog.c", "explog_tables.h", "atan2.c", "atan2_table.h", "hypot.c", "hypot_table.h")
+SOURCES = ("elem_common.h", "explog.c", "explog_tables.h", "atan2.c", "atan2_table.h", "hypot.c", "hypot_table.h", "sqrt_impl.h")
 OBJECTS = ("explog", "atan2", "hypot")
 TABLE_TEST = "tests/unit/test_elementary_tables.cpp"
 
@@ -286,7 +286,7 @@ def main():
 
     DEPENDS = {"explog": ("explog.c", "explog_tables.h", "elem_common.h"),
                "atan2": ("atan2.c", "atan2_table.h", "elem_common.h"),
-               "hypot": ("hypot.c", "hypot_table.h", "elem_common.h")}
+               "hypot": ("hypot.c", "hypot_table.h", "sqrt_impl.h", "elem_common.h")}
 
     def variant(name, patches):
         """stage(), then build the library objects the patches touch (the others are the build's own)
@@ -362,7 +362,8 @@ def main():
     def build_probe(d):
         exe = d / "corpus-hash"
         objs = (d / "objs.txt").read_text().split("\n")
-        r = subprocess.run(cc + probe_cflags + ["tools/corpus-hash.c"] + objs + [trig_obj, "-o", str(exe), "-lm"], capture_output=True, text=True)
+        rest = [str(obj_dir / o) for o in ("sqrt.o", "round.o", "scale.o")]  # the functions of story 4a, built by the Makefile
+        r = subprocess.run(cc + probe_cflags + ["tools/corpus-hash.c"] + objs + rest + [trig_obj, "-o", str(exe), "-lm"], capture_output=True, text=True)
         if r.returncode != 0:
             fail("%s: the probe does not build:\n%s" % (d.name, r.stderr))
             return None
@@ -510,7 +511,7 @@ def main():
     expect_test_fails("atan2/nearest row by truncation", [(A, "double t = qa * 64.0 + GMATH_ATAN2_MAGIC;", "double t = qa * 64.0 - 0.5 + GMATH_ATAN2_MAGIC;")])
 
     # ----- oracle: hypot -----
-    expect_test_fails("hypot/one Newton step", [(H, "  r = r * (1.5 - hs * (r * r));\n  r = r * (1.5 - hs * (r * r));\n", "  r = r * (1.5 - hs * (r * r));\n")])
+    expect_test_fails("hypot/s0 (the square root) off by 1 per cent", [(H, "double s0 = gmath_sqrt_impl(sf);", "double s0 = 1.01 * gmath_sqrt_impl(sf);")])
     expect_test_fails("hypot/lower part dropped", [(H, "double lower = (2.0 * (ah * al + bh * bl) + (al * al + bl * bl)) + lead.lo;", "double lower = (2.0 * (ah * al + bh * bl)) + lead.lo;")])
     expect_test_fails("hypot/cross terms dropped", [(H, "double lower = (2.0 * (ah * al + bh * bl) + (al * al + bl * bl)) + lead.lo;", "double lower = ((al * al + bl * bl)) + lead.lo;")])
     expect_test_fails("hypot/lead.lo dropped", [(H, "double lower = (2.0 * (ah * al + bh * bl) + (al * al + bl * bl)) + lead.lo;", "double lower = (2.0 * (ah * al + bh * bl) + (al * al + bl * bl));")])
@@ -519,7 +520,6 @@ def main():
     expect_test_fails("hypot/scale limit 2^1000", [define_patch(H, "GMATH_HYPOT_LIMIT", "0x1p1000")])
     expect_test_fails("hypot/residual without the lower part", [(H, "double resid = (s1 - c * c) + lower;", "double resid = (s1 - c * c);")])
     expect_test_fails("hypot/correction denominator c alone", [(H, "double h = c + resid / (c + s0);", "double h = c + resid / (c + c);")])
-    expect_test_fails("hypot/Newton start from the wrong half exponent", [(H, "int64_t half = ((int64_t)(sb >> 52) - 1023) >> 1;", "int64_t half = ((int64_t)(sb >> 52) - 1022) >> 1;")])
 
     # ----- special: exp, log, pow, atan2, hypot branches -----
     sp = lambda name, patches, *tests: expect_test_fails(name, patches, wanted=tests)
