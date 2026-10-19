@@ -48,6 +48,17 @@ hash over the original 46,569 results did not change. `trig.c` states the
 proof, `test_trig_reduce.cpp` compares the two reductions, and `make bench`
 times them.
 
+**Wide fast reduction.** For `2^20 <= |x| < 2^30` the same method with narrower
+parts, because `n` now has up to 30 bits: `pi/2 = Q1 + ... + Q5 + Q6` with
+`Q1..Q5` of 23 bits (so `n*Qk` is exact) and `Q6` a double. `x - n*Q1` and the
+next subtraction are exact (the second because its result has at most 48 bits),
+the following three sums are TwoSum, and the remainder is accurate to
+`2^-104 |r| + 2^-141` absolute, which is `2^-84 |r|` at the same `2^-55` floor.
+It returns the same `n`, `rh` and (to `2^-79 |r|`) `rl` as Payne-Hanek, so the
+hash over every result that existed before it did not change. Arguments from
+`2^30` up, and any it declines, take Payne-Hanek (about 53 ns on the build host
+against about 10 ns for the fast paths).
+
 **Kernel.** A table-driven kernel (Tang, 1991; Muller, Elementary Functions,
 chapters 4 and 5) for the reduced argument `h + l`, `0 <= h <= pi/4`. Write
 `h = a + b` with `a` the leading six bits of `h`'s mantissa (64 slices per

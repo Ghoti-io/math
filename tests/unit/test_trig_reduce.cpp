@@ -55,11 +55,12 @@ struct Tally {
   long wrong_rl = 0;
 };
 
-// Compare the fast reduction with the exact one at x (pi/4 < x < 2^20).
+// Compare the fast reduction with the exact one at x (pi/4 < x < 2^30): the
+// four-part one below 2^20 and the wide one from there.
 void Compare(double x, Tally * t) {
   double fh, fl, eh, el;
   t->tried++;
-  int nf = reduce_fast(x, &fh, &fl);
+  int nf = x < 0x1p20 ? reduce_fast(x, &fh, &fl) : reduce_fast_wide(x, &fh, &fl);
   if (nf < 0) {
     t->declined++;
     return;
@@ -130,23 +131,37 @@ TEST(TrigReduce, NearMultiplesOfPiOver2Agree) {
   Expect(t, "near k*pi/2", 0.2);
 }
 
-TEST(TrigReduce, TheLimitIsExclusiveAndBothSidesAgree) {
-  // Just below 2^20 the fast path may run; at and above it never does, and the
-  // dispatcher gives the same quadrant either way.
-  double below = 0x1p20;
+TEST(TrigReduce, TheLimitsAreExclusiveAndBothSidesAgree) {
+  // Just below 2^20 the four-part path may run, from 2^20 the wide one; at
+  // and above 2^30 only the exact one runs, and the dispatcher gives the same
+  // quadrant whichever it is.
+  for (double limit : {0x1p20, 0x1p30}) {
+    double below = limit;
+    for (int i = 0; i < 64; i++) {
+      below = std::nextafter(below, 0.0);
+      Tally t;
+      Compare(below, &t);
+      EXPECT_EQ(t.wrong_n + t.wrong_rh + t.wrong_rl, 0);
+      double rh, rl, eh, el;
+      int n = reduce_any(below, &rh, &rl);
+      int ne = reduce(below, &eh, &el);
+      EXPECT_EQ(n, ne);
+      EXPECT_EQ(rh, eh);
+      EXPECT_LE(std::fabs(rl - el), 0x1p-79 * std::fabs(eh));
+    }
+  }
+  // 2^20 and above, until 2^30: the wide path, close to the exact one.
+  double mid = 0x1p20;
   for (int i = 0; i < 64; i++) {
-    below = std::nextafter(below, 0.0);
-    Tally t;
-    Compare(below, &t);
-    EXPECT_EQ(t.wrong_n + t.wrong_rh + t.wrong_rl, 0);
     double rh, rl, eh, el;
-    int n = reduce_any(below, &rh, &rl);
-    int ne = reduce(below, &eh, &el);
+    int n = reduce_any(mid, &rh, &rl);
+    int ne = reduce(mid, &eh, &el);
     EXPECT_EQ(n, ne);
     EXPECT_EQ(rh, eh);
     EXPECT_LE(std::fabs(rl - el), 0x1p-79 * std::fabs(eh));
+    mid = std::nextafter(mid, 1e30);
   }
-  double above = 0x1p20;
+  double above = 0x1p30;
   for (int i = 0; i < 64; i++) {
     double rh, rl, eh, el;
     int n = reduce_any(above, &rh, &rl);
@@ -156,6 +171,62 @@ TEST(TrigReduce, TheLimitIsExclusiveAndBothSidesAgree) {
     EXPECT_EQ(rl, el);  // the exact reduction itself: identical, not close
     above = std::nextafter(above, 1e30);
   }
+}
+
+TEST(TrigReduce, WideUniformAgreesAndIsTaken) {
+  Rng r;
+  Tally t;
+  for (int i = 0; i < 400000; i++) {
+    double x = 0x1p20 + r.unit() * (0x1p30 - 0x1p20);
+    if (x >= 0x1p20 && x < 0x1p30) Compare(x, &t);
+  }
+  Expect(t, "uniform in [2^20, 2^30)", 1e-4);
+}
+
+TEST(TrigReduce, WideEveryBinadeAgreesAndIsTaken) {
+  Rng r;
+  Tally t;
+  for (int i = 0; i < 400000; i++) {
+    int e = 20 + static_cast<int>(r.next() % 10);  // 2^20 .. 2^29
+    double x = std::ldexp(1.0 + r.unit(), e);
+    if (x >= 0x1p20 && x < 0x1p30) Compare(x, &t);
+  }
+  Expect(t, "wide, every binade", 1e-4);
+}
+
+TEST(TrigReduce, WideNearMultiplesOfPiOver2Agree) {
+  // The doubles around k*pi/2 for k up to the top of the range (n < 2^29.35),
+  // k*pi/2 formed from the double-double pi/2 so that it is within an ulp of
+  // the true multiple: remainders of the size of ulp(x), 2^-23 down, and the
+  // cancellation that goes with them.  (The worst cases, down to 2^-59, are in
+  // the next test.)
+  Rng r;
+  Tally t;
+  for (int i = 0; i < 300000; i++) {
+    double k = static_cast<double>(667544 + r.next() % (683565275 - 667544));
+    gmath_dd p = two_prod(k, GMATH_PIO2_HI);
+    double x = p.hi + (p.lo + k * GMATH_PIO2_LO);
+    double u = std::ldexp(1.0, std::ilogb(x) - 52);
+    int sh = static_cast<int>(r.next() % 8);
+    double off = static_cast<double>(static_cast<int64_t>(r.next() % 2001) - 1000) * u * std::ldexp(1.0, sh);
+    x += off;
+    if (x >= 0x1p20 && x < 0x1p30) Compare(x, &t);
+  }
+  Expect(t, "wide, near k*pi/2", 0.01);
+}
+
+TEST(TrigReduce, WideWorstCasesAboveTheFloorAgree) {
+  // The doubles of [2^20, 2^30) closest to a multiple of pi/2 whose remainder
+  // is still above the 2^-55 floor (2^-54.1 and up): the smallest remainders
+  // the wide path takes, so the largest relative error it has.
+  Tally t;
+  for (double x : {0x1.9eb7148f354d6p+20, 0x1.9eb7148f354d6p+21, 0x1.9eb7148f354d6p+22,
+                   0x1.b951f1572eba5p+28, 0x1.b951f1572eba5p+29}) {
+    Compare(x, &t);
+    Compare(std::nextafter(x, 0.0), &t);
+    Compare(std::nextafter(x, 1e30), &t);
+  }
+  Expect(t, "wide, worst cases above the floor", 0.0);
 }
 
 TEST(TrigReduce, EdgesAgree) {
@@ -200,6 +271,36 @@ TEST(TrigReduce, DeclinesUnderTheFloorAndTheExactReductionTakesOver) {
     EXPECT_EQ(ah, eh);
     if (c.declined) {
       EXPECT_EQ(al, el);  // the exact reduction itself
+    } else {
+      EXPECT_LE(std::fabs(al - el), 0x1p-79 * std::fabs(eh));
+    }
+  }
+}
+
+TEST(TrigReduce, WideDeclinesUnderTheFloorAndTheExactReductionTakesOver) {
+  // 0x1.b951f1572eba5p+23 and its doublings are the doubles in [2^20, 2^30)
+  // closest to a multiple of pi/2 (remainders 2^-59.03, 2^-58.03, ...); the
+  // wide path owes the first five to the exact reduction (under 2^-55) and
+  // takes the last two.
+  const struct {
+    double x;
+    bool declined;
+  } cases[] = {
+      {0x1.b951f1572eba5p+23, true}, {0x1.b951f1572eba5p+24, true},
+      {0x1.b951f1572eba5p+25, true}, {0x1.b951f1572eba5p+26, true},
+      {0x1.b951f1572eba5p+27, true}, {0x1.b951f1572eba5p+28, false},
+      {0x1.b951f1572eba5p+29, false},
+  };
+  for (const auto & c : cases) {
+    double fh, fl, eh, el, ah, al;
+    int nf = reduce_fast_wide(c.x, &fh, &fl);
+    EXPECT_EQ(nf < 0, c.declined) << std::hexfloat << c.x;
+    int ne = reduce(c.x, &eh, &el);
+    int na = reduce_any(c.x, &ah, &al);
+    EXPECT_EQ(na, ne);
+    EXPECT_EQ(ah, eh);
+    if (c.declined) {
+      EXPECT_EQ(al, el);
     } else {
       EXPECT_LE(std::fabs(al - el), 0x1p-79 * std::fabs(eh));
     }

@@ -62,4 +62,15 @@ static const uint32_t gmath_two_over_pi[GMATH_TWO_OVER_PI_WORDS] = {
 #define GMATH_CW_P2 0x1.0b4611a600000p-34
 #define GMATH_CW_P3 0x1.3198a2e000000p-69
 #define GMATH_CW_P4 0x1.b839a252049c1p-104
+
+/* The wide fast reduction, 2^20 <= x < 2^30: pi/2 = Q1 + ... + Q5 + Q6 with
+ * Q1..Q5 of 23 significant bits, so that n * Qk is exact for n < 2^30, and Q6
+ * the double nearest what is left.  The six sum to pi/2 with an error below
+ * 2^-175. */
+#define GMATH_CW2_Q1 0x1.921fb40000000p+0
+#define GMATH_CW2_Q2 0x1.4442d00000000p-24
+#define GMATH_CW2_Q3 0x1.8469880000000p-48
+#define GMATH_CW2_Q4 0x1.8cc5180000000p-72
+#define GMATH_CW2_Q5 -0x1.fc8f8c0000000p-97
+#define GMATH_CW2_Q6 -0x1.76b7ed8fbbaccp-122
 #endif /* GHOTI_IO_GMATH_TRIG_TABLES_H */

@@ -231,6 +231,52 @@ def cw_inputs(rng, PI, add, n_k):
             d = math.nextafter(d, math.inf)
 
 
+def cw2_inputs(rng, PI, add, n_k, inv):
+    """Edge cases of the wide fast reduction, 2^20 <= |x| < 2^30 (trig.c,
+    reduce_fast_wide): the doubles either side of its limit 2^30 and of 2^29,
+    the doubles of each binade nearest a multiple of pi/2 (the cancellation
+    that hurts most, down to 2^-59), and doubles at and around k*pi/2 for k
+    spread over the whole range up to the quotient limit 2^30 * 2/pi."""
+    L = 2.0 ** 30
+    for s in (1.0, -1.0):
+        for base in (L, L / 2):
+            d = base
+            for _ in range(8):
+                d = math.nextafter(d, 0)
+                add(s * d)
+            d = base
+            for _ in range(8):
+                d = math.nextafter(d, math.inf)
+                add(s * d)
+        for e in range(20, 30):
+            for d in cf_cases(e - 52, inv):
+                add(s * d)
+                add(s * math.nextafter(d, 0))
+                add(s * math.nextafter(d, math.inf))
+    kmin = int(2.0 ** 20 * 2 / math.pi)
+    kmax = int(L * 2 / math.pi)
+    ks = list(range(kmin - 2, kmin + 3)) + list(range(kmax - 4, kmax + 3))
+    for _ in range(n_k * 2):
+        ks.append(int(2.0 ** rng.uniform(math.log2(kmin), math.log2(kmax))))
+    for k in ks:
+        t = float(PI * k / 2)
+        if not (2.0 ** 20 <= t < L):
+            continue
+        d = t
+        add(d)
+        for _ in range(2):
+            d = math.nextafter(d, 0)
+            add(d)
+        d = t
+        for _ in range(2):
+            d = math.nextafter(d, math.inf)
+            add(d)
+        u = math.ulp(t)
+        for j in (2, 5, 17, 100, 1000):
+            add(t + j * u)
+            add(t - j * u)
+
+
 # Inputs on which a one-ulp change of a polynomial tail coefficient of the
 # kernel (S1, C1 and T1 in trig_kernel_table.h, in either direction) changes
 # the result of sin, cos or tan respectively.  Such a change moves the value by
@@ -377,6 +423,8 @@ def gen_inputs(rng, n_uniform, n_small, n_bits, n_kpi2_small, n_kpi2_big, cf_ste
     cw_inputs(rng, PI, add, n_cw_k)
     # the kernel's table rows and tails, after that
     kernel_inputs(rng, PI, add)
+    # the wide fast reduction's edges, after everything else for the same reason
+    cw2_inputs(rng, PI, add, n_cw_k, inv)
     return inputs
 
 

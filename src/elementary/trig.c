@@ -32,12 +32,14 @@
  *     of pi/2.  Done in 32-bit limbs with 64-bit products, so it is the same
  *     integer arithmetic on every target (no 128-bit type, no integer to
  *     double conversion, which an i686 build would do on the x87 stack).
- *   - For moderate arguments (below 2^20), the cheaper reduction of Cody and
+ *   - For moderate arguments (below 2^30), the cheaper reduction of Cody and
  *     Waite (1980; Muller, Elementary Functions, chapter 11): the quotient
  *     n from one multiplication, and the remainder from n times a pi/2 split
- *     into parts short enough that every product is exact.  It is used only
- *     when it provably agrees with Payne-Hanek (see reduce_fast); everything
- *     else, including every argument it declines, goes the exact way.
+ *     into parts short enough that every product is exact (four parts below
+ *     2^20, reduce_fast; six parts from 2^20 to below 2^30,
+ *     reduce_fast_wide).  It is used only when it provably agrees with
+ *     Payne-Hanek (see reduce_fast); everything else, including every argument
+ *     it declines and every argument of 2^30 and above, goes the exact way.
  *   - Error-free transformations (Dekker's FastTwoSum, split and product;
  *     Muller, Elementary Functions, chapter 4) for the reduced argument, which
  *     is a double-double.
@@ -341,11 +343,91 @@ static int reduce_fast(double ax, double * rh, double * rl) {
   return n & 3;
 }
 
+/* The wide fast reduction takes 2^20 <= ax < this, which bounds n below
+ * 2^29.35 (ax * 2/pi < 684,000,000) and so lets n * Qk (n of 30 bits, Qk of 23)
+ * be an exact product. */
+#define GMATH_CW2_LIMIT 0x1p30
+
+/*
+ * Fast reduction for 2^20 <= ax < 2^30: the same method as reduce_fast with
+ * narrower parts, because n now has up to 30 bits.  Gives the same n mod 4 and
+ * the same remainder as reduce(), to within 2^-79 |rh| in rl, or declines
+ * (returns -1) and leaves the work to reduce().
+ *
+ * n comes from the same 2^52 + 2^51 trick.  The product ax * (2/pi) is off by
+ * up to about 2^-22 now (2^-53 relative of a number below 2^30, twice, and the
+ * rounding of the double 2/pi), so n can be one off when ax * 2/pi is within
+ * 2^-22 of a half-integer.  The remainder is then pi/2 - |r_true| with
+ * |r_true| <= pi/4, so |r| >= the true pi/4, above the double pi/4, and the
+ * range test at the end declines it, exactly as in reduce_fast.  A remainder
+ * that passes the test is below the double pi/4, which is below the true pi/4,
+ * so n is the nearest integer, as reduce() takes it.
+ *
+ * With Q1 + ... + Q6 = pi/2 (Q1..Q5 of 23 bits, Q6 a double; Qk is a multiple
+ * of 2^-22, 2^-46, 2^-70, 2^-94, 2^-119 for k = 1..5, and what is left of pi/2
+ * after Q1..Qk is below 2^-23, 2^-47, 2^-71, 2^-95, 2^-119, the last being
+ * half the unit of Q5):
+ *
+ *   d  = ax - n*Q1   exact.  n*Q1 is exact (30 + 23 bits).  ax >= 2^20 and
+ *                    n*Q1 are both multiples of 2^-32 (ulp(ax) >= 2^-32 and Q1
+ *                    is a multiple of 2^-22), and |d| < pi/4 + n * 2^-23 < 2^7
+ *                    (n < 2^29.35 and pi/2 - Q1 < 2^-23, plus the n that is
+ *                    one too large), so d is below 2^39 units of 2^-32.
+ *   t2 = n*Q2, t3 = n*Q3, t4 = n*Q4, t5 = n*Q5   exact (30 + 23 bits).
+ *   s2 = d - t2      exact, with no error term: the true result is
+ *                    r + n * (pi/2 - Q1 - Q2) of magnitude below 2, a multiple
+ *                    of 2^-46 (d is a multiple of 2^-32, t2 of 2^-46), so it
+ *                    has at most 48 significant bits and is a double; a
+ *                    subtraction whose exact result is a double is exact.
+ *   (s3, e3) = TwoSum(s2, -t3); (s4, e4) = TwoSum(s3, -t4);
+ *   (s5, e5) = TwoSum(s4, -t5)   exact.  |sk| < |r| (1 + 2^-52) + n * 2^-(24k - 1)
+ *                    (the remainder of pi/2 after Q1..Qk, times n), so
+ *                    |e3| <= 2^-53 |r| + 2^-94, |e4| <= 2^-53 |r| + 2^-118
+ *                    and |e5| <= 2^-53 |r| + 2^-142, up to a factor 1 + 2^-52.
+ *   t6 = n*Q6        rounded: |t6| < 2^-91, the error is below 2^-144.
+ *   lo = (e3 + e4) + (e5 - t6)   three roundings, each of half an ulp of a
+ *                    quantity below 2^-52 |r| + 2^-90, so the error is below
+ *                    2^-104 |r| + 2^-142.
+ *
+ * and Q6 is within 2^-175 of the rest of pi/2, so the sum of the six misses
+ * pi/2 by less than n * 2^-175 < 2^-145.  The absolute error of s5 + lo as the
+ * remainder is therefore below 2^-104 |r| + 2^-141, and for |r| >= 2^-55 that
+ * is below 2^-84 |r|, which is inside the 2^-79 |r| that reduce_fast relies on
+ * (reduce() itself is good to 2^-106 |r|).  The remainder is declined below the
+ * floor 2^-55 as in reduce_fast; below 2^30 the closest a double comes to a
+ * multiple of pi/2 is about 2^-62, so the floor hands over only a few doubles.
+ */
+static int reduce_fast_wide(double ax, double * rh, double * rl) {
+  double t = ax * GMATH_CW_INV_PIO2;
+  t = t + GMATH_CW_MAGIC;
+  int n = (int)(bits_of(t) & 0xffffffffu);
+  double nd = t - GMATH_CW_MAGIC;
+  double d = ax - nd * GMATH_CW2_Q1;
+  double s2 = d - nd * GMATH_CW2_Q2;
+  gmath_dd a = two_sum(s2, -(nd * GMATH_CW2_Q3));
+  gmath_dd b = two_sum(a.hi, -(nd * GMATH_CW2_Q4));
+  gmath_dd c = two_sum(b.hi, -(nd * GMATH_CW2_Q5));
+  double lo = (a.lo + b.lo) + (c.lo - nd * GMATH_CW2_Q6);
+  gmath_dd r = fast_two_sum(c.hi, lo);
+  double mag = double_of(bits_of(r.hi) & ABS_MASK);
+  if (!(mag >= GMATH_CW_MIN_R && mag <= GMATH_PIO4)) {
+    return -1;
+  }
+  *rh = r.hi;
+  *rl = r.lo;
+  return n & 3;
+}
+
 /* The reduction every function uses: n mod 4, with (rh, rl) = ax - n*pi/2 for
  * the nearest integer n.  ax > pi/4. */
 static int reduce_any(double ax, double * rh, double * rl) {
   if (ax < GMATH_CW_LIMIT) {
     int n = reduce_fast(ax, rh, rl);
+    if (n >= 0) {
+      return n;
+    }
+  } else if (ax < GMATH_CW2_LIMIT) {
+    int n = reduce_fast_wide(ax, rh, rl);
     if (n >= 0) {
       return n;
     }

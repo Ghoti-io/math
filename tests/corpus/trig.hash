@@ -1,11 +1,11 @@
 # FNV-1a 64 over the little-endian bytes of every result, sin cos tan atan2 exp log pow hypot sqrt floor ceil trunc round rint fabs copysign scalbn frexp ilogb, in corpus order.
 # `hash` and `count` are over all nineteen; each `fn` line is one function alone; sqrt_portable, sqrt_hardware and ldexp are variants, outside the total, that must equal sqrt and scalbn.
 # Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig, testElementary and the cross-target scripts.
-hash e0bed489c359d746
-count 288856
-fn sin 11acb5a2c504505f 19431
-fn cos 916569145387ecaf 19431
-fn tan cb49df35ecf003fa 19431
+hash f5fa269eb60ee34f
+count 292711
+fn sin 3b0ac12dfb2b4f84 20716
+fn cos 2e853ac145e76d94 20716
+fn tan 6a573e9c5e6a1a2f 20716
 fn atan2 c72b31442d4013d2 13169
 fn exp 0d2229936f5e1826 7798
 fn log 97cbf2c41acbd551 9776

@@ -348,6 +348,23 @@ expect_oracle_fails("fast/limit 2^24 not 2^20", [(C, "#define GMATH_CW_LIMIT 0x1
 expect_oracle_fails("fast/limit 2^40 not 2^20", [(C, "#define GMATH_CW_LIMIT 0x1p20", "#define GMATH_CW_LIMIT 0x1p40")])
 expect_oracle_fails("fast/tail t4 dropped from lo", [(C, "double lo = (a.lo + b.lo) - nd * GMATH_CW_P4;", "double lo = a.lo + b.lo;")])
 
+# The wide fast reduction (reduce_fast_wide, 2^20 <= x < 2^30): the same kinds of
+# defect, all seen (the corpus has cw2_inputs of gen_corpus.py there: the
+# doubles either side of 2^29 and 2^30, the worst cancellations of every
+# binade, and multiples of pi/2 spread over the range).  Accepted as invisible,
+# and so not planted: Q6 dropped or wrong, which moves the remainder by
+# n * Q6 < 2^-91 against |r| >= 2^-55 (2^-36 of r, under 2^-35 ulp of a
+# result); and the last rounding of lo, 2^-104 |r| + 2^-142.
+expect_oracle_fails("wide/Q1 wrong in its last bit", [(T, "#define GMATH_CW2_Q1 0x1.921fb40000000p+0", "#define GMATH_CW2_Q1 0x1.921fb00000000p+0")])
+expect_oracle_fails("wide/Q2 wrong in its last bit", [(T, "#define GMATH_CW2_Q2 0x1.4442d00000000p-24", "#define GMATH_CW2_Q2 0x1.4442c00000000p-24")])
+expect_oracle_fails("wide/Q3 wrong in its last bit", [(T, "#define GMATH_CW2_Q3 0x1.8469880000000p-48", "#define GMATH_CW2_Q3 0x1.8469800000000p-48")])
+expect_oracle_fails("wide/Q4 wrong in its last bit", [(T, "#define GMATH_CW2_Q4 0x1.8cc5180000000p-72", "#define GMATH_CW2_Q4 0x1.8cc5100000000p-72")])
+expect_oracle_fails("wide/Q5 dropped", [(T, "#define GMATH_CW2_Q5 -0x1.fc8f8c0000000p-97", "#define GMATH_CW2_Q5 0x0p+0")])
+expect_oracle_fails("wide/limit 2^34 not 2^30", [(C, "#define GMATH_CW2_LIMIT 0x1p30", "#define GMATH_CW2_LIMIT 0x1p34")])
+expect_oracle_fails("wide/limit 2^50 not 2^30", [(C, "#define GMATH_CW2_LIMIT 0x1p30", "#define GMATH_CW2_LIMIT 0x1p50")])
+expect_oracle_fails("wide/step Q2 dropped", [(C, "double s2 = d - nd * GMATH_CW2_Q2;", "double s2 = d;")])
+expect_oracle_fails("wide/tail e dropped from lo", [(C, "double lo = (a.lo + b.lo) + (c.lo - nd * GMATH_CW2_Q6);", "double lo = 0.0;")])
+
 # Hash-class defects: below the contract, above the committed bits.  One ulp
 # of S0, C0 and T0 changes about one argument in 2^10 of the direct range, and
 # one ulp of S1, C1 and T1 about one in 2^22, for which the corpus has the

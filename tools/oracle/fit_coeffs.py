@@ -22,7 +22,10 @@ Printed: the bits of 2/pi as 32-bit words for the Payne-Hanek reduction
 moderate arguments (Cody and Waite, 1980; Muller, Elementary Functions,
 chapter 11): 2/pi as a double, and pi/2 split as P1 + P2 + P3 + P4 with P1..P3
 of 33 significant bits each, so that n * Pk is exact for any n below 2^20, and
-P4 the double nearest the remainder.
+P4 the double nearest the remainder.  For arguments from 2^20 to below 2^30,
+the same with narrower parts so that n * Pk is exact for n below 2^30: pi/2 as
+Q1 + ... + Q5 of 23 significant bits each plus Q6, the double nearest the
+remainder.
 """
 
 import sys
@@ -71,6 +74,14 @@ def main():
         rem -= part
     cw.append(mpf(float(rem)))
     inv2pi = float(2 / pi)
+
+    cw2 = []
+    rem = pio2
+    for _ in range(5):
+        part = round_bits(rem, 23)
+        cw2.append(part)
+        rem -= part
+    cw2.append(mpf(float(rem)))
 
     out = []
     w = out.append
@@ -125,6 +136,13 @@ def main():
     w("#define GMATH_CW_INV_PIO2 %s" % hexd(inv2pi))
     for i, part in enumerate(cw):
         w("#define GMATH_CW_P%d %s" % (i + 1, hexd(float(part))))
+    w("")
+    w("/* The wide fast reduction, 2^20 <= x < 2^30: pi/2 = Q1 + ... + Q5 + Q6 with")
+    w(" * Q1..Q5 of 23 significant bits, so that n * Qk is exact for n < 2^30, and Q6")
+    w(" * the double nearest what is left.  The six sum to pi/2 with an error below")
+    w(" * 2^-175. */")
+    for i, part in enumerate(cw2):
+        w("#define GMATH_CW2_Q%d %s" % (i + 1, hexd(float(part))))
     w("#endif /* GHOTI_IO_GMATH_TRIG_TABLES_H */")
     sys.stdout.write("\n".join(out) + "\n")
 

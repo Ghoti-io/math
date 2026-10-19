@@ -20,7 +20,7 @@ where it rounds correctly, a portable method with the same bits elsewhere, both 
 `gmath_ldexp`, `gmath_frexp` and `gmath_ilogb`. There is no `fma`: fusing is forbidden (AD-17).
 `make check-libm` refuses every libm symbol, in this library and in the shape libraries.
 
-* `sin`, `cos`, `tan`: the argument is reduced exactly (Cody-Waite below 2^20 where that is
+* `sin`, `cos`, `tan`: the argument is reduced exactly (Cody-Waite below 2^30 where that is
   provably as good, Payne-Hanek otherwise), so a huge argument near a multiple of pi/2 is as
   accurate as any other. The reduced argument is looked up in a 16 KB table (sin, cos, tan and
   cot of its leading six bits) and corrected by a short polynomial in double.
