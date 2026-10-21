@@ -1,6 +1,6 @@
 # Design
 
-**Status:** `sin`, `cos`, `tan`, `atan2`, `exp`, `log`, `pow` and `hypot` are implemented (CAP-1).
+**Status:** `sin`, `cos`, `tan`, `atan2`, `exp`, `log`, `pow` and `hypot` are implemented (CAP-1), with the exact functions of `basic.h` and the decimal conversions of `decimal.h`.
 
 Deterministic elementary functions that give the same bits on every host.
 
@@ -231,6 +231,105 @@ which must agree), and the test requires equality to the bit. Not provided, beca
 them and the gate refuses them: `fmod`, `modf`, `fma` (AD-17 forbids fusing), `lrint` and its kin,
 `fmin`, `fmax`, `cbrt`, `exp2`, `log2` and the float (`f`) forms.
 
+## Decimal conversion
+
+`gmath_decimal_parse`, `gmath_decimal_to_double` and `gmath_decimal_shortest` (`decimal.h`;
+`src/decimal/`). A decimal is rounded to the nearest `double`, ties to even, and a `double` is
+written as the shortest decimal that rounds back to it. Both are exact, so the oracle is exact
+too, and the test requires equality. Both use integer arithmetic only, in a fixed-size integer
+of 128 32-bit limbs (`bignum.h`). So nothing depends on the target, the compiler, the locale or
+the rounding mode, nothing allocates, and no floating-point exception is raised. IEEE 754's
+inexact, overflow and underflow (tininess before rounding) come back as flags. Written from the
+definitions below and the oracle's results; no implementation's source was read. The method is
+in the spirit of Clinger's (1990) exact fallback and of Steele and White's (1990) free-format
+output: exact integer arithmetic, with no approximation to correct afterwards.
+
+**Reading.** The value is `D * 10^E` with `D` an integer, its leading and trailing zeros removed.
+
+* *Long inputs.* Every double, and every midpoint between two consecutive doubles, has at most
+  768 significant decimal digits. A midpoint is `(2M + 1) * 2^q` with `M < 2^53` and
+  `q >= -1075`. For `q < 0` that is `(2M + 1) * 5^-q / 10^-q`, and `(2M + 1) * 5^1075` has at
+  most `ceil(54 log10 2 + 1075 log10 5) = 768` digits. For `q >= 0` it is an integer below
+  `2^1025`. So when more than 800 significant digits are given, the value lies strictly between
+  its first 800 digits `P` and the next 800-digit decimal `P + 10^e`. No rounding boundary lies
+  in that open interval: a boundary near the value starts at most one decimal place above the
+  value's leading digit and ends at most 767 places below that, so it is a multiple of `10^e`.
+  Every point in the interval therefore rounds alike, and `P` followed by the digit 5 stands for
+  the value. An input of any length costs one pass over its digits and the work of 801 digits.
+* *Range.* A leading digit at `10^309` or above is infinity, since the largest double plus half
+  a unit is below `1.8 * 10^308`. One at `10^-325` or below is zero, since `10^-324` is below
+  `2^-1075`, half the smallest subnormal. Both are decided from the exponent alone, by
+  saturating arithmetic. The caller's exponent may be any `int64_t`, and the parser saturates
+  its exponent at `2^61`, which no input shorter than `2^62` bytes can bring back into range.
+* *The integer.* Otherwise `E` is in `[-1125, 308]`, and the value is `A / B` with
+  `A = D * 10^max(E, 0)` and `B = 10^max(-E, 0)`. `B` has at most 3,738 bits. With `la` and `lb`
+  the bit lengths, `k = 56 - la + lb` makes `q = floor(A * 2^k / B)` lie in `(2^55, 2^57)`.
+  When `B` is 1, `q` is the top 57 bits of `A`. The dividend has at most `lb + 57` bits, so
+  4,096 bits hold every operand. `q` and a flag for a nonzero remainder are rounded once: to 53
+  bits when the leading bit's exponent `ue` is at least -1022, and to `ue + 1075` bits below
+  that, so a subnormal is rounded once at its own precision. The 2 to 4 bits below the kept
+  ones and the flag decide the rounding, ties to even. The rounded significand of a subnormal is
+  its own encoding, so a carry into `2^52` is the smallest normal number with no special case.
+  A carry out of a normal significand moves the exponent, and may overflow.
+* *Divisions, three ways, all exact.* No division when `B` is 1. Short division by one 32-bit
+  limb when `B * 2^max(-k, 0)` fits one, which covers a fraction of up to nine digits next to a
+  short integer, the usual shape of SVG and CSS. Restoring binary long division otherwise, which
+  is the general tier. The tests run every corpus input through both its own tier and the
+  general one, require the same bits and flags, and require each tier to be taken more than a
+  hundred times (AD-13).
+
+**Writing.** With `x = m * 2^e`, the decimals that round to `x` form the interval between the
+midpoints next to `x`. Its ends are included when `m` is even (a tie goes to the even
+neighbour, which is `x`) and excluded when `m` is odd. The interval is `x +- 2^(e-1)`, except
+that below a power of two other than the smallest normal number the lower end is
+`x - 2^(e-2)`, since the predecessor is in the binade below. So `x`, the upper end and the lower
+end are `4m`, `4m + 2` and `4m - 2` (or `4m - 1`) times `2^(e-2)`.
+
+* *One division each.* `L` is the power of ten of `x`'s leading digit, estimated from the
+  binary exponent and confirmed by the quotient that follows. With `s = L - 16`, each of the
+  three values is divided once, exactly, by `10^s`. That gives an integer of 17 digits and a
+  flag for a nonzero remainder; for `x`, the remainder is also compared with one half.
+* *The search.* For `n = 1, ..., 17`, the candidates with `n` significant digits are the
+  integers `c` with `c * 10^(17-n)` inside the scaled interval. The bounds, and the candidate
+  nearest `x` (half to even), are integer divisions of the three 17-digit integers by
+  `10^(17-n)`, with the flags deciding the exact cases. The first `n` with a candidate is the
+  shortest length. The nearest candidate inside the bounds is the answer, which clamping gives,
+  since all the candidates lie on one side of a nearest integer that falls outside.
+* *Seventeen digits suffice.* At `n = 17` the scaled interval is wider than one unit, so it
+  holds an integer. Its width is `2^(e-1) * 2 / 10^s`, at least `2^-53 * x / 10^s > 2^-53 * 10^16 > 1.1`.
+  Below a power of two it is three quarters of the unit in the last place, and there
+  `ulp / x = 2^-52`, so the width is at least `0.75 * 2^-52 * 10^16 > 1.6`.
+* *Two fast tiers*, each checked against the general tier on every corpus input and shown
+  taken:
+  * An integer below `2^53` is its own shortest spelling. Its interval is at most one unit
+    wide, so any other decimal in it is at least as long, and a decimal with fewer significant
+    digits, being a multiple of a higher power of ten, is at least one unit away.
+  * When `s <= 0` and `e < 2` (every `|x|` below `10^16` that is not an integer), the divisor
+    is a power of two and the three divisions are shifts.
+
+**Gates.**
+* *The corpus.* `tests/corpus/decimal_parse.corpus` and `decimal_shortest.corpus` are written by
+  `tools/oracle/gen_corpus_decimal.py`, with three references that must agree. For reading:
+  the exact rational value rounded by Python's correctly rounded integer division, MPFR, and
+  CPython's `float()`. For writing: an exact interval search over rationals written there, and
+  CPython's `repr()`.
+* *Corpus inputs.* Midpoints, written exactly and as 801 to 900 digits just above and below
+  them. Ties carried by a short and by a long fraction. The thresholds of overflow and
+  underflow. Every power of two, and the neighbours of every power of ten. Integers past `2^54`,
+  whose interval ends are even integers.
+* *Cross-target hash.* Both functions are in the corpus hash, outside its total, so the
+  cross-target scripts compare them.
+* *Unit tests.* `testDecimal` checks the grammar's edges, the arguments refused, inputs of
+  100,000 digits, the inverse property over 200,000 random doubles, and the same results in
+  every rounding mode with no exception raised.
+* *Planted defects.* `make check-planted-decimal` plants 40 defects, in the truncation, the
+  early decisions, the rounding, the grammar, the search and the integer operations, and requires
+  each to fail. Its header says what is deliberately not planted, and why.
+
+Not provided: hexadecimal floating point, the spelling of infinity and NaN, digit separators, and
+any formatting of the digits (`1e23` against `1.0E+23` is the caller's). A format stricter than
+the shared grammar (JSON forbids `+1`, `.5` and `01`) checks its own rule.
+
 ## Speed
 
 `make bench` (`tools/bench-trig.c`, `tools/bench-elementary.c`): 4,096 arguments per
@@ -271,3 +370,22 @@ for the integers beyond 2^52.
 The host's libm may use fused multiply-adds, which this library may not, so `pow` and `hypot` cost
 more flops here. Story 4 measured `hypot` with a hardware `sqrt` in place of its table and two Newton
 steps at 1.1 against libm where its own square root measured 1.5; story 4a took the first.
+
+And the decimal conversions (ns per call including loop and call overhead, 4,096 inputs, best of
+200 repeats, one core pinned, three runs agreeing within 3%, the same image; the parse input is
+the shortest spelling of each double, `digits` `e` `exponent`; glibc's `strtod` and
+`snprintf("%.17g")` beside them, the second producing 17 digits rather than the shortest):
+
+| inputs | `gmath_decimal_parse` | `strtod` | `gmath_decimal_shortest` | `%.17g` |
+|---|---|---|---|---|
+| integers below 10^6 | 27 | 31 | 12 | 137 |
+| two-place decimals below 1000 | 42 | 46 | 68 | 210 |
+| doubles of uniformly random bits | 570 | 145 | 1,440 | 355 |
+
+The first two rows are what a document format writes, and both functions are faster there than
+glibc's. The third row spans the whole exponent range, where every conversion takes the big
+integer path: its cost grows with the decimal exponent, about 2,100 bits at 10^-308, and nothing
+here yet avoids it. A fast tier for wide exponents, a precomputed table of powers of ten wide enough
+to decide most inputs and the big integer path for the rest, would follow the pattern of the two
+fast tiers above: gated against the general tier on every corpus input, each of its outcomes seen
+taken. It is not written.

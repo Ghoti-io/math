@@ -18,7 +18,8 @@ gmath_exp, gmath_log, gmath_pow and gmath_hypot.
     oracle.py fit-atan2                     print src/elementary/atan2_table.h
     oracle.py fit-hypot                     print src/elementary/hypot_table.h
     oracle.py corpus --out DIR --seed N     write the committed-size corpus (sin, cos, tan, atan2, exp, log, pow, hypot,
-                                    and sqrt, floor, ceil, trunc, round, rint, fabs, copysign, scalbn, frexp, ilogb)
+                                    and sqrt, floor, ceil, trunc, round, rint, fabs, copysign, scalbn, frexp, ilogb,
+                                    and decimal_parse, decimal_shortest)
     oracle.py fresh  --out DIR --seed N     write a small sample drawn now
 
 The reference runs in the pinned image named by containers/IMAGES, never on
@@ -119,7 +120,7 @@ def main():
         sys.stderr.write("oracle.py: --out must be inside %s\n" % ROOT)
         return 2
     size = "committed" if a.cmd == "corpus" else "fresh"
-    for script in ("gen_corpus.py", "gen_corpus_elem.py", "gen_corpus_exact.py"):
+    for script in ("gen_corpus.py", "gen_corpus_elem.py", "gen_corpus_exact.py", "gen_corpus_decimal.py"):
         rc = engine_run(ref, ["python", "tools/oracle/" + script, "--out", out,
                               "--seed", str(a.seed), "--size", size]).returncode
         if rc != 0:

@@ -280,7 +280,7 @@ def main():
     def build_probe(d):
         exe = d / "corpus-hash"
         objs = (d / "objs.txt").read_text().split("\n")
-        r = subprocess.run(cc + probe_cflags + ["tools/corpus-hash.c"] + objs + [trig_obj, "-o", str(exe), "-lm"], capture_output=True, text=True)
+        r = subprocess.run(cc + probe_cflags + ["tools/corpus-hash.c"] + objs + [trig_obj] + shlex.split(os.environ["PLANT_DECIMAL_OBJS"]) + ["-o", str(exe), "-lm"], capture_output=True, text=True)
         if r.returncode != 0:
             fail("%s: the probe does not build:\n%s" % (d.name, r.stderr))
             return None

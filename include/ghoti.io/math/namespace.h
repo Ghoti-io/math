@@ -40,11 +40,23 @@
 
 /// @cond HIDDEN_SYMBOLS
 
+/* Public types, with their tags. */
+#define GMATH_Decimal GHOTIIO_MATH(GMATH_Decimal)
+#define GMATH_Result GHOTIIO_MATH(GMATH_Result)
+
+/* Internal functions (src/decimal/decimal_internal.h), for the tests. */
+#define gmath_decimal_round_spans GHOTIIO_MATH(gmath_decimal_round_spans)
+#define gmath_decimal_shortest_tiered GHOTIIO_MATH(gmath_decimal_shortest_tiered)
+#define gmath_decimal_tier GHOTIIO_MATH(gmath_decimal_tier)
+
 /* Public functions. */
 #define gmath_atan2 GHOTIIO_MATH(gmath_atan2)
 #define gmath_ceil GHOTIIO_MATH(gmath_ceil)
 #define gmath_copysign GHOTIIO_MATH(gmath_copysign)
 #define gmath_cos GHOTIIO_MATH(gmath_cos)
+#define gmath_decimal_parse GHOTIIO_MATH(gmath_decimal_parse)
+#define gmath_decimal_shortest GHOTIIO_MATH(gmath_decimal_shortest)
+#define gmath_decimal_to_double GHOTIIO_MATH(gmath_decimal_to_double)
 #define gmath_exp GHOTIIO_MATH(gmath_exp)
 #define gmath_fabs GHOTIIO_MATH(gmath_fabs)
 #define gmath_floor GHOTIIO_MATH(gmath_floor)
@@ -54,6 +66,7 @@
 #define gmath_ldexp GHOTIIO_MATH(gmath_ldexp)
 #define gmath_log GHOTIIO_MATH(gmath_log)
 #define gmath_pow GHOTIIO_MATH(gmath_pow)
+#define gmath_result_string GHOTIIO_MATH(gmath_result_string)
 #define gmath_rint GHOTIIO_MATH(gmath_rint)
 #define gmath_round GHOTIIO_MATH(gmath_round)
 #define gmath_scalbn GHOTIIO_MATH(gmath_scalbn)

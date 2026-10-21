@@ -190,7 +190,7 @@ def expect_oracle_fails(name, patches):
 
 def build_probe(d, extra=()):
     exe = d / "corpus-hash"
-    r = subprocess.run(cc + probe_cflags + list(extra) + ["tools/corpus-hash.c", str(d / "trig.o")] + other_objs + ["-o", str(exe), "-lm"],
+    r = subprocess.run(cc + probe_cflags + list(extra) + ["tools/corpus-hash.c", str(d / "trig.o")] + other_objs + shlex.split(os.environ["PLANT_DECIMAL_OBJS"]) + ["-o", str(exe), "-lm"],
                        capture_output=True, text=True)
     if r.returncode != 0:
         fail("%s: the probe does not build:\n%s" % (d.name, r.stderr))

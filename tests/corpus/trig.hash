@@ -1,5 +1,5 @@
 # FNV-1a 64 over the little-endian bytes of every result, sin cos tan atan2 exp log pow hypot sqrt floor ceil trunc round rint fabs copysign scalbn frexp ilogb, in corpus order.
-# `hash` and `count` are over all nineteen; each `fn` line is one function alone; sqrt_portable, sqrt_hardware and ldexp are variants, outside the total, that must equal sqrt and scalbn.
+# `hash` and `count` are over all nineteen; each `fn` line is one function alone; sqrt_portable, sqrt_hardware and ldexp are variants, outside the total, that must equal sqrt and scalbn; decimal_parse (bits, flags, bytes consumed) and decimal_shortest (sign, digits, exponent) are outside the total too.
 # Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig, testElementary and the cross-target scripts.
 hash f5fa269eb60ee34f
 count 292711
@@ -25,3 +25,5 @@ fn ilogb a75ea8d334960067 8292
 fn sqrt_portable b854953ee667de3a 47036
 fn sqrt_hardware b854953ee667de3a 47036
 fn ldexp 17a1e96d3c3da909 6193
+fn decimal_parse 329c0f4b62b8d750 16537
+fn decimal_shortest ab09f1339f15c856 42064

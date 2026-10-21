@@ -41,7 +41,17 @@ where it rounds correctly, a portable method with the same bits elsewhere, both 
 
 `make bench` times all of them against the host libm, per argument range.
 
-Also `gmath_version_string()` and `gmath_version_number()`, and the gates every
+And exact conversion between decimal and `double` (`ghoti.io/math/decimal.h`):
+* `gmath_decimal_parse` reads the decimal grammar CSS, SVG and `strtod` share.
+* `gmath_decimal_to_double` takes digits and a power of ten.
+* Both round correctly, ties to even, for an input of any length, and return IEEE 754's inexact,
+  overflow and underflow as flags.
+* `gmath_decimal_shortest` gives the fewest digits that read back to the same `double`, the
+  nearest when there is a choice.
+* None of them reads the locale or the rounding mode, allocates, or raises an exception, so the
+  same text gives the same bits everywhere. See `documentation/design.md`, "Decimal conversion".
+
+Also `gmath_version_string()`, `gmath_version_number()` and `gmath_result_string()`, and the gates every
 library in the shape family runs in `make test`.
 
 ### How the accuracy is checked

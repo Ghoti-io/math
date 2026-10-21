@@ -37,6 +37,7 @@
  * only, which the gates use to show that the variant check can fail.
  */
 #include <ghoti.io/math/basic.h>
+#include <ghoti.io/math/decimal.h>
 #include <ghoti.io/math/elementary.h>
 
 #include <inttypes.h>
@@ -104,6 +105,77 @@ static const struct {
   {"ldexp", "scalbn", K_DN_D, 0, "scalbn", NULL, NULL, gmath_ldexp},
 };
 #define NFNS ((int)(sizeof fns / sizeof fns[0]))
+
+/*
+ * The decimal conversions, each over its own corpus and outside the total:
+ * gmath_decimal_parse hashed as the result's bits, the flags and the bytes
+ * consumed; gmath_decimal_shortest as the sign, the digits and the exponent.
+ * A line is at most a few thousand bytes (a text of more than 800 digits).
+ */
+static char decimal_line[1 << 16];
+
+static int hash_decimal(const char * dir, const char * fn, int parse, uint64_t * h, unsigned long * c) {
+  char path[4096];
+  if (snprintf(path, sizeof path, "%s/%s.corpus", dir, fn) >= (int)sizeof path) {
+    fprintf(stderr, "corpus-hash: path too long\n");
+    return 2;
+  }
+  FILE * fp = fopen(path, "r");
+  if (!fp) {
+    fprintf(stderr, "corpus-hash: cannot open %s\n", path);
+    return 2;
+  }
+  *h = GMATH_FNV_BASIS;
+  *c = 0;
+  while (fgets(decimal_line, sizeof decimal_line, fp)) {
+    size_t len = strlen(decimal_line);
+    if (len == sizeof decimal_line - 1 && decimal_line[len - 1] != '\n') {
+      fprintf(stderr, "corpus-hash: a line of %s is too long\n", path);
+      fclose(fp);
+      return 2;
+    }
+    if (decimal_line[0] == '#' || decimal_line[0] == '\n' || decimal_line[0] == '\r') {
+      continue;
+    }
+    char * space = strchr(decimal_line, ' ');
+    if (!space) {
+      fprintf(stderr, "corpus-hash: bad line in %s\n", path);
+      fclose(fp);
+      return 2;
+    }
+    if (parse) {
+      double d = 0;
+      size_t consumed = 0;
+      unsigned flags = 0;
+      if (gmath_decimal_parse(decimal_line, (size_t)(space - decimal_line), &d, &consumed, &flags) != GMATH_OK) {
+        d = double_of(0x7ff8dead00000000ull); /* a refusal hashes as itself */
+      }
+      *h = gmath_fnv_double(*h, d);
+      *h = gmath_fnv_u64(*h, flags);
+      *h = gmath_fnv_u64(*h, (uint64_t)consumed);
+    } else {
+      uint64_t u = 0;
+      if (sscanf(decimal_line, "%" SCNx64, &u) != 1) {
+        fprintf(stderr, "corpus-hash: bad line in %s\n", path);
+        fclose(fp);
+        return 2;
+      }
+      GMATH_Decimal dec;
+      if (gmath_decimal_shortest(double_of(u), &dec) != GMATH_OK) {
+        *h = gmath_fnv_u64(*h, 0xdeadull);
+      } else {
+        *h = gmath_fnv_u64(*h, dec.negative ? 1u : 0u);
+        for (size_t i = 0; i < dec.length; i++) {
+          *h = gmath_fnv_u64(*h, (uint64_t)(unsigned char)dec.digits[i]);
+        }
+        *h = gmath_fnv_u64(*h, (uint64_t)(int64_t)dec.exponent);
+      }
+    }
+    (*c)++;
+  }
+  fclose(fp);
+  return 0;
+}
 
 int main(int argc, char ** argv) {
   if (argc != 2) {
@@ -204,6 +276,19 @@ int main(int argc, char ** argv) {
   for (int f = 0; f < NFNS; f++) {
     printf("math.%s.hash  %016" PRIx64 "\n", fns[f].name, fhash[f]);
     printf("math.%s.count  %lu\n", fns[f].name, fcount[f]);
+  }
+  {
+    static const char * const decimal_fns[2] = {"decimal_parse", "decimal_shortest"};
+    for (int k = 0; k < 2; k++) {
+      uint64_t h = 0;
+      unsigned long c = 0;
+      int rc = hash_decimal(argv[1], decimal_fns[k], k == 0, &h, &c);
+      if (rc != 0) {
+        return rc;
+      }
+      printf("math.%s.hash  %016" PRIx64 "\n", decimal_fns[k], h);
+      printf("math.%s.count  %lu\n", decimal_fns[k], c);
+    }
   }
   printf("math.sqrt_hardware.available  %d\n", gmath_sqrt_has_hardware());
   int status = 0;

@@ -29,6 +29,7 @@
 
 #include <ghoti.io/math/basic.h>
 #include <ghoti.io/math/core.h>
+#include <ghoti.io/math/decimal.h>
 #include <ghoti.io/math/elementary.h>
 #include <ghoti.io/math/macros.h>
 
