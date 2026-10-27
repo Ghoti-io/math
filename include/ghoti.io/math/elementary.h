@@ -176,6 +176,24 @@ GMATH_API double gmath_exp(double x);
 GMATH_API double gmath_exp2(double x);
 
 /**
+ * @brief Binary32 two raised to @p x, within 1 float ulp under nearest rounding.
+ *
+ * Integer exponents -149 through 127 return exact binary powers without
+ * exceptions in every rounding mode. Both zeros return 1; +infinity returns
+ * infinity and -infinity returns +0 without exceptions. NaNs canonicalize,
+ * raising invalid only for signaling NaNs. Finite x>=128 returns infinity
+ * with overflow/inexact; x<=-150 returns +0 with underflow/inexact. Other
+ * inexact subnormal results raise underflow/inexact; noninteger normal results
+ * raise inexact without underflow. errno, rounding mode and incoming flags
+ * are preserved. Numerical accuracy assumes the default nearest environment;
+ * full libm errno and directed-rounding compatibility are not promised.
+ *
+ * @param x The exponent.
+ * @return 2^@p x as a float.
+ */
+GMATH_API float gmath_exp2f(float x);
+
+/**
  * @brief Real cube root of @p x, within 1 ulp under round-to-nearest.
  *
  * The function is odd. Signed zeros and infinities preserve their bits without

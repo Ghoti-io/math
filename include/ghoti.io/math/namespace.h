@@ -69,6 +69,7 @@
 #define gmath_sqrtf GHOTIIO_MATH(gmath_sqrtf)
 #define gmath_cbrt GHOTIIO_MATH(gmath_cbrt)
 #define gmath_exp2 GHOTIIO_MATH(gmath_exp2)
+#define gmath_exp2f GHOTIIO_MATH(gmath_exp2f)
 #define gmath_fabs GHOTIIO_MATH(gmath_fabs)
 #define gmath_floor GHOTIIO_MATH(gmath_floor)
 #define gmath_fmax GHOTIIO_MATH(gmath_fmax)

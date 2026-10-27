@@ -25,6 +25,18 @@ The deterministic contracts in the public headers remain authoritative.
   inputs remain slower than host libm; wide ranges and exact integer powers
   are faster on the measured host (see design notes).
 
+- Binary32 base-two exponential: `gmath_exp2f`, reusing exact base-two
+  reduction and the existing generated exponential table. Integer powers
+  -149 through 127 are exact without exceptions; NaNs, finite tails and
+  inexact tiny outputs have explicit float/state contracts. Directed pinned
+  references cover 26,220 committed and 316,779 larger-sample rows. A complete
+  reference-payload checksum also runs without the oracle image. The closed
+  error-cell upper bound is 0.50000003 ULP against a 0.51 regression cap.
+  Full GCC14/GCC16 gates, 148 unit tests on GCC14/GCC16/Clang, nine focused
+  ASan/UBSan tests, independent reviews and six-target probes pass. Normal
+  ranges remain about twice as slow as host libm; subnormal-result timing is
+  near parity and tiny inputs are faster in the measured paired sample.
+
 - Real cube root: `gmath_cbrt`, with integer normalization, generated midpoint
   seeds and a compensated Newton correction. GCC14.2, GCC16.2 and Clang each
   pass 118 unit tests; full GCC14/GCC16 gates pass (nested optional oracles
@@ -67,7 +79,7 @@ The deterministic contracts in the public headers remain authoritative.
 ## Upcoming project-used gaps
 
 1. Remaining float elementary operations used by WebAssembly, model and
-   CJelly, including exp/log/hypot/atan2 families. Further float-trig tuning
+   CJelly, including `expf`, `logf`, `log10f`, `hypotf` and `atan2f`. Further float-trig tuning
    remains useful, especially small-path overhead and the residual wide-range
    libm gap. Float accuracy and exception handling remain separate targets.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
@@ -87,6 +99,16 @@ in their reference data, not a binary64 corpus tolerance.
 
 ## Verification and remaining limits
 
+The exp2f phase passes full default GCC14.2/GCC16.2 gates and 148 unit tests
+on GCC14/GCC16/Clang, plus nine focused ASan/UBSan tests. All 23 arithmetic/
+state plants, 28 loader fixtures, two parse-valid reference corruptions, four
+oracle plants and output/raw hash mutations are detected. Optional nested
+oracles are explicitly skipped inside the GCC16 image and executed on the host.
+All 47 function hashes and the old aggregate agree on six emulated targets;
+the 320-record raw exp2f probe also agrees at -O0/-O2, default/portable. A native
+all-mode subnormal scan covers 6,815,648 public/cast calls; no force-only deletion
+witness exists, so that narrow mutation claim remains explicitly unverified.
+
 The wide-trig reduction phase passes full default `make test` gates on
 GCC14.2 and GCC16.2, all 139 unit tests on GCC14/GCC16/Clang, and 14 focused
 ASan/UBSan tests. All 34 implementation/branch/state plants, 66 loader fixtures,
@@ -101,7 +123,7 @@ raw-bit NaN/zero/infinity tests, all four rounding modes, errno/exception-state
 checks, mutation checks and supplemental result hashes. Existing hashes remain
 unchanged. Build/test validation and independent reviews accompany each commit.
 
-Math-only QEMU checks now match all 46 committed function hashes on i686,
+Math-only QEMU checks now match all 47 committed function hashes on i686,
 AArch64, s390x, PowerPC64, PowerPC32 and SPARC64 Linux, with both default and
 forced-portable square root. Raw binary32 special-value/exception probes also
 pass on those emulated targets at both `-O0` and `-O2`. These are probe executions, not physical-host or full GoogleTest

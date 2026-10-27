@@ -65,8 +65,8 @@
 #include "logbase_constants.h"
 
 GMATH_STATIC_ASSERT(sizeof(float) == sizeof(uint32_t) && FLT_RADIX == 2 &&
-                    FLT_MANT_DIG == 24 && FLT_MAX_EXP == 128,
-                    "log2f requires IEEE binary32");
+                    FLT_MANT_DIG == 24 && FLT_MIN_EXP == -125 && FLT_MAX_EXP == 128,
+                    "log2f and exp2f require IEEE binary32");
 
 /* ------------------------------------------------------------------------- */
 /* exp                                                                        */
@@ -236,6 +236,65 @@ double gmath_exp2(double x) {
   double result = scaled * 0x1p-1000;
   (void)gmath_underflow(0);
   return result;
+}
+
+/* Binary32 base-two exponential. The active scaling range is normal double,
+ * so only the final narrowing can make an inexact tiny float result. */
+static inline float exp2f_value(uint32_t f_word) {
+  float f_value;
+  memcpy(&f_value, &f_word, sizeof f_value);
+  return f_value;
+}
+
+float gmath_exp2f(float x) {
+  uint32_t f_word;
+  memcpy(&f_word, &x, sizeof f_word);
+  uint32_t f_abs = f_word & 0x7fffffffu;
+  if (f_abs > 0x7f800000u) {
+    if ((f_abs & 0x00400000u) == 0) {
+      (void)gmath_invalid();
+    }
+    return exp2f_value(0x7fc00000u);
+  }
+  if (f_abs == 0x7f800000u) {
+    return (f_word & 0x80000000u) ? 0.0f : x;
+  }
+  if (x >= 128.0f) {
+    (void)gmath_overflow(0);
+    return exp2f_value(0x7f800000u);
+  }
+  if (x <= -150.0f) {
+    (void)gmath_underflow(0);
+    return 0.0f;
+  }
+  double f_wide = (double)x;
+  if (f_abs <= 0x32800000u) { /* |x|<=2^-26: nearest result is one. */
+    return (float)(1.0 + f_wide);
+  }
+  double f_t = f_wide * 128.0 + GMATH_EXP_MAGIC;
+  int32_t f_n = (int32_t)(uint32_t)(gmath_bits(f_t) & 0xffffffffu);
+  double f_nd = f_t - GMATH_EXP_MAGIC;
+  double f_d = f_wide - f_nd * 0x1p-7;
+  unsigned f_j = (unsigned)f_n & ((1u << GMATH_EXP_TABLE_BITS) - 1u);
+  int f_k = f_n >> GMATH_EXP_TABLE_BITS;
+  if (f_j == 0 && f_d == 0.0) {
+    if (f_k >= -126) {
+      return exp2f_value((uint32_t)(f_k + 127) << 23);
+    }
+    return exp2f_value(1u << (unsigned)(f_k + 149));
+  }
+  double f_r = f_d * GMATH_LN2_HI + f_d * GMATH_LN2_LO;
+  double f_y = exp_reconstruct(f_r, f_j);
+  double f_scaled = f_y * gmath_double((uint64_t)(f_k + 1023) << 52);
+  float f_result = (float)f_scaled;
+  uint32_t f_result_word;
+  memcpy(&f_result_word, &f_result, sizeof f_result_word);
+  if (f_result_word < 0x00800000u) {
+    /* A noninteger dyadic exponent has an irrational, inexact power. Force
+     * float underflow even if the double approximation narrows exactly. */
+    (void)gmath_underflow(0);
+  }
+  return f_result;
 }
 
 /* ------------------------------------------------------------------------- */

@@ -49,3 +49,4 @@ fn cosf c8e702649b4db960 20858
 fn tanf f8973c6dd46dbb18 20858
 fn decimal_parse 329c0f4b62b8d750 16537
 fn decimal_shortest ab09f1339f15c856 42064
+fn exp2f 4433aaca06319406 26220

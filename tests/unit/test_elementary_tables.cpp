@@ -38,6 +38,8 @@
 #undef gmath_atan2
 #undef gmath_hypot
 #define gmath_exp test_copy_of_gmath_exp
+#undef gmath_exp2f
+#define gmath_exp2f test_copy_of_gmath_exp2f
 #define gmath_exp2 test_copy_of_gmath_exp2
 #define gmath_log test_copy_of_gmath_log
 #define gmath_log2 test_copy_of_gmath_log2

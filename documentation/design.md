@@ -542,6 +542,92 @@ cc --version
 taskset -c 0 build/linux/release/apps/tools/bench-exp2 200
 ```
 
+## Binary32 base-two exponential
+
+`gmath_exp2f` reuses the existing 128-row double exponential table and polynomial,
+with exact base-two reduction on the 1/128 grid. Classification uses raw float
+words before widening: zeros give 1, infinities give positive infinity/zero,
+NaNs give the canonical float quiet NaN and only signaling NaNs raise invalid.
+The finite tails x>=128 and x<=-150 force overflow/inexact and underflow/inexact,
+respectively. The latter is the nearest tie to zero. These classified return
+values are fixed; directed numerical accuracy is not promised.
+
+For |x|<=2^-26, `1+(double)x` rounds to 1 at the final float conversion. On the
+negative side the true difference from 1 is less than 2^-26, safely below the
+2^-25 half-spacing below1; the positive side has an even wider half-cell.
+For nonzero x, either the double addition or float narrowing is inexact. This
+path avoids tiny residual products while preserving exact zeros.
+
+In the active range (-150,128), the table index and residual use the exact
+1/128 reduction already described for exp2. Every integer exponent from -149
+through 127 packs the exact float power directly, including subnormals, before
+any narrowing. The preceding reduction arithmetic is exact for these inputs
+in every mode. Other reconstructed values are scaled by a normal double power
+of two (k in [-150,128]); this scaling is exact and cannot underflow/overflow
+in double. One final narrowing provides float rounding. The double kernel's
+one-ULP reserve contributes at most 2^-29 of a float ULP, including the float
+subnormal grid. Binade-crossing intermediates round to the boundary, preserving
+this margin. The nearest float input below 128 is sufficiently far below the
+true overflow threshold to stay finite; below -126 the next float input is far
+enough below the output's normal boundary to be tiny in every mode.
+
+Noninteger binary-rational exponents have inexact powers. The evaluation also
+necessarily signals inexact: if the nonzero residual's two ln2-split products
+were exact, their sum could not fit 53 bits (the exact split sum has 93 normalized
+significant bits). If the residual is zero but the table index is nonzero,
+the table high/low sum has 103–112 significant bits over all 127 such rows.
+Thus that sum rounds. Inexact subnormal outputs explicitly force underflow
+as well, even if a rounded double approximation could narrow exactly. errno,
+mode and incoming flags survive; noninteger normal outputs require inexact
+without underflow. No old double expression, table entry or result hash changes.
+
+Independent directed MPFR600 bounds certify direct rational binary32 target
+and signed error words; mpmath640 agrees, with precision escalation rather
+than uncertain boundary acceptance. Exact powers and tails use rational or
+analytic certificates. The committed corpus has 26,220 rows, including all input
+exponents, integer/tiny/range and table/half-table neighbors, plus inverse-output
+midpoint witnesses. A larger seed 1793099800/count 100000 run has 316,779 rows.
+The reference/error-word center maximum is 0.5 ULP at -150; the full closed error
+cell yields a conservative measured bound 0.50000003 ULP, below the 0.51 regression
+cap. Regenerate and run the larger sample with:
+
+```sh
+python3 tools/oracle/oracle.py exp2f --out build/linux/exp2f-soak --seed 1793099800 --count 100000
+GMATH_EXP2F_CORPUS_DIR=build/linux/exp2f-soak build/linux/release/apps/testExp2f --gtest_brief=1
+```
+
+The complete committed reference payload has a mandatory SHA256 integrity gate,
+including when the optional pinned image is absent. It protects result/error
+columns separately from the 47-function implementation-output hashes. Checkout
+attributes preserve these pinned bytes as LF. The generator publishes through
+a same-directory temporary file and atomically replaces only after certification;
+a planted mid-generation failure proves the old destination survives unchanged.
+The loader checks exact integer rows, committed metadata, essential coverage,
+format/provenance, counts, uniqueness and exact widened float representations.
+
+The raw probe covers 320 deduplicated special/boundary/tiny and all 277 exact
+integer-power inputs, all four modes and zero/each/all incoming flags. Its
+nearest result/normalized-flags hash is `3f2e40512d03e766`. Directed numerical
+bits remain outside the contract. A native exhaustive scan of 1,703,912
+noninteger inputs in(-150,-126) per mode executes 6,815,648 public/cast checks:
+all raise underflow/inexact, and no exact-narrowing witness was found. Therefore
+force-only deletion sensitivity remains unverified; mutation testing suppresses
+genuine observed underflow instead of claiming artificial coverage.
+
+Paired scalar timing on an x86-64/GCC14.2/glibc2.41 host uses one logical CPU,
+default fenv/nearest, 4,096 inputs and 200 alternating identical-input pairs.
+An integer result checksum avoids timing subnormal-to-double conversion in the
+measurement loop. Median gmath/libm ratios are about 1.99 common [-10,10], 1.98
+wide [-125,127], 1.90 near overflow, 1.01 subnormal results, 0.78 tiny inputs and 1.17
+exact integer powers. These include call/loop/checksum overhead: normal ranges
+remain slower, subnormal results are near parity and tiny inputs are faster in
+this sample. There is no overall performance-win claim.
+
+```sh
+make CC=cc CXX=g++ PREFIX="$DEPENDENCY_PREFIX" build/linux/release/apps/tools/bench-exp2f
+taskset -c 0 build/linux/release/apps/tools/bench-exp2f 200
+```
+
 ## Real cube root
 
 `gmath_cbrt` uses a seed and Newton correction derived directly from the
