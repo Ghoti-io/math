@@ -56,3 +56,7 @@ fn log10f cff1db20545a04bd 19888
 fn hypotf c9ddd5242a9bfd41 35910
 fn atan2f 8d0b62145c46c98a 35309
 fn atanf 471e594171d32a6d 13114
+fn lround 29062da116a95b78 12886
+fn lroundf f55e957431a9f6ae 5792
+fn llround 29062da116a95b78 12886
+fn llroundf f55e957431a9f6ae 5792

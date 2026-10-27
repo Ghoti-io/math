@@ -25,6 +25,14 @@ The deterministic contracts in the public headers remain authoritative.
   inputs remain slower than host libm; wide ranges and exact integer powers
   are faster on the measured host (see design notes).
 
+- Exact native integer rounding: `gmath_lround`, `gmath_lroundf`,
+  `gmath_llround` and `gmath_llroundf`. Ties go away from zero in every mode;
+  valid calls add no flags, while NaNs/infinities/out-of-range rounded results
+  return the destination minimum with invalid only. Native long may be
+  signed32 or signed64; long long is signed64. Caller errno/mode/incoming
+  flags are preserved. Consumers remain unmigrated. Validation and timing
+  evidence follows.
+
 - Binary32 unary arctangent: `gmath_atanf`, reusing the verified Float atan2
   kernel with exact abscissa one. One Float ULP under nearest rounding;
   exact tiny input bits in every mode, canonical raw NaNs, signed zeros and
@@ -161,6 +169,57 @@ Future float elementary operations must use binary32 rounding and ulp spacing
 in their reference data, not a binary64 corpus tolerance.
 
 ## Verification and remaining limits
+
+The integer-rounding phase passes full final GCC14.2/GCC16.2 default gates,
+198 unit tests in 25 binaries on GCC14/GCC16/Clang (Clang unit-only), and
+four focused ASan/UBSan tests. Independent contract investigation and blind
+review follow-ups are resolved. The new module is included in both legacy
+mutation-harness object lists; initial incomplete-list failures were corrected
+before the passing full runs. Thirteen native implementation/state plants,
+four pinned oracle numerical faults, six payload checksum corruptions and
+five actual probe-output field corruptions detect. Two signed32 post-rounding
+range/sign defects detect on both i686 and powerpc32 emulation; LP64 default
+runs skip those observationally equivalent mutations explicitly. Fresh guards
+reject wrong metadata and ignored paths even with equal-sized fallback;
+omission/corruption controls detect for all four new function hashes.
+
+Committed full references contain 22,308 binary64 and 7,758 binary32 inputs,
+each with exact signed32/signed64 answers and invalid classes. Six payloads,
+including both native-width probe hashes, have mandatory complete-file SHA256
+and LF protection. Pinned regeneration is byte-identical; three fresh samples
+and a larger 224,060-input sample pass. The common valid signed32 subsets add
+four portable result sets without folding native-width boundary differences
+into a supposedly identical result hash:
+
+| APIs | Common rows | Result hash |
+| --- | ---: | --- |
+| lround, llround | 12,886 each | `29062da116a95b78` |
+| lroundf, llroundf | 5,792 each | `f55e957431a9f6ae` |
+
+All 53 previous hashes and legacy aggregate `f5fa269eb60ee34f` remain unchanged.
+Six emulated targets agree on all 57 sets in default/portable configurations.
+Raw/full O0/O2 default/portable probes check 60,132 nearest public results and
+51,408 selected all-mode/incoming-state calls per configuration. Native long32
+uses nearest hash `f6b27ba135a01251`, all-mode hash `fc34d8bb72c277fd`;
+long64 uses `11187661db241e79` and `8f0b8b6d02ea47e5`. The larger sample also
+passes all six O2/default native-width probes, with 448,120 nearest results
+and 313,992 selected-state calls each. These are emulated probes, not physical
+hosts or full cross-target GoogleTest. Windows/LLP64 validation and native
+32-bit timing remain unrun. Host pinned oracle controls pass; nested GCC16
+optional controls skip explicitly, and required unavailable-oracle mode fails.
+
+Two same-binary timing runs use 401 alternating pairs of 4,096 inputs per
+range with clean and preseeded IX entry states. Every population first passes
+untimed integer-result agreement, destination-bound and invalid checks.
+The tool reports candidate/host median ns and paired ratio p10/p90. Across
+both states/runs, common and half-tie double-input medians are about 1.14–1.22
+of host libm, Float inputs 1.46–1.65; subnormal ranges are 0.75–0.87. Large
+valid integral double inputs are 0.95–1.00, Float inputs about 1.41. Common
+inputs use a small grid in [-4096,4096); these are controlled microbenchmarks,
+not a project workload. Absolute timings vary between runs; call/loop/checksum
+and timestamp overhead remain included. No overall/application speed win is
+claimed. The initial capability phase favors exact deterministic contracts;
+normal-range performance remains work to do.
 
 The atanf phase passes full default GCC14.2/GCC16.2 gates and 194 unit tests
 in 24 binaries on GCC14/GCC16/Clang (Clang's full gate set was not repeated).

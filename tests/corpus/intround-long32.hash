@@ -1,0 +1,5 @@
+math.intround_long.bits 32
+math.intround_full.hash f6b27ba135a01251
+math.intround_full.count 60132
+math.intround_all_modes.hash fc34d8bb72c277fd
+math.intround_state.count 51408

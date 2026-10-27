@@ -71,6 +71,13 @@ static double frexp_fraction(double x, int * e) {
 }
 
 /* Float corpus values are stored as exactly widened doubles. */
+/* These corpora contain only exact common signed32-range results. Full
+ * native-width integer outputs are validated by the integer-rounding probe. */
+static double lround_widened(double x) {return (double)gmath_lround(x);}
+static double llround_widened(double x) {return (double)gmath_llround(x);}
+static double lroundf_widened(double x) {return (double)gmath_lroundf((float)x);}
+static double llroundf_widened(double x) {return (double)gmath_llroundf((float)x);}
+
 static double atanf_widened(double x) {
   return (double)gmath_atanf((float)x);
 }
@@ -173,6 +180,10 @@ static const struct {
   {"cos", "cos", K_D_D, 1, NULL, gmath_cos, NULL, NULL},
   {"tan", "tan", K_D_D, 1, NULL, gmath_tan, NULL, NULL},
   {"atan2", "atan2", K_DD_D, 1, NULL, NULL, gmath_atan2, NULL},
+  {"lround", "lround", K_D_D, 0, NULL, lround_widened, NULL, NULL},
+  {"llround", "lround", K_D_D, 0, NULL, llround_widened, NULL, NULL},
+  {"lroundf", "lroundf", K_D_D, 0, NULL, lroundf_widened, NULL, NULL},
+  {"llroundf", "lroundf", K_D_D, 0, NULL, llroundf_widened, NULL, NULL},
   {"atanf", "atanf", K_D_D, 0, NULL, atanf_widened, NULL, NULL},
   {"atan2f", "atan2f", K_DD_D, 0, NULL, NULL, atan2f_widened, NULL},
   {"exp", "exp", K_D_D, 1, NULL, gmath_exp, NULL, NULL},

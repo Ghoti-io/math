@@ -212,6 +212,39 @@ GMATH_API double gmath_trunc(double x);
 GMATH_API double gmath_round(double x);
 
 /**
+ * @brief Nearest integer as long, ties away from zero, independent of mode.
+ *
+ * Valid results are exact and raise no new exceptions, including inexact.
+ * Any NaN, infinity or rounded result outside the destination range returns
+ * LONG_MIN and raises invalid only. errno, rounding mode and incoming flags
+ * are preserved. Supports 32-/64-bit long; full libm errno semantics are not
+ * promised. The range check applies after rounding.
+ * The integer return alone cannot distinguish a valid minimum from invalid
+ * input. Clear FE_INVALID before the call and inspect it afterward to detect
+ * this call's invalid result; an already-set invalid flag is preserved and
+ * cannot identify whether this call raised it. This also applies to LLONG_MIN
+ * in the long-long forms.
+ * @param x The argument.
+ * @return Rounded integer, or LONG_MIN on invalid input.
+ */
+GMATH_API long gmath_lround(double x);
+/** @brief Binary32 input form of ::gmath_lround with the same contract.
+ * @param x The argument.
+ * @return Rounded integer, or LONG_MIN on invalid input.
+ */
+GMATH_API long gmath_lroundf(float x);
+/** @brief 64-bit long long form of ::gmath_lround; invalid returns LLONG_MIN.
+ * @param x The argument.
+ * @return Rounded integer, or LLONG_MIN on invalid input.
+ */
+GMATH_API long long gmath_llround(double x);
+/** @brief Binary32 input form of ::gmath_llround with the same contract.
+ * @param x The argument.
+ * @return Rounded integer, or LLONG_MIN on invalid input.
+ */
+GMATH_API long long gmath_llroundf(float x);
+
+/**
  * @brief @p x rounded to the nearest integer, halfway cases to the even integer
  * (`rint(0.5)` is 0, `rint(1.5)` is 2, `rint(2.5)` is 2).  The current rounding
  * mode is not used.  A zero result keeps the sign of @p x.  No exception is

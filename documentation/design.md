@@ -564,6 +564,55 @@ sources, references and deterministic result hashes are unchanged. Calibration
 rejects missing required scripts, late imports, prior output, missing guards,
 wrong diagnostics and wrong statuses; fake engines verify both pin timeouts.
 
+## Exact native integer rounding
+
+`gmath_lround`, `gmath_lroundf`, `gmath_llround` and `gmath_llroundf` round to
+native signed integer destinations, with ties away from zero independently
+of the current mode. Valid calls perform integer operations only and raise
+no new exceptions, including IX. NaNs of either class, infinities and rounded
+results outside the destination range return the destination minimum and
+raise invalid only. Mode, errno and incoming flags are preserved. The minimum
+is also a valid result: clear FE_INVALID before calling and inspect afterward
+to distinguish a new invalid result; a preexisting invalid flag cannot do so.
+These deterministic error/errno rules are project contracts, not full POSIX
+errno semantics. Nearest/ties-away follows [WG14 N3220, 7.12.9.7 and F.10.6.7](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n3220.pdf).
+
+The isolated integer kernel decodes binary64 sign/exponent/significand. Below
+half rounds to zero; half through one rounds to one. Fractional magnitudes
+use a right shift and an increment for discarded bits at least half; integral
+magnitudes shift left. An early bound admits only exact negative 2^63 at that
+endpoint and rejects larger magnitudes and nonfinite encodings. Below it the
+unbiased exponent is at most 62, so left shifts are at most 10 and right
+shifts stay in 1..52. The rounded unsigned magnitude is compared to MAX plus
+the negative-sign allowance before any signed narrowing. Minimum results
+are constructed directly, avoiding out-of-range signed casts or negation of
+minimum. Native destination ranges are checked at compilation: signed32/64
+long and signed64 long long. Float inputs below half become integer zero;
+other finite inputs are normal and widen by integer field mapping. Raw
+nonfinite payloads reach invalid dispatch without floating conversion.
+
+The independent generator compares exact Fraction ties-away rounding with
+pinned MPFR rint_round, then classifies both signed32 and signed64 ranges.
+Fixed controls include half neighbors, post-round signed32 boundaries and
+signed64 endpoint neighbors. Full raw datasets carry both width answers and
+invalid classes; host unit tests select the actual destination. Common valid
+signed32 subsets permit architecture-independent function hashes without
+pretending native long boundary results are identical on ILP32 and LP64.
+Separate expected native-width probe hashes come from the oracle outputs.
+The probe checks every full-row public result under nearest and a selected
+raw/boundary subset across modes/incoming flags. Complete-payload SHA256,
+LF attributes, fresh metadata/population/path controls and output/checksum
+negative controls protect that evidence. Atomic file publication checks
+injected write/replace failures, previous contents/modes and temporary cleanup.
+
+Compiler-width-gated mutation checks exercise native signed32 range equality
+and sign allowance where long is 32 bits; LP64 runs explicitly skip those
+observationally equivalent changes. Dedicated ILP32 emulated controls cover
+the two defects. Full validation and measured performance are in the progress
+log. Benchmark input/result/range checks precede timing; flag handling and
+floating timestamp conversion stay outside timed calls. Ratios include
+indirect-call, loop, checksum and timestamp overhead.
+
 ## Binary32 unary arctangent
 
 `gmath_atanf(x)` calls the existing `gmath_atan2f(x,1.0f)` kernel. The exact
