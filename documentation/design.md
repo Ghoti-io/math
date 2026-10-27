@@ -564,6 +564,42 @@ sources, references and deterministic result hashes are unchanged. Calibration
 rejects missing required scripts, late imports, prior output, missing guards,
 wrong diagnostics and wrong statuses; fake engines verify both pin timeouts.
 
+## Binary32 unary arctangent
+
+`gmath_atanf(x)` calls the existing `gmath_atan2f(x,1.0f)` kernel. The exact
+positive abscissa makes this the same real angle for every finite input; raw
+NaN, signed-zero and infinity handling follows the established Float path.
+No existing kernel, table or polynomial changes. The public nearest numerical
+contract is one Float ULP; the inherited conservative bound is 0.501457908 ULP.
+The test's 0.51-ULP ceiling is a tighter regression guard for this implementation,
+not a general correct-rounding claim or a stronger public API requirement.
+
+For magnitudes below 2^-30, the exact quotient is already a Float. The cubic
+arctangent correction is too small to change nearest Float bits, so the result
+is the original input in every mode. Every nonzero valid angle requires IX;
+UF applies exactly to subnormal inputs, with minimum normal requiring IX only.
+Infinities return signed nearest pi/2 with IX. Signaling NaNs canonicalize with
+invalid; quiet NaNs canonicalize without invalid. Signed zeros remain exact.
+Mode, errno and incoming flags are preserved. General directed accuracy is
+not promised.
+
+The dedicated corpus uses directed MPFR at 1,200 bits (escalating to 2,400) and independent
+mpmath at 1,240 bits (escalating to 2,440) through the shared independent atan2 evaluator
+with exact abscissa one. Direct MPFR unary atan controls check that identity.
+The population covers every input binade, tiny/direct/table/reciprocal seams,
+four stratified inverse-midpoint branches, the last sixteen output midpoint
+cells below pi/2 and random raw words. At least 300 distinct inverse candidates
+per branch and 40 near the endpoint are required. Complete-payload SHA256 and LF
+attributes protect committed references. Atomic publication tests inject
+first/middle/last failures and check destination/permission preservation and
+temporary cleanup. Fresh selection verifies requested metadata, row count and
+path with a disposable empty-directory counterfactual.
+
+Validation and paired performance results are recorded in the progress log.
+Benchmark clean/UF-IX states are set before each timed batch; the reported
+ratios include indirect calls, loop and checksum work. They do not measure
+per-call first-exception costs or establish an application speedup.
+
 ## Binary32 two-argument arctangent
 
 `gmath_atan2f(y,x)` has a one-Float-ULP numerical contract under nearest

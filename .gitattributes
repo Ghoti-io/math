@@ -11,3 +11,5 @@ tests/corpus/hypotf.corpus text eol=lf
 tests/corpus/hypotf-special.hash text eol=lf
 tests/corpus/atan2f.corpus text eol=lf
 tests/corpus/atan2f-special.hash text eol=lf
+tests/corpus/atanf.corpus text eol=lf
+tests/corpus/atanf-special.hash text eol=lf

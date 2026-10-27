@@ -25,6 +25,13 @@ The deterministic contracts in the public headers remain authoritative.
   inputs remain slower than host libm; wide ranges and exact integer powers
   are faster on the measured host (see design notes).
 
+- Binary32 unary arctangent: `gmath_atanf`, reusing the verified Float atan2
+  kernel with exact abscissa one. One Float ULP under nearest rounding;
+  exact tiny input bits in every mode, canonical raw NaNs, signed zeros and
+  infinity constants, explicit IX/UF and preserved caller state. A dedicated
+  13,114-row independent reference corpus covers unary midpoint/seam cases.
+  Consumers remain unmigrated. Full validation and performance limits follow.
+
 - Binary32 two-argument arctangent: `gmath_atan2f`, with a short Float-specific
   series/table kernel, signed-zero/quadrant constants and explicit raw NaN
   handling. The numerical target is one Float ULP under nearest rounding;
@@ -154,6 +161,38 @@ Future float elementary operations must use binary32 rounding and ulp spacing
 in their reference data, not a binary64 corpus tolerance.
 
 ## Verification and remaining limits
+
+The atanf phase passes full default GCC14.2/GCC16.2 gates and 194 unit tests
+in 24 binaries on GCC14/GCC16/Clang (Clang's full gate set was not repeated).
+Four focused ASan/UBSan tests pass. Independent numerical investigation and
+blind review with two follow-ups are resolved. Seven wrapper/state plants
+and five complete-payload checksum corruptions detect; publisher failure,
+permissions and cleanup controls pass. Fresh selection rejects incorrect
+metadata and ignored paths even with equal-sized fallback. Result-hash
+omission/corruption controls also detect.
+
+The committed 13,114-row corpus has SHA256
+`9b5cf28ae9a2f394cad6d134ca3eaa227b454610434d73bc6c871c2435d05df6`.
+Its result set 53 is `471e594171d32a6d`; all 52 previous function hashes and
+legacy aggregate `f5fa269eb60ee34f` remain unchanged. A larger 107,903-row
+sample and three fresh samples pass; the maximum conservative closed-cell
+error is 0.50000002 ULP, under the 0.51 implementation regression cap.
+General correct rounding remains unclaimed. Six emulated targets agree on
+all 53 numeric sets in default/portable builds. Raw O0/O2 default/portable
+probes agree on 42 fixtures, nearest hash `ba74d43d61e3eaf0` and all-mode
+hash `97c05e26310d4b1c`; 1,176 calls separately assert flags, errno and mode
+per configuration. These are emulated probes, not physical-host/full
+cross-target GoogleTest claims. General directed accuracy remains unpromised.
+
+Two successive same-binary benchmarks each use 401 alternating pairs of
+4,096 inputs per range, with clean and preseeded UF/IX batch-entry controls.
+Across those states/runs, median gmath/libm ratios are about 1.46–1.52 common,
+1.68 table, 1.39–1.42 direct, 1.59–1.72 tiny normal, 0.18 subnormal and
+1.99–2.09 wide finite. Integer timestamps and explicit entry-state checks
+keep timing conversion from pre-raising IX. Entry-state controls amortize
+first-exception costs across a batch; ratios include call/loop/checksum work.
+The wrapper remains slower on most ranges; no overall or application speed
+win is claimed. Unary specialization is a possible later optimization.
 
 All four numerical budget certificates now reject optimized Python before
 imports or proof work. `make check-budget-optimization` exercises -O, -OO and

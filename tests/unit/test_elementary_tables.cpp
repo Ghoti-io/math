@@ -39,6 +39,7 @@
 #undef gmath_log2f
 #undef gmath_pow
 #undef gmath_atan2
+#undef gmath_atanf
 #undef gmath_atan2f
 #undef gmath_hypot
 #undef gmath_hypotf
@@ -55,6 +56,7 @@
 #define gmath_log2f test_copy_of_gmath_log2f
 #define gmath_pow test_copy_of_gmath_pow
 #define gmath_atan2 test_copy_of_gmath_atan2
+#define gmath_atanf test_copy_of_gmath_atanf
 #define gmath_atan2f test_copy_of_gmath_atan2f
 #define gmath_hypot test_copy_of_gmath_hypot
 #define gmath_hypotf test_copy_of_gmath_hypotf

@@ -309,3 +309,8 @@ float gmath_atan2f(float y, float x) {
   af_inexact();
   return af_narrow;
 }
+
+/* Reuse the binary32 kernel and its raw special/exception handling. */
+float gmath_atanf(float x) {
+  return gmath_atan2f(x, 1.0f);
+}

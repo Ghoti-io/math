@@ -375,6 +375,22 @@ GMATH_API double gmath_atan2(double y, double x);
 GMATH_API float gmath_atan2f(float y, float x);
 
 /**
+ * @brief Binary32 arctangent, within 1 float ulp under nearest rounding.
+ *
+ * Signaling NaNs give canonical NaN with invalid; quiet NaNs canonicalize
+ * without invalid. Signed zeros are exact. Infinities return nearest signed
+ * pi/2 in every mode. Every nonzero valid angle requires inexact; subnormal
+ * inputs also require underflow (tininess after rounding). For |x| < 2^-30,
+ * the result is exactly the input bits in every mode. errno, rounding mode
+ * and incoming flags are preserved. General accuracy assumes nearest;
+ * full directed libm numerical/errno semantics are not promised.
+ *
+ * @param x The tangent of the angle.
+ * @return The angle in [-pi/2,pi/2], with the sign of x.
+ */
+GMATH_API float gmath_atanf(float x);
+
+/**
  * @brief sqrt(@p x * @p x + @p y * @p y), without spurious overflow or underflow.
  *
  * Within 1 ulp of the true value: measured at most 0.5000 ulp over the corpus and
