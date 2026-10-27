@@ -1701,3 +1701,69 @@ here yet avoids it. A fast tier for wide exponents, a precomputed table of power
 to decide most inputs and the big integer path for the rest, would follow the pattern of the two
 fast tiers above: gated against the general tier on every corpus input, each of its outcomes seen
 taken. It is not written.
+
+### Exact Float decomposition and scaling
+
+`gmath_frexpf`, `gmath_ilogbf`, `gmath_scalbnf` and `gmath_ldexpf` operate
+on IEEE binary32 integer fields. The implementation is derived from positional
+binary arithmetic and the existing own-project Double contracts, without reading
+another implementation. The Double module is unchanged.
+
+For a nonzero finite magnitude, normalize its significand into bits 23..0.
+A normal input uses biased exponent E in 1..254. A subnormal shifts left by
+t in 1..23, using E=1-t. Consequently its exact value is
+`sig * 2^(E-150)`. Fraction decomposition packs exponent 126 and returns E-126;
+integer classification returns E-127. The normalizer uses a compiler leading
+zero builtin only with a 32-bit unsigned int, otherwise a bounded shift loop.
+`GMATH_FLOATSCALE_PORTABLE_BITS` forces the loop for validation.
+
+Scaling clamps the requested exponent to [-512,512] before adding E: larger
+requests necessarily overflow or round to zero, even at the opposite input
+extreme. The sum ranges [-534,766], so extreme native int arguments cannot
+overflow intermediate arithmetic. A sum>=255 returns signed infinity; a sum>=1
+packs an exact normal. Otherwise shift by 1-sum. A shift>24 rounds to signedzero;
+shifts 1..24 divide the 24-bit significand with an exact remainder and perform
+nearest/ties-even rounding once. No discarded bits means no new flags. A
+nonzero remainder requires IX; UF is added only if the rounded magnitude is
+below minimum normal. In particular `(00ffffff,-1)` returns 00800000 with IX
+only; `(00000001,-1)` returns zero and `(00000003,-1)` returns 00000002 with
+UF/IX. The first case is a real flag-only witness for deleting the rounded-normal
+IX operation, since no earlier floating arithmetic raises that flag.
+
+The results are nearest/ties-even in every rounding mode, rather than full
+directed libm semantics. Signed zero/infinity are preserved. NaNs canonicalize
+and only signaling NaNs raise invalid in scaling/fraction decomposition.
+`frexpf` writes exponent 0 for special values and permits NULL. `ilogbf` raises
+invalid for zero, infinity and any NaN, returning the existing native-int
+sentinels. Every call preserves errno, mode and incoming flags. The old Double
+scaling module retains its existing before-round underflow behavior at the
+rounded-minimum-normal boundary; the new Float family deliberately specifies
+after-round tininess.
+
+Independent references use exact Fraction arithmetic and pinned MPFR 24-bit
+nearest arithmetic with subnormalization. Fixed boundaries protect both the
+oracle and decoder. The raw corpus retains signaling NaNs; supplemental hash
+corpora widen Float values exactly and exclude signaling NaNs that widening
+would quiet. A separate integer/Double cell certificate in the unit loader
+checks target bits, exact decomposition, flags and ties without consulting the
+runtime implementation. The Double certificate remains normal and exactly
+representable in every mode. Five complete-file SHA256 gates and LF attributes
+protect reference bytes even when the optional oracle is unavailable.
+
+The generator stages all five outputs before publication, preserves permissions,
+and rolls back replaced files if publication throws. Failure of rollback keeps
+recovery files. This is not crash-atomic publication of the entire set: complete
+SHA256 checks reject an interrupted mixed generation. All five final replacement
+failures are exercised with existing and absent destinations, in addition to
+individual write/replace/cleanup/permission controls. Random population is
+bounded at 50,000, producing fewer than 2.61 million raw rows, below the loader's
+five-million-row limit; excess rows are rejected before allocation.
+
+Reproduce with `make oracle-floatscale`, `make check-floatscale-oracle`,
+`make check-floatscale-special`, `make check-planted-floatscale` and
+`make bench-floatscale`. Fresh selections assert seed/count/population/path,
+run all-mode unit values, and compare their own generated raw/state hashes.
+The negative directory control uses a disposable empty directory, without
+renaming caller evidence. Per-function hashes are supplemental, leaving the
+legacy aggregate unchanged. Measurements and actual validation scope are
+recorded in `libm-progress.md`.

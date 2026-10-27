@@ -6,6 +6,12 @@ The deterministic contracts in the public headers remain authoritative.
 
 ## Completed capabilities
 
+- Exact binary32 decomposition/scaling: `gmath_frexpf`, `gmath_ilogbf`,
+  `gmath_scalbnf` and `gmath_ldexpf`. Integer normalization and once-only
+  nearest/ties-even packing preserve exact outputs and caller state in every
+  mode; inexact scaling uses after-round tininess. The Double module remains
+  unchanged. Numerical evidence, performance and limits follow.
+
 - Exact binary64/binary32 remainder: `gmath_fmod` and `gmath_fmodf`, added in
   commit `39424c29c1caacca54d44122ee69069ae2004dfc`.
 - Exact binary64/binary32 extrema: `gmath_fmin`, `gmath_fmax`, `gmath_fminf`
@@ -146,16 +152,94 @@ The deterministic contracts in the public headers remain authoritative.
   times slower than host libm. Small-angle sine retains some measured overhead;
   there is no overall performance-win claim.
 
-## Upcoming project-used gaps
+## Next work
 
 1. The audited production Float gap (`atanf`) and tool-used integer rounding
    gap (`lround`) are now provided; consumer migration remains deferred.
    Recheck usage before choosing further project-used APIs. Continue broader
-   float/double coverage, with decomposition/scaling forms among the remaining
-   basic gaps. Keep accuracy, exception behavior and performance separate.
+   float/double coverage, including adjacent values and remaining basic
+   rounding/remainder families. Keep accuracy, exception behavior and performance separate.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
+
+## Float decomposition/scaling validation
+
+The four APIs bring classic real-function name coverage to 57 of 171: 29 Double
+and 28 Float. Missing entries are 28 Double, 29 Float and 57 long double: 57
+float/double additions, 114 including long double. Complex arithmetic would add
+another 66 entries. Name coverage excludes fenv/macros/vendor extensions and
+does not establish full behavioral compatibility. Across nineteen cohesive
+phases, 37 APIs, two optimizations and certificate maintenance have been added;
+consumers remain unmigrated.
+
+Full GCC14.2/GCC16.2 default gates pass; 202 unit tests in 26 binaries pass on
+GCC14/GCC16/Clang (Clang unit-only), plus three focused ASan/UBSan tests.
+Independent contract investigation and blind review/follow-up are resolved.
+The review tightened generator/loader population limits, bounded parsing,
+fresh raw/state coverage, publication rollback, mutation coverage and source
+formatting. No finding remains deferred from this phase.
+
+Committed references contain 178,280 raw input/exponent rows, 178,156 widened
+scaling rows and 4,196 decomposition/classification rows. Fraction and pinned
+MPFR agree on numerical targets; exception classes derive from the stated
+contract, with fixed tie/overflow/NaN controls. A larger
+560,298-row sample and three fresh populations (178,235/178,289/178,222 rows)
+pass values and their generated raw/state hashes. Pinned regeneration is
+byte-identical; all five payloads have mandatory SHA256 gates and LF protection.
+The loader independently certifies exact fractions, exponents, target rounding
+cells and flags; 21 malformed/incorrect-reference fixtures reject. Fresh
+selection verifies metadata, requested population and directory. An actual
+old-family environment-variable typo is rejected even with equal-sized fallback;
+a disposable empty-directory counterfactual checks ignored paths without
+renaming caller evidence. Optional engine absence skips explicitly; required
+absence fails. Individual publication write/replace failures and permission/
+cleanup controls pass, together with rollback for each of five final replacement
+failures against existing and absent destination sets. Publication is exception-
+recoverable, not crash-atomic; SHA checks reject interrupted mixed generations.
+
+All 72 native/default/forced-loop source/state plants detect, including separate
+state violations in each API, special sentinels, ties and a real flag-only
+rounded-normal IX witness `(00ffffff,-1)`. Five payload corruptions, four raw
+output-field corruptions, four oracle faults and eight supplemental function
+hash omission/corruption controls also detect. The earlier expf/exp2f/atanf
+force-only deletion witness limits remain unchanged.
+
+New supplemental result sets are:
+
+| Function | Result hash | Rows |
+| --- | --- | ---: |
+| scalbnf | `27a1b98daffdda7a` |178156|
+| ldexpf | `27a1b98daffdda7a` |178156|
+| frexpf | `8bccabb7ed1f52ec` |4196|
+| ilogbf | `0ef843f80e25384f` |4196|
+
+All 57 prior function hashes and legacy aggregate `f5fa269eb60ee34f` over 292,711
+results remain unchanged. Six emulated targets (i686, AArch64, s390x,
+PowerPC64, PowerPC32 and SPARC64 Linux) match all 61 sets in default/portable
+builds. Raw O0/O2 default/forced-loop probes match 891,400 nearest results plus
+137,060 selected all-mode/incoming-state calls per configuration: nearest hash
+`bc063b38a0fcf7d3`, all-mode hash `cb47fc4002f27725`. The larger native probe
+checks 2,801,490 nearest results and 350,140 state calls. Existing width-aware
+integer-rounding probes also pass on all six emulated targets. These are
+emulated probes, not physical-host or full cross-target GoogleTest results.
+Windows, exhaustive all-input scaling and application timings remain unrun.
+
+Two same-processor benchmark runs use 401 alternating pairs of 4,096 identical
+inputs per range/function/entry state. Both clean and preseeded UF/IX states are
+checked outside timing; integer timestamps precede floating timing arithmetic;
+untimed typed bit/exponent agreement with host nearest results is required.
+Reported output includes absolute median ns/call and paired-ratio p10/median/p90.
+For normal exact inputs, median gmath/libm ratios are 0.785–0.786 (scalbnf),
+0.855–0.857 (ldexpf), 1.165–1.167 (frexpf) and 0.500–0.502 (ilogbf). Absolute
+normal medians span 2.455–2.717 ns, 2.672–2.935 ns, 1.532–1.757 ns and 1.092–1.228 ns,
+respectively. Subnormal-input ratios are approximately 0.053/0.058–0.059/0.050/
+0.179–0.192; tiny rounded scaling 0.114–0.130 and rounded-minimum-normal
+scaling 0.096–0.110. Overflow scaling ratios vary 0.751–0.930. Call/loop/checksum/
+timestamp overhead is included; host errno/directed semantics differ where
+explicitly documented. Earlier unpinned runs varied. These measurements show
+range-specific gains and ordinary frexpf overhead, not an overall, application
+or cross-platform performance win.
 
 ## Notes for the next numerical phase
 

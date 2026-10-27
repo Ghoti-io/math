@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -613,6 +613,15 @@ check-hypotf-special: $(HYPOTF_SPECIAL_PROBE) tests/corpus/hypotf-special.hash
 	 cmp tests/corpus/hypotf-special.hash $(BUILD_DIR)/hypotf-special.actual && \
 	 cat $(BUILD_DIR)/hypotf-special.actual
 
+FLOATSCALE_PROBE := $(APP_DIR)/tools/probe-float-scale$(EXE_EXTENSION)
+$(FLOATSCALE_PROBE): tools/probe-float-scale.c tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS)
+.PHONY: check-floatscale-special
+check-floatscale-special: $(FLOATSCALE_PROBE)
+	@$(FLOATSCALE_PROBE) > $(BUILD_DIR)/floatscale-special.actual && \
+	 python3 tools/check-floatscale-output.py $(BUILD_DIR)/floatscale-special.actual
+
 BENCH_PROBE_INTROUND := $(APP_DIR)/tools/bench-intround$(EXE_EXTENSION)
 $(BENCH_PROBE_INTROUND): tools/bench-intround.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
@@ -644,6 +653,14 @@ check-atanf-special: $(ATANF_SPECIAL_PROBE) tests/corpus/atanf-special.hash
 	@$(ATANF_SPECIAL_PROBE) > $(BUILD_DIR)/atanf-special.actual && \
 	 cmp tests/corpus/atanf-special.hash $(BUILD_DIR)/atanf-special.actual && \
 	 cat $(BUILD_DIR)/atanf-special.actual
+
+BENCH_PROBE_FLOATSCALE := $(APP_DIR)/tools/bench-floatscale$(EXE_EXTENSION)
+$(BENCH_PROBE_FLOATSCALE): tools/bench-floatscale.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: bench-floatscale
+bench-floatscale: $(BENCH_PROBE_FLOATSCALE)
+	@$(BENCH_PROBE_FLOATSCALE)
 
 BENCH_PROBE_ATANF := $(APP_DIR)/tools/bench-atanf$(EXE_EXTENSION)
 $(BENCH_PROBE_ATANF): tools/bench-atanf.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
@@ -970,6 +987,33 @@ check-hypotf-oracle: $(APP_DIR)/testHypotf$(EXE_EXTENSION) ## Check committed an
 .PHONY: check-budget-optimization
 check-budget-optimization: ## Reject optimized certificates and check normal pinned controls
 	@python3 tools/check-budget-optimization.py
+
+.PHONY: oracle-floatscale check-floatscale-oracle check-planted-floatscale
+oracle-floatscale: ## Regenerate exact Float decomposition/scaling references
+	@$(ORACLE) float_scale --out $(CORPUS_DIR) --seed 20261027 --count 1000
+
+check-floatscale-oracle: $(APP_DIR)/testFloat_scale$(EXE_EXTENSION) $(FLOATSCALE_PROBE)
+	@python3 tools/check-floatscale-reference.py
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(APP_DIR)/testFloat_scale$(EXE_EXTENSION) --gtest_brief=1
+	@rc=0; seed=$${GMATH_ORACLE_SEED:-$$(date +%s)}; \
+	 $(ORACLE) fresh-float_scale --out $(BUILD_DIR)/oracle-floatscale --seed $$seed --count 1000 || rc=$$?; \
+	 if [ $$rc -eq 0 ]; then \
+	   $(ORACLE) float_scale --out $(BUILD_DIR)/floatscale-committed --seed 20261027 --count 1000 && \
+	   for f in float_scale.corpus scalbnf.corpus frexpf.corpus ilogbf.corpus float_scale-special.hash; do \
+	     cmp tests/corpus/$$f $(BUILD_DIR)/floatscale-committed/$$f || exit 1; \
+	   done && \
+	   LD_LIBRARY_PATH="$(TEST_LD_PATH)" python3 tools/check-planted-floatscale.py --verify-fresh \
+	     "$(abspath $(APP_DIR)/testFloat_scale$(EXE_EXTENSION))" "$(abspath $(BUILD_DIR)/oracle-floatscale)" "$$seed" 1000 \
+	   || exit 1; \
+	 elif [ $$rc -eq 3 ]; then \
+	   printf 'check-floatscale-oracle: SKIPPED fresh references and pinned regeneration; committed corpus checked\n'; \
+	 else exit $$rc; fi
+
+check-planted-floatscale: $(OBJ_DIR)/tests/test_float_scale.o $(LIBOBJECTS) $(FLOATSCALE_PROBE)
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_float_scale.o' PLANT_RAW_PROBE='$(FLOATSCALE_PROBE)' PLANT_WORK='$(BUILD_DIR)/planted-floatscale' \
+	 python3 tools/check-planted-floatscale.py
 
 .PHONY: oracle-intround check-intround-oracle check-planted-intround
 oracle-intround: ## Regenerate exact integer-return rounding references

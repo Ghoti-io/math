@@ -59,7 +59,9 @@ enum kind {
   K_DD_D,   /* double, double -> double */
   K_DN_D,   /* double, int -> double */
   K_D_DN,   /* double -> double, int (frexp) */
-  K_D_N     /* double -> int (ilogb) */
+  K_D_N,    /* double -> int (ilogb) */
+  K_F_DN,   /* exactly widened Float -> Float fraction, int */
+  K_F_N     /* exactly widened Float -> int */
 };
 
 typedef double (*fn1_t)(double);
@@ -71,6 +73,13 @@ static double frexp_fraction(double x, int * e) {
 }
 
 /* Float corpus values are stored as exactly widened doubles. */
+static double scalbnf_widened(double x, int n) {
+  return (double)gmath_scalbnf((float)x, n);
+}
+static double ldexpf_widened(double x, int n) {
+  return (double)gmath_ldexpf((float)x, n);
+}
+
 /* These corpora contain only exact common signed32-range results. Full
  * native-width integer outputs are validated by the integer-rounding probe. */
 static double lround_widened(double x) {return (double)gmath_lround(x);}
@@ -180,6 +189,10 @@ static const struct {
   {"cos", "cos", K_D_D, 1, NULL, gmath_cos, NULL, NULL},
   {"tan", "tan", K_D_D, 1, NULL, gmath_tan, NULL, NULL},
   {"atan2", "atan2", K_DD_D, 1, NULL, NULL, gmath_atan2, NULL},
+  {"scalbnf", "scalbnf", K_DN_D, 0, NULL, NULL, NULL, scalbnf_widened},
+  {"ldexpf", "scalbnf", K_DN_D, 0, "scalbnf", NULL, NULL, ldexpf_widened},
+  {"frexpf", "frexpf", K_F_DN, 0, NULL, NULL, NULL, NULL},
+  {"ilogbf", "ilogbf", K_F_N, 0, NULL, NULL, NULL, NULL},
   {"lround", "lround", K_D_D, 0, NULL, lround_widened, NULL, NULL},
   {"llround", "lround", K_D_D, 0, NULL, llround_widened, NULL, NULL},
   {"lroundf", "lroundf", K_D_D, 0, NULL, lroundf_widened, NULL, NULL},
@@ -361,6 +374,14 @@ int main(int argc, char ** argv) {
           y = frexp_fraction(x, &n);
           extra = (uint64_t)(int64_t)n;
           break;
+        case K_F_DN:
+          y = (double)gmath_frexpf((float)x, &n);
+          extra = (uint64_t)(int64_t)n;
+          break;
+        case K_F_N:
+          has_double = 0;
+          extra = (uint64_t)(int64_t)gmath_ilogbf((float)x);
+          break;
         case K_D_N:
           has_double = 0;
           extra = (uint64_t)(int64_t)gmath_ilogb(x);
@@ -385,14 +406,16 @@ int main(int argc, char ** argv) {
       if (has_double) {
         fhash[f] = gmath_fnv_double(fhash[f], y);
       }
-      if (fns[f].kind == K_D_DN || fns[f].kind == K_D_N) {
+      if (fns[f].kind == K_D_DN || fns[f].kind == K_D_N ||
+          fns[f].kind == K_F_DN || fns[f].kind == K_F_N) {
         fhash[f] = gmath_fnv_u64(fhash[f], extra);
       }
       if (fns[f].in_total) {
         if (has_double) {
           hash = gmath_fnv_double(hash, y);
         }
-        if (fns[f].kind == K_D_DN || fns[f].kind == K_D_N) {
+        if (fns[f].kind == K_D_DN || fns[f].kind == K_D_N ||
+          fns[f].kind == K_F_DN || fns[f].kind == K_F_N) {
           hash = gmath_fnv_u64(hash, extra);
         }
         count++;

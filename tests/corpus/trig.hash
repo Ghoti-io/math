@@ -60,3 +60,7 @@ fn lround 29062da116a95b78 12886
 fn lroundf f55e957431a9f6ae 5792
 fn llround 29062da116a95b78 12886
 fn llroundf f55e957431a9f6ae 5792
+fn scalbnf 27a1b98daffdda7a 178156
+fn ldexpf 27a1b98daffdda7a 178156
+fn frexpf 8bccabb7ed1f52ec 4196
+fn ilogbf 0ef843f80e25384f 4196

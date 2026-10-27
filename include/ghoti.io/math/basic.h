@@ -316,6 +316,50 @@ GMATH_API double gmath_frexp(double x, int * e);
 GMATH_API int gmath_ilogb(double x);
 
 /**
+ * @brief Binary32 x*2^n, nearest/ties-even in every rounding mode.
+ *
+ * Exact finite results add no flags, including exact subnormals. Finite
+ * overflow returns signed infinity with overflow/inexact. Inexact rounded
+ * zero/subnormal results require underflow/inexact; rounding up to minimum
+ * normal requires inexact only (tininess after rounding). Signed zeros and
+ * infinities are preserved; NaNs canonicalize, invalid only for sNaNs.
+ * errno, mode and incoming flags are preserved. Full directed/errno libm
+ * semantics are not promised. Existing Double scaling is unchanged.
+ * @param x The significand.
+ * @param n The exponent, including INT_MIN/INT_MAX.
+ * @return The scaled Float result.
+ */
+GMATH_API float gmath_scalbnf(float x, int n);
+/** @brief Alias of ::gmath_scalbnf with the same contract.
+ * @param x The significand.
+ * @param n The exponent.
+ * @return The scaled Float result.
+ */
+GMATH_API float gmath_ldexpf(float x, int n);
+/**
+ * @brief Exact binary32 fraction/exponent decomposition, like ::gmath_frexp.
+ *
+ * A zero/infinity is preserved; NaNs canonicalize, invalid only for sNaNs.
+ * For every special value the output exponent is zero. Finite nonzero values
+ * return a signed fraction of magnitude [0.5,1) and reconstruct exactly.
+ * No other new flags; errno, mode and incoming flags are preserved.
+ * @param x The argument.
+ * @param e Receives the exponent; may be NULL.
+ * @return The signed fraction or canonical special value.
+ */
+GMATH_API float gmath_frexpf(float x, int * e);
+/**
+ * @brief Exact binary32 unbiased exponent, including subnormal inputs.
+ *
+ * Zero returns GMATH_ILOGB0, infinity INT_MAX, and NaN GMATH_ILOGBNAN;
+ * each raises invalid (including quiet NaNs). Finite nonzero values add
+ * no flags. errno, rounding mode and incoming flags are preserved.
+ * @param x The argument.
+ * @return The integer exponent or special-value sentinel.
+ */
+GMATH_API int gmath_ilogbf(float x);
+
+/**
  * @brief The exact remainder x - n*y, with n the quotient truncated to zero.
  *
  * For finite @p x and finite nonzero @p y the result has the sign of @p x

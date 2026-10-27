@@ -80,6 +80,12 @@ GHOTI_ORACLE_REQUIRED=1 turns the skip into a failure (exit 1).  A skipped
 
 The repository directory is mounted at its own host path, so paths mean the
 same on both sides.
+Float decomposition/scaling (Fraction and pinned MPFR):
+    python3 tools/oracle/oracle.py float_scale --out DIR --seed 20261027 --count 1000
+    python3 tools/oracle/oracle.py fresh-float_scale --out DIR --seed SEED --count 1000
+The random-input count is bounded at50,000; each expands to at most49 exponent
+rows. Fresh checks also run the generated raw/state hashes, not just unit values.
+
 """
 
 import argparse
@@ -136,7 +142,7 @@ def check_pin(timeout=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "fit-explog", "fit-logbase", "fit-cbrt", "fit-floattrig-reduce", "fit-atan2", "fit-hypot", "corpus", "fresh", "logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt", "floatbasic", "fresh-floatbasic", "floattrig", "fresh-floattrig", "exp2f", "fresh-exp2f", "expf", "fresh-expf", "logf", "fresh-logf", "log10f", "fresh-log10f", "hypotf", "fresh-hypotf", "atan2f", "fresh-atan2f", "atanf", "fresh-atanf", "intround", "fresh-intround", "budget-log10f", "budget-hypotf", "budget-atan2f"))
+    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "fit-explog", "fit-logbase", "fit-cbrt", "fit-floattrig-reduce", "fit-atan2", "fit-hypot", "corpus", "fresh", "logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt", "floatbasic", "fresh-floatbasic", "floattrig", "fresh-floattrig", "exp2f", "fresh-exp2f", "expf", "fresh-expf", "logf", "fresh-logf", "log10f", "fresh-log10f", "hypotf", "fresh-hypotf", "atan2f", "fresh-atan2f", "atanf", "fresh-atanf", "intround", "fresh-intround", "float_scale", "fresh-float_scale", "budget-log10f", "budget-hypotf", "budget-atan2f"))
     ap.add_argument("--out")
     ap.add_argument("--seed", type=int)
     ap.add_argument("--count", type=int, default=3000)
@@ -144,7 +150,7 @@ def main():
     try:
         ref, prov = check_pin()
     except Unavailable as e:
-        if a.cmd in ("fresh", "fresh-logbase", "fresh-exp2", "fresh-cbrt", "fresh-floatbasic", "fresh-floattrig", "fresh-exp2f", "fresh-expf", "fresh-logf", "fresh-log10f", "fresh-hypotf", "fresh-atan2f", "fresh-atanf", "fresh-intround") and not REQUIRED:
+        if a.cmd in ("fresh", "fresh-logbase", "fresh-exp2", "fresh-cbrt", "fresh-floatbasic", "fresh-floattrig", "fresh-exp2f", "fresh-expf", "fresh-logf", "fresh-log10f", "fresh-hypotf", "fresh-atan2f", "fresh-atanf", "fresh-intround", "fresh-float_scale") and not REQUIRED:
             sys.stderr.write("oracle: SKIPPED the fresh sample: %s\n" % e)
             sys.stderr.write("oracle: the committed corpus was still checked; "
                              "GHOTI_ORACLE_REQUIRED=1 makes this a failure\n")
@@ -191,7 +197,7 @@ def main():
     if not out.startswith(ROOT + os.sep):
         sys.stderr.write("oracle.py: --out must be inside %s\n" % ROOT)
         return 2
-    if a.cmd in ("logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt", "floatbasic", "fresh-floatbasic", "floattrig", "fresh-floattrig", "exp2f", "fresh-exp2f", "expf", "fresh-expf", "logf", "fresh-logf", "log10f", "fresh-log10f", "hypotf", "fresh-hypotf", "atan2f", "fresh-atan2f", "atanf", "fresh-atanf", "intround", "fresh-intround"):
+    if a.cmd in ("logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt", "floatbasic", "fresh-floatbasic", "floattrig", "fresh-floattrig", "exp2f", "fresh-exp2f", "expf", "fresh-expf", "logf", "fresh-logf", "log10f", "fresh-log10f", "hypotf", "fresh-hypotf", "atan2f", "fresh-atan2f", "atanf", "fresh-atanf", "intround", "fresh-intround", "float_scale", "fresh-float_scale"):
         family = a.cmd.removeprefix("fresh-")
         argv = ["python", "tools/oracle/gen_corpus_" + family + ".py", "--out", out,
                 "--seed", str(a.seed), "--count", str(a.count)]
