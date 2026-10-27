@@ -66,7 +66,7 @@
 
 GMATH_STATIC_ASSERT(sizeof(float) == sizeof(uint32_t) && FLT_RADIX == 2 &&
                     FLT_MANT_DIG == 24 && FLT_MIN_EXP == -125 && FLT_MAX_EXP == 128,
-                    "log2f and exp2f require IEEE binary32");
+                    "float exp/log requires IEEE binary32");
 
 /* ------------------------------------------------------------------------- */
 /* exp                                                                        */
@@ -175,6 +175,59 @@ double gmath_exp(double x) {
   int k;
   double y = exp_core(x, 0.0, 0, &k);
   return y * gmath_double((uint64_t)(k + 1023) << 52);
+}
+
+/* Binary32 natural exponential. The cutoffs are certified adjacent input
+ * words in gen_corpus_expf.py, not rounded decimal guesses. */
+static inline float expf_value(uint32_t ef_word) {
+  float ef_value;
+  memcpy(&ef_value, &ef_word, sizeof ef_value);
+  return ef_value;
+}
+
+float gmath_expf(float x) {
+  uint32_t ef_word;
+  memcpy(&ef_word, &x, sizeof ef_word);
+  uint32_t ef_abs = ef_word & 0x7fffffffu;
+  if (ef_abs >= 0x42b17218u) {
+    if (ef_abs > 0x7f800000u) {
+      if ((ef_abs & 0x00400000u) == 0) {
+        (void)gmath_invalid();
+      }
+      return expf_value(0x7fc00000u);
+    }
+    if (ef_abs == 0x7f800000u) {
+      return (ef_word & 0x80000000u) ? 0.0f : x;
+    }
+    if ((ef_word & 0x80000000u) == 0) {
+      (void)gmath_overflow(0);
+      return expf_value(0x7f800000u);
+    }
+    if (ef_abs >= 0x42cff1b5u) {
+      (void)gmath_underflow(0);
+      return 0.0f;
+    }
+  }
+  double ef_wide = (double)x;
+  if (ef_abs <= 0x32800000u) { /* |x|<=2^-26: nearest result is one. */
+    return (float)(1.0 + ef_wide);
+  }
+  /* INV128ln2 is an odd integer / 2^44. A nonzero active binary32 x has
+   * dyadic valuation <=6, so its exact product is never integral. Either
+   * that multiplication rounds, or the subsequent magic addition (ULP1)
+   * rounds: exp_core necessarily raises inexact for every such input. */
+  int ef_k;
+  double ef_y = exp_core(ef_wide, 0.0, 0, &ef_k);
+  double ef_scaled = ef_y * gmath_double((uint64_t)(ef_k + 1023) << 52);
+  float ef_result = (float)ef_scaled;
+  uint32_t ef_result_word;
+  memcpy(&ef_result_word, &ef_result, sizeof ef_result_word);
+  if (ef_result_word < 0x00800000u) {
+    /* Nonzero dyadic inputs have inexact exponentials. Preserve float UF/IX
+     * even if a rounded double approximation were to narrow exactly. */
+    (void)gmath_underflow(0);
+  }
+  return ef_result;
 }
 
 /* Exact base-two reduction: 128*x and n/128 are exact in the active range,

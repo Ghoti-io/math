@@ -542,6 +542,88 @@ cc --version
 taskset -c 0 build/linux/release/apps/tools/bench-exp2 200
 ```
 
+## Binary32 natural exponential
+
+`gmath_expf` reuses the existing natural-exp core and 128-row table. Raw float
+classification precedes widening, including NaNs, so quiet/signaling status
+is preserved. Both zeros return 1; infinities return positive infinity/zero
+without exceptions. Quiet NaNs canonicalize without invalid; signaling NaNs
+raise invalid. Unlike exp2f, no nonzero finite input is exceptionless.
+
+Directed MPFR600 log intervals, independent mpmath640 and directed-exp endpoint
+checks certify the adjacent binary32 input brackets:
+
+| boundary | last input below | first input above |
+|---|---|---|
+| nearest overflow, ln(2^128-2^103) | 0x42b17217 | 0x42b17218 |
+| nearest zero, -150 ln2 | 0xc2cff1b5 | 0xc2cff1b4 |
+| normal/subnormal, -126 ln2 | 0xc2aeac50 | 0xc2aeac4f |
+
+The rounded-normal midpoint ln(2^-126-2^-150) has the same adjacent-input
+bracket as the mathematical normal boundary. Thus the gaps at those input
+words are much larger than double approximation error, and mathematical versus
+rounded result-class ambiguity does not affect float inputs here. Threshold
+self-checks reject touching/crossing intervals, verify negative-log endpoint
+reversal, and remain in the published reference generator. Classified finite
+overflow/zero tails return infinity/zero in every mode with OF/IX or UF/IX;
+other directed numerical accuracy is not promised.
+
+For |x|<=2^-26, `1+(double)x` rounds to 1 nearest, safely inside the true exp
+rounding cell on both sides of one. Nonzero x must round in either the double
+addition or final float narrowing; zeros remain exact. Other active inputs use
+the existing natural-exp core expression-for-expression. Its scaling exponent
+k lies in [-150,128], so power-of-two scaling stays normal/exact in double.
+The existing one-double-ULP allowance contributes less than 2^-29 float ULP;
+one float narrowing keeps the result within the one-ULP public target. No old
+double expression, table entry or committed result changes.
+
+Mandatory inexact follows independently from the reduction. Its stored
+INV128ln2 equals the odd integer 3248660424278399 divided by 2^44. Every nonzero
+active binary32 x has dyadic valuation at most 6 (|x|<104). The exact product
+cannot be integral: either the multiply rounds, or its exact noninteger result
+must round when added to the magic constant, whose ULP is one throughout this
+range. Inexact is therefore unavoidable before reconstruction. A tiny final
+float result additionally forces UF/IX, preserving the contract even if an
+approximation could narrow exactly. errno, mode and incoming flags survive.
+
+Pinned references use direct rational binary32 target/error rounding and full
+closed error cells, with atomic publication and a complete-payload checksum.
+The committed population has 27,228 rows; seed 1793104000/count 100000 produces
+317,759 rows. The conservative error-cell maximum is 0.50000003 ULP at raw
+0xb3000000 (-2^-25), below the 0.51 regression cap. Coverage includes every
+input exponent, certified limits, tiny edges, integer neighbors, natural
+reduction table/half seams and inverse-output midpoints. Required family
+representatives protect fresh samples independently of their row count.
+
+```sh
+python3 tools/oracle/oracle.py expf --out build/linux/expf-soak --seed 1793104000 --count 100000
+GMATH_EXPF_CORPUS_DIR=build/linux/expf-soak build/linux/release/apps/testExpf --gtest_brief=1
+```
+
+The 49-record raw probe covers all modes and zero/each/all incoming flags.
+Its hash `749a5c4e7723dd5a` deliberately covers nearest/no-incoming result bits
+and normalized exception flags; errno and mode are asserted separately on every
+call. A native exhaustive active-subnormal scan covers 2,180,453 inputs per
+mode, or 8,721,812 public/cast checks. Every public call and matching double
+cast raises UF/IX. No exact-cast witness exists in this native scan, so deleting
+only the conservative force has no demonstrated mutation witness. Actual UF
+suppression is tested; no synthetic helper-only case is claimed as public
+coverage. Unit tests replay the same random inputs in every mode, assert state
+at every corpus row and cutoff, and check nearest ordering at table/half seams.
+
+Paired scalar timing on an x86-64/GCC14.2/glibc2.41 host uses one logical CPU,
+default fenv/nearest, 4,096 identical inputs and 200 alternating pairs, with an
+integer result checksum. Median gmath/libm ratios are about 2.01 common and
+wide ranges, 1.12 near overflow, 1.04 subnormal results, 0.69 tiny inputs and
+1.78 reduction landmarks. Normal calls remain slower; subnormal results are
+near parity and tiny inputs are faster in this sample. These measurements
+include call/loop/checksum overhead and establish no overall speed advantage.
+
+```sh
+make CC=cc CXX=g++ PREFIX="$DEPENDENCY_PREFIX" build/linux/release/apps/tools/bench-expf
+taskset -c 0 build/linux/release/apps/tools/bench-expf 200
+```
+
 ## Binary32 base-two exponential
 
 `gmath_exp2f` reuses the existing 128-row double exponential table and polynomial,

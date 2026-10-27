@@ -56,6 +56,7 @@
 #define gmath_decimal_shortest GHOTIIO_MATH(gmath_decimal_shortest)
 #define gmath_decimal_to_double GHOTIIO_MATH(gmath_decimal_to_double)
 #define gmath_exp GHOTIIO_MATH(gmath_exp)
+#define gmath_expf GHOTIIO_MATH(gmath_expf)
 #define gmath_sinf GHOTIIO_MATH(gmath_sinf)
 #define gmath_cosf GHOTIIO_MATH(gmath_cosf)
 #define gmath_tanf GHOTIIO_MATH(gmath_tanf)

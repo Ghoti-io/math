@@ -159,6 +159,23 @@ GMATH_API float gmath_tanf(float x);
 GMATH_API double gmath_exp(double x);
 
 /**
+ * @brief Binary32 e raised to @p x, within 1 float ulp under nearest rounding.
+ *
+ * Both zeros return 1, +infinity returns infinity and -infinity returns +0,
+ * without exceptions. NaNs canonicalize, raising invalid only for signaling
+ * NaNs. Every other finite nonzero input raises inexact, with overflow for
+ * overflowing results and underflow for tiny results. The first overflowing
+ * float input is 0x1.62e430p+6; inputs <=-0x1.9fe36ap+6 round to zero. Those
+ * classified tails return infinity/zero in every mode. errno, mode and incoming
+ * flags are preserved. Numerical accuracy assumes the default nearest
+ * environment; full libm errno/directed-rounding compatibility is not promised.
+ *
+ * @param x The exponent.
+ * @return e^@p x as a float.
+ */
+GMATH_API float gmath_expf(float x);
+
+/**
  * @brief Two raised to @p x, within 1 ulp under round-to-nearest.
  *
  * Every integer exponent from -1074 through 1023 returns its exact binary

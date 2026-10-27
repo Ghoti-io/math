@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -382,6 +382,7 @@ $(APP_DIR)/examples/%$(EXE_EXTENSION): examples/%.c $(APP_DIR)/$(STATIC_TARGET) 
 .PHONY: check-planted-logbase check-logbase-oracle oracle-logbase oracle-fit-logbase
 .PHONY: check-planted-exp2 check-exp2-oracle oracle-exp2
 .PHONY: check-planted-exp2f check-exp2f-oracle oracle-exp2f
+.PHONY: check-planted-expf check-expf-oracle oracle-expf
 .PHONY: check-planted-cbrt check-cbrt-oracle oracle-cbrt oracle-fit-cbrt
 .PHONY: check-planted-floattrig check-floattrig-oracle oracle-floattrig check-floattrig-special
 .PHONY: check-planted-floatbasic check-floatbasic-oracle oracle-floatbasic check-floatbasic-special
@@ -544,6 +545,22 @@ check-exp2f-special: $(EXP2F_SPECIAL_PROBE) tests/corpus/exp2f-special.hash
 	 cmp tests/corpus/exp2f-special.hash $(BUILD_DIR)/exp2f-special.actual && \
 	 cat $(BUILD_DIR)/exp2f-special.actual
 
+BENCH_PROBE_EXPF := $(APP_DIR)/tools/bench-expf$(EXE_EXTENSION)
+EXPF_SPECIAL_PROBE := $(APP_DIR)/tools/probe-expf-special$(EXE_EXTENSION)
+$(BENCH_PROBE_EXPF): tools/bench-expf.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+
+$(EXPF_SPECIAL_PROBE): tools/probe-expf-special.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+
+.PHONY: check-expf-special
+check-expf-special: $(EXPF_SPECIAL_PROBE) tests/corpus/expf-special.hash
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(EXPF_SPECIAL_PROBE) > $(BUILD_DIR)/expf-special.actual && \
+	 cmp tests/corpus/expf-special.hash $(BUILD_DIR)/expf-special.actual && \
+	 cat $(BUILD_DIR)/expf-special.actual
+
 FLOATTRIG_WIDE_PROBE := $(APP_DIR)/tools/probe-floattrig-wide$(EXE_EXTENSION)
 $(FLOATTRIG_WIDE_PROBE): tools/probe-floattrig-wide.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP) | $(APP_DIR)/$(TARGET) $(LIBVER_GEN)
 	@mkdir -p $(@D)
@@ -614,7 +631,7 @@ corpus-hash-update: $(HASH_PROBE) ## Rewrite tests/corpus/trig.hash from this bu
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(HASH_PROBE) $(CORPUS_DIR) | awk 'BEGIN{print "# FNV-1a 64 over the little-endian bytes of every result, sin cos tan atan2 exp log pow hypot sqrt floor ceil trunc round rint fabs copysign scalbn frexp ilogb, in corpus order."; print "# `hash` and `count` are over all nineteen; each `fn` line is one function alone; sqrt_portable, sqrt_hardware and ldexp are variants, outside the total, that must equal sqrt and scalbn; decimal_parse (bits, flags, bytes consumed) and decimal_shortest (sign, digits, exponent) are outside the total too."; print "# Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig, testElementary and the cross-target scripts."} $$1=="math.trig.hash"{print "hash " $$2} $$1=="math.trig.count"{print "count " $$2} $$1 ~ /^math\.[a-z0-9_]+\.hash$$/ && $$1!="math.trig.hash"{split($$1,a,"."); h[a[2]]=$$2; o[++n]=a[2]} $$1 ~ /^math\.[a-z0-9_]+\.count$$/ && $$1!="math.trig.count"{split($$1,a,"."); c[a[2]]=$$2} END{for(i=1;i<=n;i++) print "fn " o[i] " " h[o[i]] " " c[o[i]]}' > $(CORPUS_DIR)/trig.hash
 	@cat $(CORPUS_DIR)/trig.hash
 
-check-planted: check-planted-exact check-planted-decimal check-planted-remainder check-planted-extrema check-planted-logbase check-planted-exp2 check-planted-exp2f check-planted-cbrt check-planted-floatbasic check-planted-floattrig $(OBJ_DIR)/tests/test_trig.o $(OBJ_DIR)/tests/test_elementary.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect fails its tests and the control passes
+check-planted: check-planted-exact check-planted-decimal check-planted-remainder check-planted-extrema check-planted-logbase check-planted-exp2 check-planted-exp2f check-planted-expf check-planted-cbrt check-planted-floatbasic check-planted-floattrig $(OBJ_DIR)/tests/test_trig.o $(OBJ_DIR)/tests/test_elementary.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect fails its tests and the control passes
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_trig.o' PLANT_PROBE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
@@ -688,6 +705,12 @@ check-planted-exp2f: $(OBJ_DIR)/tests/test_exp2f.o $(LIBOBJECTS) $(HASH_PROBE) #
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_exp2f.o' PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-exp2f' \
 	 python3 tools/check-planted-exp2f.py
+check-planted-expf: $(OBJ_DIR)/tests/test_expf.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove expf implementation, oracle and hash defects fail
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_expf.o' PLANT_PROBE='$(HASH_PROBE)' \
+	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-expf' \
+	 python3 tools/check-planted-expf.py
 
 oracle-exp2: ## Regenerate committed binary exponential references in the pinned image
 	@$(ORACLE) exp2 --out $(CORPUS_DIR) --seed 20261026 --count 3000
@@ -726,6 +749,26 @@ check-exp2f-oracle: $(APP_DIR)/testExp2f$(EXE_EXTENSION) ## Check committed and 
 	   || { printf 'check-exp2f-oracle: FAIL with seed %s\n' "$$seed" >&2; exit 1; }; \
 	 elif [ $$rc -eq 3 ]; then \
 	   printf 'check-exp2f-oracle: SKIPPED fresh reference and committed regeneration; committed corpus still checked\n'; \
+	 else exit $$rc; fi
+
+oracle-expf: ## Regenerate committed binary exponential references in the pinned image
+	@$(ORACLE) expf --out $(CORPUS_DIR) --seed 20261027 --count 3000
+
+check-expf-oracle: $(APP_DIR)/testExpf$(EXE_EXTENSION) ## Check committed and fresh expf references (skip fresh loudly without the pinned image)
+	@python3 tools/check-expf-reference.py
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(APP_DIR)/testExpf$(EXE_EXTENSION) --gtest_brief=1
+	@mkdir -p $(BUILD_DIR); \
+	 seed=$${GMATH_ORACLE_SEED:-$$(date +%s)}; rc=0; \
+	 printf 'check-expf-oracle: fresh seed %s\n' "$$seed"; \
+	 $(ORACLE) fresh-expf --out $(BUILD_DIR)/oracle-expf --seed $$seed --count 3000 || rc=$$?; \
+	 if [ $$rc -eq 0 ]; then \
+	   $(ORACLE) expf --out $(BUILD_DIR)/expf-committed --seed 20261027 --count 3000 && \
+	   cmp tests/corpus/expf.corpus $(BUILD_DIR)/expf-committed/expf.corpus && \
+	   GMATH_EXPF_CORPUS_DIR=$(BUILD_DIR)/oracle-expf LD_LIBRARY_PATH="$(TEST_LD_PATH)" \
+	   $(APP_DIR)/testExpf$(EXE_EXTENSION) --gtest_brief=1 \
+	   || { printf 'check-expf-oracle: FAIL with seed %s\n' "$$seed" >&2; exit 1; }; \
+	 elif [ $$rc -eq 3 ]; then \
+	   printf 'check-expf-oracle: SKIPPED fresh reference and committed regeneration; committed corpus still checked\n'; \
 	 else exit $$rc; fi
 
 check-planted-floattrig: $(OBJ_DIR)/tests/test_floattrig.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove floattrig implementation, oracle and hash defects fail

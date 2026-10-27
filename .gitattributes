@@ -1,3 +1,5 @@
 # These pinned byte payloads must survive checkout without line-end conversion.
 tests/corpus/exp2f.corpus text eol=lf
 tests/corpus/exp2f-special.hash text eol=lf
+tests/corpus/expf.corpus text eol=lf
+tests/corpus/expf-special.hash text eol=lf
