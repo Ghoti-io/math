@@ -119,6 +119,18 @@ static double copysignf_widened(double x, double y) {
   return (double)gmath_copysignf((float)x, (float)y);
 }
 
+static double sinf_widened(double x) {
+  return (double)gmath_sinf((float)x);
+}
+
+static double cosf_widened(double x) {
+  return (double)gmath_cosf((float)x);
+}
+
+static double tanf_widened(double x) {
+  return (double)gmath_tanf((float)x);
+}
+
 static const struct {
   const char * name; /* the reported name */
   const char * file; /* the corpus read */
@@ -172,6 +184,9 @@ static const struct {
   {"fabsf", "fabsf", K_D_D, 0, NULL, fabsf_widened, NULL, NULL},
   {"sqrtf", "sqrtf", K_D_D, 0, NULL, sqrtf_widened, NULL, NULL},
   {"copysignf", "copysignf", K_DD_D, 0, NULL, NULL, copysignf_widened, NULL},
+  {"sinf", "sinf", K_D_D, 0, NULL, sinf_widened, NULL, NULL},
+  {"cosf", "cosf", K_D_D, 0, NULL, cosf_widened, NULL, NULL},
+  {"tanf", "tanf", K_D_D, 0, NULL, tanf_widened, NULL, NULL},
 };
 #define NFNS ((int)(sizeof fns / sizeof fns[0]))
 

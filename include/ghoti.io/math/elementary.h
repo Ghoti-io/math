@@ -97,6 +97,47 @@ GMATH_API double gmath_cos(double x);
 GMATH_API double gmath_tan(double x);
 
 /**
+ * @brief Binary32 sine in radians, within 1 ulp under round-to-nearest.
+ *
+ * Signed zeros return unchanged without exceptions. Infinity gives canonical
+ * float NaN with invalid; NaNs canonicalize, with invalid only for signaling
+ * NaNs. Nonzero subnormal inputs return x with underflow and inexact. Other
+ * inexact tiny results raise underflow/inexact; other finite calls may raise
+ * inexact. errno, incoming flags and rounding mode are preserved. Accuracy
+ * assumes the default IEEE round-to-nearest environment.
+ *
+ * @param x The binary32 angle, in radians.
+ * @return sin(@p x), in binary32.
+ */
+GMATH_API float gmath_sinf(float x);
+
+/**
+ * @brief Binary32 cosine in radians, within 1 ulp under round-to-nearest.
+ *
+ * Both zeros give 1 without exceptions; subnormal arguments give 1 without
+ * underflow. The NaN, infinity and state policy is that of ::gmath_sinf.
+ * Inexact tiny results raise underflow/inexact; other finite calls may raise
+ * inexact. Accuracy assumes round-to-nearest.
+ *
+ * @param x The binary32 angle, in radians.
+ * @return cos(@p x), in binary32.
+ */
+GMATH_API float gmath_cosf(float x);
+
+/**
+ * @brief Binary32 tangent in radians, within 1 ulp under round-to-nearest.
+ *
+ * Signed zeros, NaNs, infinities, tiny inputs/results and state preservation
+ * follow ::gmath_sinf. A final float overflow raises overflow and inexact.
+ * Accuracy assumes round-to-nearest; larger finite arguments use the full
+ * argument reduction of ::gmath_tan before a single float narrowing.
+ *
+ * @param x The binary32 angle, in radians.
+ * @return tan(@p x), in binary32.
+ */
+GMATH_API float gmath_tanf(float x);
+
+/**
  * @brief e raised to the power @p x.
  *
  * Within 1 ulp of the true value for every finite @p x: measured at most 0.51

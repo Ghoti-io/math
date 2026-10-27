@@ -91,6 +91,16 @@ spacing proof. Positive finite roots are normal; inexact is allowed, including
 on exact positive roots when the portable kernel is used. errno, incoming
 exceptions and the host mode are preserved.
 
+Binary32 trigonometry includes `gmath_sinf`, `gmath_cosf` and `gmath_tanf`,
+with a one-ulp target under nearest rounding. Small angles use bounded Taylor
+series; larger angles reuse the full double argument reduction and narrow once.
+NaNs are canonical float values, infinities raise invalid, and nonzero
+subnormal sine/tangent inputs raise underflow/inexact while returning the input.
+Cosine of zero or a subnormal is 1 without underflow. errno, existing exception
+flags and mode are preserved. Small-angle performance is competitive on the
+measured host; the large-argument fallback remains substantially slower than
+native float libm and needs a dedicated reduction for improved performance.
+
 And exact conversion between decimal and `double` (`ghoti.io/math/decimal.h`):
 * `gmath_decimal_parse` reads the decimal grammar CSS, SVG and `strtod` share.
 * `gmath_decimal_to_double` takes digits and a power of ten.

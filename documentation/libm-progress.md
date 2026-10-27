@@ -46,11 +46,23 @@ The deterministic contracts in the public headers remain authoritative.
   paths remain slower than host libm; normal sqrt/sign paths are approximately
   tied, while the measured subnormal sqrt path is substantially faster.
 
+- Binary32 trigonometry: `gmath_sinf`, `gmath_cosf`, `gmath_tanf`, with
+  bounded Taylor paths for |x|<=1 and the existing full-range double reduction
+  for larger inputs. Directed MPFR/mpmath reference certification covers
+  62,574 committed and 934,914 larger-sample results; measured maximum errors
+  are about 0.502127/0.500046/0.501626 ulp. Raw NaN/tiny/state probes and all
+  46 result sets agree across six emulated architectures. Full GCC14/GCC16
+  gates, all 134 tests on GCC14/GCC16/Clang, nine-test ASan/UBSan and independent
+  review pass. Small-angle paths
+  are competitive, but the large-argument fallback is roughly 8–9.5 times
+  slower than native float libm on the measured host and needs optimization.
+
 ## Upcoming project-used gaps
 
-1. Remaining float trig and elementary operations used by WebAssembly, model
-   and CJelly, including sin/cos/tan and float exp/log/hypot/atan2 families.
-   Float elementary accuracy and exception handling remain separate targets.
+1. Remaining float elementary operations used by WebAssembly, model and
+   CJelly, including exp/log/hypot/atan2 families. A dedicated float trig
+   reduction is also a priority to address the measured fallback cost.
+   Float accuracy and exception handling remain separate targets.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
@@ -73,7 +85,7 @@ raw-bit NaN/zero/infinity tests, all four rounding modes, errno/exception-state
 checks, mutation checks and supplemental result hashes. Existing hashes remain
 unchanged. Build/test validation and independent reviews accompany each commit.
 
-Math-only QEMU checks now match all 43 committed function hashes on i686,
+Math-only QEMU checks now match all 46 committed function hashes on i686,
 AArch64, s390x, PowerPC64, PowerPC32 and SPARC64 Linux, with both default and
 forced-portable square root. Raw binary32 special-value/exception probes also
 pass on those emulated targets at both `-O0` and `-O2`. These are probe executions, not physical-host or full GoogleTest

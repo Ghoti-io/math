@@ -44,5 +44,8 @@ fn rintf 2972092dfe373946 8268
 fn fabsf 263051574f4f9063 8268
 fn sqrtf f79c4104d9f09d43 8268
 fn copysignf f7ca7dceb783dedd 8324
+fn sinf b18a318567960e54 20858
+fn cosf c8e702649b4db960 20858
+fn tanf f8973c6dd46dbb18 20858
 fn decimal_parse 329c0f4b62b8d750 16537
 fn decimal_shortest ab09f1339f15c856 42064

@@ -748,6 +748,116 @@ cc --version
 taskset -c 0 build/linux/release/apps/tools/bench-floatbasic 200
 ```
 
+## Binary32 trigonometric functions
+
+`floattrig.c` classifies raw float specials before widening, avoiding signaling
+status changes and target-specific double NaN paths. Sine/tangent zeros return
+the original bits; cosine zeros return 1. Infinity and signaling NaNs raise
+invalid with canonical float NaN; quiet NaNs only canonicalize. Nonzero
+subnormal sine/tangent arguments return x with explicit underflow/inexact;
+cosine returns 1 without underflow. A tiny narrowed result also forces the
+underflow/inexact pair even when an intermediate lands exactly on the float
+grid. errno, incoming flags and rounding mode survive; accuracy assumes nearest.
+
+For |x|<=1, sine uses the alternating Taylor polynomial through x^11 and cosine
+through x^12, with every operation in double and one final float narrowing.
+The coefficients are factorial reciprocals derived directly, not fitted or
+borrowed coefficients. The exact-series absolute truncation bounds are
+|x|^13/13! and |x|^14/14!. Since sin(x)/x>=5/6 and cos(x)>=1/2 in this range,
+the relative bounds are 6/(5*13!) and 2/14!, respectively. x*x is exact for a
+binary32 input widened to double, including the smallest normal float. Horner
+coefficients and operations, final product/addition and the tangent division
+fit a conservative 256u relative allowance (u=2^-53). More explicitly, the
+sine correction has four multiply/add levels and coefficient absolute sum
+below 0.176; its coefficient+Horner error is bounded by gamma(9)*0.176<2u,
+where gamma(k)=k*u/(1-k*u). The x*z and correction products plus the final
+addition leave sine below 8u relative error, using sin(x)/x>=5/6. Cosine's
+five levels have coefficient absolute sum below 0.544, giving
+gamma(11)*0.544<7u. Its last multiplication/addition contribute less than 2u
+absolute; division by cos(x)>=1/2 keeps its relative error below 32u. Thus the
+subtraction in 1+z*p has no dangerous cancellation. Propagating 8u and 32u
+through their ratio and one rounded division is below 64u; 256u is a deliberately
+looser common bound, also covering interaction with truncation. All intermediate
+products remain normal double values or exact zeros.
+
+Tangent is the ratio of these sine/cosine polynomials; its relative truncation
+bound is (Bs+Bc)/(1-Bc), below 2.16e-10. A normal float ULP is greater than
+2^-24 times the result magnitude, and the subnormal grid is coarser. Adding
+256u and final nearest rounding gives an error below 0.505 float ulp for all
+three small paths. If the pre-rounded approximation crosses a float binade
+boundary, its error is much smaller than half the neighboring spacing and it
+still rounds to that boundary, so the bound remains valid there.
+
+For |x|>1 the argument widens exactly and the existing double trig function
+supplies full-range reduction and evaluation. Its one-double-ulp reserve is
+at most 2^-29 of a float ulp, including subnormal float spacing. Final narrowing
+therefore retains the one-ulp float target. No existing double expression order
+or result hash changes. Native float overflow, if encountered by tangent's
+final conversion, raises overflow/inexact.
+
+Pinned MPFR directed lower/upper bounds certify both the binary32 result word
+and signed-error word using direct rational nearest-even rounding. Independent
+mpmath values must agree with the target/error words. Precision escalates from
+600 to 1200/2400 bits rather than accepting uncertain rounding boundaries.
+The true float ULP includes subnormal spacing and the error word's sign even
+when its magnitude rounds to zero. Inputs cover every float exponent,
+subnormal bit lengths, polynomial/reduction boundaries, neighbors of pi/2
+multiples over the full range, small random arguments and inverse-generated
+output midpoints. Raw signaling NaNs are tested separately because widening
+would quiet them.
+
+The committed float-trig population has 20,858 inputs per function (62,574
+results). A larger reproducible run has 311,638 inputs per function, including
+fixed witnesses from its earlier sample before witness pinning:
+
+```sh
+python3 tools/oracle/oracle.py floattrig --out build/linux/floattrig-soak-pinned --seed 1793093951 --count 100000
+GMATH_FLOATTRIG_CORPUS_DIR=build/linux/floattrig-soak-pinned build/linux/release/apps/testFloattrig --gtest_brief=1
+```
+
+Measured maximum errors are about 0.502127 ulp for sine (raw input 0xbf7be41c),
+0.500046 for cosine (0xbf7fee51), and 0.501626 for tangent (0xbf7707fe).
+All six signed witnesses are fixed generator inputs. Tests retain a 0.51-ulp
+regression bound and certify the entire error word's rounding cell against the
+public one-ulp limit; the printed estimate alone is not used as proof. This
+includes signed-zero error cells where subtraction from 1 would otherwise lose
+a tiny uncertainty. Samples do not establish correct rounding.
+
+A focused seam test checks monotonicity and derivative-bounded gaps around
+both signs of 1. Raw probes include specials, subnormal edges, minimum normals
+and neighbors of the polynomial/fallback boundary, with all modes and zero,
+each and all incoming flags. Only nearest numerical accuracy is asserted;
+other modes retain independent finite/nonzero/sign sanity and state checks.
+Raw input construction uses caller-local memcpy, and reference arithmetic is
+kept after the captured state snapshot. Numeric hashes and the 90-record raw
+hash `cf4445bb45ccf775` match on native builds and QEMU i686, AArch64, s390x,
+PowerPC64, PowerPC32 and SPARC64 Linux. Both default/portable builds pass; raw
+probes run at both `-O0` and `-O2`. These are emulated probes, not full target test
+suites or physical-host execution.
+
+Tiny input underflow enforcement is mutation-tested. The generic final-result
+underflow force currently has no known normal-input/cast-exact public witness
+that would fail if the explicit force were removed. Directed sine of the
+smallest normal does reach that branch, but its cast already raises the flags.
+That branch's separate mutation sensitivity remains unverified; no artificial
+helper-only test is represented as public-path coverage.
+
+On the measured x86-64/GCC14.2/glibc2.41 host, 200 alternating timing pairs
+pinned to one core give small-angle [-1,1] median gmath/libm ratios of 1.01,
+0.98 and 0.77 for sine, cosine and tangent. Over [-10,10] they are about 3.0,
+3.3 and 3.0; large-exponent inputs are roughly 8–9.5 times slower. Subnormal
+input ratios are about 0.89, 0.89 and 0.06. Each range now reuses the same input
+population across all three functions, and every pair uses identical inputs.
+These scalar measurements include loop/indirect-call overhead; they establish
+no overall speed win. The full double fallback is a material performance gap,
+and a dedicated float reduction is a priority for the next optimization phase.
+
+```sh
+make CC=cc CXX=g++ PREFIX="$DEPENDENCY_PREFIX" build/linux/release/apps/tools/bench-floattrig
+cc --version
+taskset -c 0 build/linux/release/apps/tools/bench-floattrig 200
+```
+
 ## Speed
 
 `make bench` (`tools/bench-trig.c`, `tools/bench-elementary.c`): 4,096 arguments per
