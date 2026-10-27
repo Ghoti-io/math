@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus run-examples
+TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -378,6 +378,7 @@ $(APP_DIR)/examples/%$(EXE_EXTENSION): examples/%.c $(APP_DIR)/$(STATIC_TARGET) 
 .PHONY: check-fp-contract check-edges check-libm check-no-x87 check-gates libver-gen
 .PHONY: oracle-selfcheck bench check-corpus-hash check-planted check-planted-exact check-planted-decimal check-oracle-fresh oracle-build oracle-version oracle-fit oracle-corpus oracle-fresh corpus-hash-update
 .PHONY: check-planted-remainder check-remainder-corpus
+.PHONY: check-planted-extrema check-extrema-corpus
 .PHONY: all install test test-quiet test-asan test-valgrind test-valgrind-quiet test-watch uninstall watch
 .PHONY: all-debug install-debug test-debug test-valgrind-debug test-watch-debug uninstall-debug watch-debug
 .PHONY: fuzz fuzz-clean
@@ -502,6 +503,11 @@ $(HASH_PROBE): tools/corpus-hash.c tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGE
 BENCH_PROBE := $(APP_DIR)/tools/bench-trig$(EXE_EXTENSION)
 BENCH_PROBE_ELEM := $(APP_DIR)/tools/bench-elementary$(EXE_EXTENSION)
 BENCH_PROBE_REMAINDER := $(APP_DIR)/tools/bench-remainder$(EXE_EXTENSION)
+BENCH_PROBE_EXTREMA := $(APP_DIR)/tools/bench-extrema$(EXE_EXTENSION)
+
+$(BENCH_PROBE_EXTREMA): tools/bench-extrema.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
 
 $(BENCH_PROBE_REMAINDER): tools/bench-remainder.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
@@ -517,10 +523,11 @@ $(BENCH_PROBE_ELEM): tools/bench-elementary.c $(APP_DIR)/$(STATIC_TARGET) \
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
 
-bench: $(BENCH_PROBE) $(BENCH_PROBE_ELEM) $(BENCH_PROBE_REMAINDER) ## Time math functions against host libm, per argument range (a measurement, not a test)
+bench: $(BENCH_PROBE) $(BENCH_PROBE_ELEM) $(BENCH_PROBE_REMAINDER) $(BENCH_PROBE_EXTREMA) ## Time math functions against host libm, per argument range (a measurement, not a test)
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(BENCH_PROBE) $(BENCH_REPEATS)
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(BENCH_PROBE_ELEM) $(BENCH_REPEATS)
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(BENCH_PROBE_REMAINDER) $(BENCH_REPEATS)
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(BENCH_PROBE_EXTREMA) $(BENCH_REPEATS)
 
 check-corpus-hash: $(HASH_PROBE) ## Fail if the hash over the trig corpus is not the committed one (AD-17)
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" tools/check-corpus-hash.sh $(HASH_PROBE) $(CORPUS_DIR) $(CORPUS_DIR)/trig.hash
@@ -529,7 +536,7 @@ corpus-hash-update: $(HASH_PROBE) ## Rewrite tests/corpus/trig.hash from this bu
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(HASH_PROBE) $(CORPUS_DIR) | awk 'BEGIN{print "# FNV-1a 64 over the little-endian bytes of every result, sin cos tan atan2 exp log pow hypot sqrt floor ceil trunc round rint fabs copysign scalbn frexp ilogb, in corpus order."; print "# `hash` and `count` are over all nineteen; each `fn` line is one function alone; sqrt_portable, sqrt_hardware and ldexp are variants, outside the total, that must equal sqrt and scalbn; decimal_parse (bits, flags, bytes consumed) and decimal_shortest (sign, digits, exponent) are outside the total too."; print "# Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig, testElementary and the cross-target scripts."} $$1=="math.trig.hash"{print "hash " $$2} $$1=="math.trig.count"{print "count " $$2} $$1 ~ /^math\.[a-z0-9_]+\.hash$$/ && $$1!="math.trig.hash"{split($$1,a,"."); h[a[2]]=$$2; o[++n]=a[2]} $$1 ~ /^math\.[a-z0-9_]+\.count$$/ && $$1!="math.trig.count"{split($$1,a,"."); c[a[2]]=$$2} END{for(i=1;i<=n;i++) print "fn " o[i] " " h[o[i]] " " c[o[i]]}' > $(CORPUS_DIR)/trig.hash
 	@cat $(CORPUS_DIR)/trig.hash
 
-check-planted: check-planted-exact check-planted-decimal check-planted-remainder $(OBJ_DIR)/tests/test_trig.o $(OBJ_DIR)/tests/test_elementary.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect fails its tests and the control passes
+check-planted: check-planted-exact check-planted-decimal check-planted-remainder check-planted-extrema $(OBJ_DIR)/tests/test_trig.o $(OBJ_DIR)/tests/test_elementary.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect fails its tests and the control passes
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_trig.o' PLANT_PROBE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
@@ -569,6 +576,24 @@ check-planted-remainder: $(OBJ_DIR)/tests/test_remainder.o $(LIBOBJECTS) $(HASH_
 	 PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-remainder' \
 	 python3 tools/check-planted-remainder.py
+
+check-planted-extrema: $(OBJ_DIR)/tests/test_extrema.o $(LIBOBJECTS) $(HASH_PROBE) ## Require each extrema mutation and supplemental hash corruption to fail
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_extrema.o' PLANT_PROBE='$(HASH_PROBE)' \
+	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-extrema' \
+	 python3 tools/check-planted-extrema.py
+
+check-extrema-corpus: $(APP_DIR)/testExtrema$(EXE_EXTENSION) ## Reproduce exact extrema corpus and check a fresh sample in all rounding modes
+	@python3 tools/oracle/gen_corpus_extrema.py --out $(BUILD_DIR)/extrema-committed --seed 20261026 --count 3000
+	@for n in fmin fmax fminf fmaxf; do \
+	 cmp tests/corpus/$$n.corpus $(BUILD_DIR)/extrema-committed/$$n.corpus || exit 1; done
+	@seed=$${GMATH_ORACLE_SEED:-$$(date +%s)}; \
+	 printf 'check-extrema-corpus: fresh seed %s\n' "$$seed"; \
+	 python3 tools/oracle/gen_corpus_extrema.py --out $(BUILD_DIR)/oracle-extrema --seed $$seed --count 3000 && \
+	 GMATH_EXTREMA_CORPUS_DIR=$(BUILD_DIR)/oracle-extrema \
+	 LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(APP_DIR)/testExtrema$(EXE_EXTENSION) --gtest_brief=1 \
+	 || { printf 'check-extrema-corpus: FAIL with seed %s\n' "$$seed" >&2; exit 1; }
 
 check-remainder-corpus: $(APP_DIR)/testRemainder$(EXE_EXTENSION) ## Reproduce the exact rational corpus and check a fresh sample without a container
 	@python3 tools/oracle/gen_corpus_remainder.py --out $(BUILD_DIR)/remainder-committed --seed 20261026 --count 3000

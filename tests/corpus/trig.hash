@@ -27,5 +27,9 @@ fn sqrt_hardware b854953ee667de3a 47036
 fn ldexp 17a1e96d3c3da909 6193
 fn fmod 11ec878f57266903 10253
 fn fmodf b04db76578e19238 4761
+fn fmin 0001e50a0e27898d 18438
+fn fmax 40c026e98b177c3a 18438
+fn fminf a940c32271db04d2 5151
+fn fmaxf c9af6005a482c2c7 5151
 fn decimal_parse 329c0f4b62b8d750 16537
 fn decimal_shortest ab09f1339f15c856 42064

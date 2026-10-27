@@ -75,6 +75,14 @@ static double fmodf_widened(double x, double y) {
   return (double)gmath_fmodf((float)x, (float)y);
 }
 
+static double fminf_widened(double x, double y) {
+  return (double)gmath_fminf((float)x, (float)y);
+}
+
+static double fmaxf_widened(double x, double y) {
+  return (double)gmath_fmaxf((float)x, (float)y);
+}
+
 static const struct {
   const char * name; /* the reported name */
   const char * file; /* the corpus read */
@@ -111,6 +119,10 @@ static const struct {
   /* Supplemental functions preserve the legacy aggregate hash. */
   {"fmod", "fmod", K_DD_D, 0, NULL, NULL, gmath_fmod, NULL},
   {"fmodf", "fmodf", K_DD_D, 0, NULL, NULL, fmodf_widened, NULL},
+  {"fmin", "fmin", K_DD_D, 0, NULL, NULL, gmath_fmin, NULL},
+  {"fmax", "fmax", K_DD_D, 0, NULL, NULL, gmath_fmax, NULL},
+  {"fminf", "fminf", K_DD_D, 0, NULL, NULL, fminf_widened, NULL},
+  {"fmaxf", "fmaxf", K_DD_D, 0, NULL, NULL, fmaxf_widened, NULL},
 };
 #define NFNS ((int)(sizeof fns / sizeof fns[0]))
 

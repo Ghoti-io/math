@@ -31,6 +31,15 @@ if [ "$got_hash" != "$want_hash" ] || [ "$got_count" != "$want_count" ]; then
     "$got_hash" "$got_count" "$want_hash" "$want_count" >&2
   exit 1
 fi
+# Check both directions. Iterating only emitted names would silently ignore a
+# committed supplemental function if its entry disappeared from the probe.
+got_names=$(printf '%s\n' "$got" | awk -F'[. ]' '$1=="math" && $3=="hash" && $2!="trig"{print $2}' | sort)
+want_names=$(awk '$1=="fn"{print $2}' "$file" | sort)
+if [ -z "$want_names" ] || [ "$got_names" != "$want_names" ]; then
+  printf 'check-corpus-hash: FAIL: per-function name lists differ\nprobe:\n%s\ncommitted:\n%s\n' \
+    "$got_names" "$want_names" >&2
+  exit 1
+fi
 bad=0
 n=0
 for name in $(printf '%s\n' "$got" | awk -F'[. ]' '$1=="math" && $3=="hash" && $2!="trig"{print $2}'); do

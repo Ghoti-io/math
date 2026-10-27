@@ -47,8 +47,15 @@ including zero, and compute subnormal results without rounding or raising an
 exception. Infinite dividends and zero divisors raise invalid; NaNs are
 canonicalized, and a signaling NaN in either argument raises invalid. Neither
 function changes `errno` or depends on the rounding mode. These are the first
-remainder additions toward broader libm coverage; float variants of the other
-functions are not yet provided.
+remainder additions toward broader libm coverage.
+
+`gmath_fmin`, `gmath_fmax`, `gmath_fminf` and `gmath_fmaxf` select exact input
+values, with negative zero preferred for minimum and positive zero for maximum.
+A single quiet NaN returns the other number; two quiet NaNs return the canonical
+NaN; a signaling NaN in either argument raises invalid and returns the canonical
+NaN. These functions preserve `errno` and the rounding mode. Other float
+elementary functions are not yet provided. The ongoing scope and verification
+limits are recorded in `documentation/libm-progress.md`.
 
 And exact conversion between decimal and `double` (`ghoti.io/math/decimal.h`):
 * `gmath_decimal_parse` reads the decimal grammar CSS, SVG and `strtod` share.
@@ -102,6 +109,17 @@ make corpus-hash-update
 ```
 
 Pass the same `PREFIX` used for the build when updating the hash.
+
+Extrema use the independent rational/IEEE oracle in
+`tools/oracle/gen_corpus_extrema.py`. `make check-extrema-corpus` reproduces its
+committed files and checks fresh cases in all rounding modes;
+`make check-planted-extrema` checks implementation and hash defects. To
+regenerate those committed files, run:
+
+```bash
+python3 tools/oracle/gen_corpus_extrema.py --out tests/corpus --seed 20261026 --count 3000
+make corpus-hash-update
+```
 
 ## Building
 

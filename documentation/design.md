@@ -372,6 +372,35 @@ remainder with a 200-bit exponent gap takes about 10 ns versus 55 ns. The
 1800-bit double gap remains slower, about 546 ns versus 341 ns. Performance
 is input-dependent and broad speed superiority remains future work.
 
+## Exact minimum and maximum
+
+`gmath_fmin`, `gmath_fmax` and their float forms derive unsigned ordering keys
+from each IEEE encoding: complement all active bits for a negative number,
+or flip the sign bit for a positive one. The resulting keys order numbers
+numerically and put -0 below +0. Masks select the original encoding, so normal
+and subnormal results are exact without floating arithmetic or exceptions.
+The first sign-dependent conditional version made GCC generate unpredictable
+branches; explicit masks removed those branches from the numeric path.
+
+The NaN policy follows the documented GNU libc fmin/fmax behavior:
+https://sourceware.org/glibc/manual/2.41/html_node/Misc-FP-Arithmetic.html.
+A single quiet NaN yields the other input; two quiet NaNs yield the library's
+canonical NaN. Either signaling NaN yields that NaN and raises invalid. Signed
+zero preference is fixed in both operand orders, a deterministic refinement
+where host libm choices can differ. No function changes errno or rounding mode.
+
+The independent corpus oracle compares finite values as rationals and handles
+IEEE special values explicitly, with fixed-answer self-checks. Raw float NaNs
+are tested separately so widening does not hide their signaling status.
+Supplemental hashes leave all older results and the legacy aggregate unchanged.
+As with remainder, suite cross-target enforcement of the supplemental hashes
+is pending; local host checks are active.
+
+On the same Core 7 150U host, GCC 14.2, glibc 2.41, `-O2`, one CPU pinned and
+best of 200 repeats, all four numeric extrema calls measure about 2 ns including
+indirect call/loop overhead, approximately matching host libm. These are scalar
+call measurements, not application throughput or compiler-inlined comparisons.
+
 ## Speed
 
 `make bench` (`tools/bench-trig.c`, `tools/bench-elementary.c`): 4,096 arguments per

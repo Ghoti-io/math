@@ -238,6 +238,55 @@ GMATH_API double gmath_fmod(double x, double y);
  */
 GMATH_API float gmath_fmodf(float x, float y);
 
+/**
+ * @brief The smaller of @p x and @p y, with -0 ordered below +0.
+ *
+ * A single quiet NaN yields the other argument; two quiet NaNs yield the
+ * library's canonical NaN. A signaling NaN in either argument raises invalid
+ * and yields the canonical NaN, even when the other argument is numeric.
+ * Otherwise the selected input is returned exactly, without raising any
+ * exception. The rounding mode has no effect and errno is unchanged.
+ *
+ * @param x The first value.
+ * @param y The second value.
+ * @return The minimum, or the canonical NaN as described above.
+ */
+GMATH_API double gmath_fmin(double x, double y);
+
+/**
+ * @brief The larger of @p x and @p y, with +0 ordered above -0.
+ *
+ * NaNs, exceptions, errno and rounding modes follow ::gmath_fmin.
+ *
+ * @param x The first value.
+ * @param y The second value.
+ * @return The maximum, or the library's canonical NaN.
+ */
+GMATH_API double gmath_fmax(double x, double y);
+
+/**
+ * @brief The binary32 minimum, following the rules of ::gmath_fmin.
+ *
+ * Any returned NaN has bits 0x7fc00000. Finite and infinite results are
+ * selected directly from the input encodings, without conversion to double.
+ *
+ * @param x The first value.
+ * @param y The second value.
+ * @return The minimum, or the canonical float NaN.
+ */
+GMATH_API float gmath_fminf(float x, float y);
+
+/**
+ * @brief The binary32 maximum, following the rules of ::gmath_fmax.
+ *
+ * Any returned NaN has bits 0x7fc00000.
+ *
+ * @param x The first value.
+ * @param y The second value.
+ * @return The maximum, or the canonical float NaN.
+ */
+GMATH_API float gmath_fmaxf(float x, float y);
+
 #ifdef __cplusplus
 }
 #endif
