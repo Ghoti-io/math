@@ -788,12 +788,65 @@ three small paths. If the pre-rounded approximation crosses a float binade
 boundary, its error is much smaller than half the neighboring spacing and it
 still rounds to that boundary, so the bound remains valid there.
 
-For |x|>1 the argument widens exactly and the existing double trig function
-supplies full-range reduction and evaluation. Its one-double-ulp reserve is
-at most 2^-29 of a float ulp, including subnormal float spacing. Final narrowing
-therefore retains the one-ulp float target. No existing double expression order
-or result hash changes. Native float overflow, if encountered by tangent's
-final conversion, raises overflow/inexact.
+For |x|>=2^30, a private integer reducer uses the 24-bit significand M and unbiased
+exponent e (0..127). Its 128-row table stores
+C[e]=floor((((2/pi)*2^(e-23)) mod 4)*2^80), in three 32-bit limbs.
+The 82-bit coefficient includes two quotient bits. Three 64-bit products
+recover the low 80 fraction bits and quadrant of M*C[e]. The omitted constant
+contributes less than M*2^-80<2^-56 phase units. Rounding the quotient and
+complementing a negative residual are integer operations; a possible quotient
+choice across a half boundary still represents the same continuous trig value.
+The table generator certifies exact rational floors using directed MPFR pi
+bounds with reciprocal endpoints reversed, then independently checks mpmath.
+
+Residual magnitudes below 2^-12 decline before floating arithmetic. Otherwise
+the top 53 residual bits form a double by integer packing; multiplication by
+the nearest pi/2 gives r with |r|<0.786. The phase truncation contributes less
+than 2^-44 relative error at the guard. Packing, multiplication and the rounded
+pi/2 constant contribute less than 4u more. Sine's logarithmic sensitivity is
+at most 6/5 on this interval; cosine's absolute derivative is below 1 and its
+value is above 1/2. These bounds cover either quotient representation near a
+half boundary. No intermediate is near double underflow or overflow.
+
+The existing Taylor expressions evaluate the reduced sine/cosine, or their
+ratio/reciprocal for tangent, with quadrant and input signs applied by integer
+bits. Here z=r*r is rounded, unlike the exact square of an original binary32
+input. An expanded sine term accumulates at most 17 rounding factors; cosine
+at most 19, including coefficient rounding, the square, Horner multiplications
+and additions, and final correction. Taking gamma(32)=32u/(1-32u) covers each.
+For R=0.786, absolute term sums are bounded by the geometric majorants
+1/(1-R^2/6) and 1/(1-R^2/2); alternating lower bounds for sin(r)/r and cos(r)
+are 1-R^2/6 and 1-R^2/2. Consequently relative polynomial errors are bounded by
+
+- sine: R^12/[13!*(1-R^2/6)]+gamma(32)/(1-R^2/6)^2 <9.959e-12;
+- cosine: R^14/[14!*(1-R^2/2)]+gamma(32)/(1-R^2/2)^2 <5.776e-13.
+
+The reduced argument's relative error is below 5.729e-14. Both trig functions
+are 1-Lipschitz; dividing their absolute perturbations by those same lower
+bounds adds less than 6.387e-14 to sine and 6.516e-14 to cosine. Combining
+multiplicatively gives relative bounds S and C. The larger of
+(1+S)/(1-C) and (1+C)/(1-S), multiplied by 1+u for division, bounds both tangent
+and reciprocal tangent. All estimates are below 1.067e-11<2^-36. The generator
+checks these inequalities with exact rational arithmetic whenever the table
+is regenerated, including the old double kernel's one-ULP reserve.
+
+A conservative rounding-cell gate takes a tentative normal float candidate,
+constructs its exact adjacent midpoints in double (including binade boundaries),
+and accepts only if the estimate is more than |estimate|*2^-34 from both.
+The bound covers the reduced estimate error plus the existing double kernel's
+one-double-ulp reserve with ample margin. Thus accepted results agree with the
+previous double-path float rounding in nearest mode, including any previous
+double-rounding choices. Near a midpoint or tiny phase the original double
+function and final narrowing remain the fallback. The midpoint differences
+are exact by Sterbenz; the midpoint sums are exact 25-bit significands.
+Admitted outputs are normal floats, bounded away from zero and overflow;
+tentative narrowing cannot introduce underflow/overflow or invalid exceptions.
+Arguments below 2^30 retain the previous double path (or the small polynomial):
+its moderate reduction is cheaper than this fixed-cost wide reduction.
+All small-input expressions and committed result hashes remain unchanged.
+Accuracy and bit agreement assume nearest mode; other modes retain the existing
+state/exception contract. Native float overflow, if encountered by tangent's
+fallback conversion, raises overflow/inexact.
 
 Pinned MPFR directed lower/upper bounds certify both the binary32 result word
 and signed-error word using direct rational nearest-even rounding. Independent
@@ -823,6 +876,29 @@ public one-ulp limit; the printed estimate alone is not used as proof. This
 includes signed-zero error cells where subtraction from 1 would otherwise lose
 a tiny uncertainty. Samples do not establish correct rounding.
 
+The wide optimization also has a separate compatibility check against the
+previous double path, distinct from the independent accuracy oracle. On a
+native x86-64/GCC14.2 build, a broad-admission candidate exhaustively matched
+all 2,147,483,646 signed finite binary32 inputs with |x|>1 for each of the three
+functions. The final dispatch admits only the subset with |x|>=2^30 and uses
+the old path for the rest. A deterministic million-input unit sample, fixed
+public admission/tiny-phase/midpoint witnesses, and both signs of the threshold
+run in the normal test suite. An optional expensive final-source exhaustive
+unit run is available as:
+
+```sh
+GMATH_FLOATTRIG_EXHAUSTIVE=1 build/linux/release/apps/testFloattrig_reduce --gtest_filter=FloattrigReduce.PreservesWideResults
+```
+
+The separate wide probe compares 16,062 nearest result records and performs
+449,736 state checks across all four rounding modes and zero, each and all
+incoming flags. Its hash is `d421b27fcdee6bf0`. It covers all quadrants at every
+wide exponent, threshold edges, actual tiny-phase/cell fallbacks and random
+words. Numeric hashes, the old raw special hash and the new wide probe agree
+on six emulated Linux architectures, with default and portable bit counting;
+raw probes additionally pass at both -O0 and -O2. These checks cover sampled
+cross-target values and state, not exhaustive cross-target execution.
+
 A focused seam test checks monotonicity and derivative-bounded gaps around
 both signs of 1. Raw probes include specials, subnormal edges, minimum normals
 and neighbors of the polynomial/fallback boundary, with all modes and zero,
@@ -842,15 +918,40 @@ smallest normal does reach that branch, but its cast already raises the flags.
 That branch's separate mutation sensitivity remains unverified; no artificial
 helper-only test is represented as public-path coverage.
 
-On the measured x86-64/GCC14.2/glibc2.41 host, 200 alternating timing pairs
-pinned to one core give small-angle [-1,1] median gmath/libm ratios of 1.01,
-0.98 and 0.77 for sine, cosine and tangent. Over [-10,10] they are about 3.0,
-3.3 and 3.0; large-exponent inputs are roughly 8–9.5 times slower. Subnormal
-input ratios are about 0.89, 0.89 and 0.06. Each range now reuses the same input
-population across all three functions, and every pair uses identical inputs.
-These scalar measurements include loop/indirect-call overhead; they establish
-no overall speed win. The full double fallback is a material performance gap,
-and a dedicated float reduction is a priority for the next optimization phase.
+On the measured x86-64/GCC14.2/glibc2.41 host, 200 alternating same-input
+pairs, pinned to one logical CPU with 4,096 inputs per range, compare the final
+implementation directly against commit `226c322` in one executable. The old
+three public names are renamed in a private translation unit; both versions
+share the same unchanged double trig object and benchmark object. Build flags
+are C17 -O2 -ffp-contract=off -fno-math-errno. The benchmark resets FE_DFL_ENV
+before selecting nearest; a diagnostic confirms FTZ/DAZ remain clear.
+
+| range | sine final/baseline | cosine | tangent |
+|---|---:|---:|---:|
+| signed [-1,1] | 1.06 | 0.98 | 1.00 |
+| signed [-10,10] | 1.00 | 0.98 | 0.99 |
+| moderate exponents | 1.00 | 0.98 | 0.99 |
+| large exponents | 0.31 | 0.30 | 0.30 |
+| subnormal inputs | 1.13 | 0.85 | 1.00 |
+
+Ratios are paired medians, including loop/indirect-call overhead. Large inputs
+improve about 3.2–3.3 times in this population. Tiny timing differences are
+noisy: both versions' subnormal minima are about 2.7 ns despite their differing
+median ratios. Small-angle sine retains some measured overhead. Testing the
+adjacent binades gives final/baseline medians of 0.98/0.99/0.99 for exponent 29,
+0.30/0.30/0.31 for exponent 30, and 0.29/0.28/0.31 for exponent 31. This supports
+the activation threshold at 2^30, where the double reducer's cost increases.
+A small-first dispatch avoids the extra wide-range comparison on |x|<=1;
+its measured gain over the initial candidate is modest (0–3%).
+
+In the exact large benchmark population, 3,773 of 4,096 inputs reach the new
+reducer; it accepts 3,765/3,766/3,763 for sine/cosine/tangent. The remaining
+8/7/10 eligible inputs retain the double fallback; 323 inputs are below the
+activation threshold. Separate final/libm pairs measure large-range ratios of
+2.34/2.35/1.74. The new reduction reduces the gap but remains slower than host
+float libm there. Subnormal final/libm ratios are about 0.90/0.78/0.06 on this
+run. These scalar observations establish no overall libm speed advantage;
+application, vector and other-host performance remain unmeasured.
 
 ```sh
 make CC=cc CXX=g++ PREFIX="$DEPENDENCY_PREFIX" build/linux/release/apps/tools/bench-floattrig

@@ -22,9 +22,9 @@ PLANTS = [
     ('sine-correction-sign', 'return x + (x * z) * p;', 'return x - (x * z) * p;'),
     ('cosine-correction-sign', 'return 1.0 + z * p;', 'return 1.0 - z * p;'),
     ('tangent-ratio', 'floattrig_sin_small(wide) / floattrig_cos_small(wide)', 'floattrig_sin_small(wide) * floattrig_cos_small(wide)'),
-    ('sine-fallback', ': gmath_sin(wide);', ': gmath_cos(wide);'),
-    ('cosine-fallback', ': gmath_cos(wide);', ': gmath_sin(wide);'),
-    ('tangent-fallback', ': gmath_tan(wide);', ': gmath_sin(wide);'),
+    ('sine-fallback', 'double y = gmath_sin(wide);', 'double y = gmath_cos(wide);'),
+    ('cosine-fallback', 'double y = gmath_cos(wide);', 'double y = gmath_sin(wide);'),
+    ('tangent-fallback', 'double y = gmath_tan(wide);', 'double y = gmath_sin(wide);'),
     ('sine-tiny-underflow', 'float gmath_sinf(float x) {\n  uint32_t a = floattrig_word(x) & FLOAT_TRIG_ABS;\n  if (a >= FLOAT_TRIG_INF) {\n    return floattrig_nan(x);\n  }\n  if (a < FLOAT_TRIG_MIN_NORMAL) {\n    if (a != 0) {\n      (void)gmath_underflow(0);\n    }\n    return x;\n  }\n', 'float gmath_sinf(float x) {\n  uint32_t a = floattrig_word(x) & FLOAT_TRIG_ABS;\n  if (a >= FLOAT_TRIG_INF) {\n    return floattrig_nan(x);\n  }\n  if (a < FLOAT_TRIG_MIN_NORMAL) {\n    if (a != 0) {\n      (void)0;\n    }\n    return x;\n  }\n'),
     ('tangent-tiny-underflow', 'float gmath_tanf(float x) {\n  uint32_t a = floattrig_word(x) & FLOAT_TRIG_ABS;\n  if (a >= FLOAT_TRIG_INF) {\n    return floattrig_nan(x);\n  }\n  if (a < FLOAT_TRIG_MIN_NORMAL) {\n    if (a != 0) {\n      (void)gmath_underflow(0);\n    }\n    return x;\n  }\n', 'float gmath_tanf(float x) {\n  uint32_t a = floattrig_word(x) & FLOAT_TRIG_ABS;\n  if (a >= FLOAT_TRIG_INF) {\n    return floattrig_nan(x);\n  }\n  if (a < FLOAT_TRIG_MIN_NORMAL) {\n    if (a != 0) {\n      (void)0;\n    }\n    return x;\n  }\n'),
     ('sine-signed-zero', 'float gmath_sinf(float x) {\n  uint32_t a = floattrig_word(x) & FLOAT_TRIG_ABS;\n  if (a >= FLOAT_TRIG_INF) {\n    return floattrig_nan(x);\n  }\n  if (a < FLOAT_TRIG_MIN_NORMAL) {\n    if (a != 0) {\n      (void)gmath_underflow(0);\n    }\n    return x;\n  }\n', 'float gmath_sinf(float x) {\n  uint32_t a = floattrig_word(x) & FLOAT_TRIG_ABS;\n  if (a >= FLOAT_TRIG_INF) {\n    return floattrig_nan(x);\n  }\n  if (a < FLOAT_TRIG_MIN_NORMAL) {\n    if (a != 0) {\n      (void)gmath_underflow(0);\n    }\n    return floattrig_value(a);\n  }\n'),
@@ -33,12 +33,31 @@ PLANTS = [
     ('special-invalid', 'volatile float t = x - x;', 'volatile float t = x;'),
     ('final-float-ulp', 'float result = (float)y;', 'float result = (float)y;\n  uint32_t bits = floattrig_word(result);\n  if ((bits & FLOAT_TRIG_ABS) > 0 && (bits & FLOAT_TRIG_ABS) < FLOAT_TRIG_INF) {\n    result = floattrig_value(bits + 1u);\n  }'),
     ('finite-classifier', 'float gmath_sinf(float x) {\n  uint32_t a = floattrig_word(x) & FLOAT_TRIG_ABS;\n  if (a >= FLOAT_TRIG_INF) {\n    return floattrig_nan(x);\n  }\n  if (a < FLOAT_TRIG_MIN_NORMAL) {\n    if (a != 0) {\n      (void)gmath_underflow(0);\n    }\n    return x;\n  }\n', 'float gmath_sinf(float x) {\n  uint32_t a = floattrig_word(x) & FLOAT_TRIG_ABS;\n  if (a >= FLOAT_TRIG_ONE) {\n    return floattrig_nan(x);\n  }\n  if (a < FLOAT_TRIG_MIN_NORMAL) {\n    if (a != 0) {\n      (void)gmath_underflow(0);\n    }\n    return x;\n  }\n'),
+    ('wide-quadrant-choice', 'unsigned cosine = (q & 1u) ^ operation;', 'unsigned cosine = (q & 1u) | operation;'),
+    ('wide-odd-sign', 'if (operation != 1u) {', 'if (operation == 1u) {'),
 ]
 
 STATE_PLANTS = [
     ('errno-change', 'errno = EDOM;', 'got_errno'),
     ('incoming-flags-cleared', '(void)feclearexcept(FE_ALL_EXCEPT);', 'missing required flags input'),
     ('rounding-mode-change', '(void)fesetround(FE_DOWNWARD);', 'got_mode'),
+]
+
+REDUCE_PLANTS = [
+    ('reduce-table-row', 'floattrig_reduce.h', 'floattrig_reduce_table[e]', 'floattrig_reduce_table[e ^ 1u]', False),
+    ('reduce-middle-carry', 'floattrig_reduce.h', 'v = (uint64_t)m * c[1] + (v >> 32);', 'v = (uint64_t)m * c[1];', False),
+    ('reduce-quadrant', 'floattrig_reduce.h', '((unsigned)(v >> 16) + up) & 3u', '((unsigned)(v >> 16) + up + 1u) & 3u', False),
+    ('reduce-complement', 'floattrig_reduce.h', 'uint32_t mask = 0u - up;', 'uint32_t mask = 0u;', False),
+    ('reduce-remainder-sign', 'floattrig_reduce.h', '((uint64_t)up << 63)', '((uint64_t)(up ^ 1u) << 63)', False),
+    ('reduce-radians', 'floattrig_reduce.h', 'fraction * 0x1.921fb54442d18p0', 'fraction * 0x1.921fb54442d18p-1', False),
+    ('reduce-exponent', 'floattrig_reduce.h', '1023u + leading - 16u', '1023u + leading - 15u', False),
+    ('reduce-portable-leading', 'floattrig_reduce.h', '    ++leading;', '    leading += 2;', True),
+    ('reduce-table-coefficient', 'floattrig_reduce_table.h', '/*  30 */ {0x94fe13abu, 0xb727220au, 0x00017cc1u}', '/*  30 */ {0x94fe13abu, 0xb727220au, 0x00027cc1u}', False),
+]
+CELL_PLANTS = [
+    ('cell-bound-removed', 'double bound = magnitude * 0x1p-34;', 'double bound = 0.0;'),
+    ('cell-lower-midpoint', 'double lower = ((double)prev + centre) * 0.5;', 'double lower = ((double)prev + centre) * 0.25;'),
+    ('cell-upper-midpoint', 'double upper = (centre + (double)next) * 0.5;', 'double upper = (centre + (double)next) * 1.0;'),
 ]
 
 def output_tail(path):
@@ -65,6 +84,7 @@ def main():
         cc = shlex.split(env['PLANT_CC'])
         cflags = shlex.split(env['PLANT_CFLAGS'])
         cxx = shlex.split(env['PLANT_CXX'])
+        cxx_include = shlex.split(env['PLANT_CXX_INCLUDE'])
         ldflags = shlex.split(env['PLANT_LDFLAGS'])
         test_object = env['PLANT_TEST_OBJ']
         ld_path = env['PLANT_LD_PATH']
@@ -75,23 +95,26 @@ def main():
     original = (SOURCE / 'floattrig.c').read_text()
     run_env = dict(env, LD_LIBRARY_PATH=ld_path)
 
-    def build_run(name, replacement=None, diagnostic=None, test_filter='Floattrig.*'):
+    def build_run(name, replacement=None, diagnostic=None, test_filter='Floattrig.*',
+                  target='floattrig.c', portable=False, helper_filter=None,
+                  helper_diagnostic=None, require_public_failure=True):
         stage = work / name
         stage.mkdir(parents=True, exist_ok=True)
-        text = original
+        (stage / 'floattrig.c').write_text('#include <errno.h>\n#include <fenv.h>\n' + original)
+        for header in ('elem_common.h', 'floattrig_reduce.h', 'floattrig_reduce_table.h'):
+            shutil.copyfile(SOURCE / header, stage / header)
         if replacement is not None:
             old, new = replacement
+            path = stage / target
+            text = path.read_text()
             if old == new or text.count(old) != 1:
-                raise RuntimeError('%s: replacement must match once (found %d)' %
-                                   (name, text.count(old)))
-            text = text.replace(old, new, 1)
-        text = '#include <errno.h>\n#include <fenv.h>\n' + text
-        (stage / 'floattrig.c').write_text(text)
-        for header in ('elem_common.h',):
-            shutil.copyfile(SOURCE / header, stage / header)
+                raise RuntimeError('%s: replacement in %s must match once (found %d)' %
+                                   (name, target, text.count(old)))
+            path.write_text(text.replace(old, new, 1))
         planted = replacement is not None
+        variant = ['-DGMATH_FLOATTRIG_PORTABLE_BITS'] if portable else []
         compile_log = stage / 'compile.log'
-        rc = command(cc + cflags + ['-I', str(stage), '-c', str(stage / 'floattrig.c'),
+        rc = command(cc + cflags + variant + ['-I', str(stage), '-c', str(stage / 'floattrig.c'),
                                    '-o', str(stage / 'floattrig.o')], compile_log)
         if rc != 0:
             raise RuntimeError('%s: compile failed:\n%s' % (name, output_tail(compile_log)))
@@ -110,15 +133,54 @@ def main():
         if not planted and rc != 0:
             raise RuntimeError('%s: unmodified control failed:\n%s' %
                                (name, output_tail(test_log)))
-        if planted and rc != 1:
-            raise RuntimeError('%s: defect escaped the tests' % name)
-        if diagnostic is not None and diagnostic not in test_log.read_text():
-            raise RuntimeError('%s: state defect failed without its specific assertion %r:\n%s' %
-                               (name, diagnostic, output_tail(test_log)))
+        if planted and require_public_failure and rc != 1:
+            raise RuntimeError('%s: defect escaped the public tests' % name)
+        if diagnostic is not None:
+            choices = (diagnostic,) if isinstance(diagnostic, str) else diagnostic
+            if not any(choice in test_log.read_text() for choice in choices):
+                raise RuntimeError('%s: failure lacks its specific assertion %r:\n%s' %
+                                   (name, choices, output_tail(test_log)))
+        if helper_filter is not None:
+            # A separately compiled test is essential: the original object has
+            # its own inline helpers and could never see staged header defects.
+            helper_source = Path('tests/unit/test_floattrig_reduce.cpp').read_text()
+            rewritten = 0
+            for include in ('floattrig_reduce.h', 'floattrig.c'):
+                old = '#include "../../src/elementary/' + include + '"'
+                if old in helper_source:
+                    helper_source = helper_source.replace(old, '#include "' + include + '"')
+                    rewritten += 1
+            if not rewritten:
+                raise RuntimeError('helper test has no expected staged include')
+            helper_cpp = stage / 'test_floattrig_reduce.cpp'
+            helper_cpp.write_text(helper_source)
+            helper_obj = stage / 'test_floattrig_reduce.o'
+            log = stage / 'helper-compile.log'
+            rc = command(cxx + cxx_include + variant + ['-I', str(stage), '-c',
+                         str(helper_cpp), '-o', str(helper_obj)], log)
+            if rc != 0:
+                raise RuntimeError('%s: staged helper compile failed:\n%s' % (name, output_tail(log)))
+            helper_binary = stage / 'testFloattrigReduce'
+            log = stage / 'helper-link.log'
+            rc = command(cxx + ['-o', str(helper_binary), str(helper_obj),
+                         str(stage / 'floattrig.o'), trig_object] + ldflags, log)
+            if rc != 0:
+                raise RuntimeError('%s: staged helper link failed:\n%s' % (name, output_tail(log)))
+            log = stage / 'helper-test.log'
+            rc = command([str(helper_binary), '--gtest_filter=' + helper_filter,
+                          '--gtest_brief=1'], log, run_env)
+            expected = 1 if planted else 0
+            if rc != expected:
+                raise RuntimeError('%s: helper test expected exit %d, got %d:\n%s' %
+                                   (name, expected, rc, output_tail(log)))
+            if helper_diagnostic is not None and helper_diagnostic not in log.read_text():
+                raise RuntimeError('%s: helper defect lacks its specific assertion %r:\n%s' %
+                                   (name, helper_diagnostic, output_tail(log)))
         print('  ok   %s %s' % (name, 'detected' if planted else 'passes'), flush=True)
         return binary
 
-    control_binary = build_run('control')
+    control_binary = build_run('control', helper_filter='FloattrigReduce.*')
+    build_run('control-portable', portable=True, helper_filter='FloattrigReduce.*')
     for name, old, new in PLANTS:
         build_run(name, (old, new), diagnostic=('ulp from exact' if name == 'final-float-ulp' else
                               'missing required flags input' if name.endswith('tiny-underflow') or name == 'special-invalid' else None),
@@ -126,6 +188,22 @@ def main():
     for name, statement, diagnostic in STATE_PLANTS:
         signature = 'float gmath_sinf(float x) {'
         build_run(name, (signature, signature + '\n  ' + statement), diagnostic=diagnostic)
+    for name, target, old, new, portable in REDUCE_PLANTS:
+        build_run(name, (old, new), target=target, portable=portable,
+                  diagnostic=('ulp from exact', 'accuracy regression'),
+                  helper_filter='FloattrigReduce.PreservesWideResults',
+                  helper_diagnostic=' previous ')
+    for name, old, new in CELL_PLANTS:
+        build_run(name, (old, new), target='floattrig_reduce.h',
+                  require_public_failure=False,
+                  helper_filter='FloattrigReduce.RoundingCellAdmission',
+                  helper_diagnostic='floattrig_accept')
+    build_run('wide-path-disabled',
+              ('#define FLOAT_TRIG_FAST_MIN 0x4e800000u',
+               '#define FLOAT_TRIG_FAST_MIN 0x7f800000u'),
+              require_public_failure=False,
+              helper_filter='FloattrigReduce.PublicAdmissionAndFallback',
+              helper_diagnostic='fallback_calls[op]')
     # Keep the other two corpora valid while damaging one loader input.
     loader_plant_count = 0
     for function in FUNCTIONS:
@@ -363,7 +441,7 @@ def main():
         print('  ok   hash-omit-%s detected' % name, flush=True)
     oracle_status = 'all 3 oracle plants detected; fresh ordinary controls pass' if ref is not None else '3 oracle plants and fresh ordinary controls SKIPPED (no pinned image)'
     print('check-planted-floattrig: all %d implementation plants, %d corpus-loader plants, 3 hash corruptions and 3 omitted probe entries detected; %s; controls pass' %
-          (len(PLANTS) + len(STATE_PLANTS), loader_plant_count, oracle_status))
+          (len(PLANTS) + len(STATE_PLANTS) + len(REDUCE_PLANTS) + len(CELL_PLANTS) + 1, loader_plant_count, oracle_status))
     return 0
 
 

@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special run-examples
+TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -527,6 +527,15 @@ $(FLOATTRIG_SPECIAL_PROBE): tools/probe-floattrig-special.c $(APP_DIR)/$(STATIC_
 check-floattrig-special: $(FLOATTRIG_SPECIAL_PROBE) ## Check raw binary32 trig special values and floating state
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(FLOATTRIG_SPECIAL_PROBE)
 
+FLOATTRIG_WIDE_PROBE := $(APP_DIR)/tools/probe-floattrig-wide$(EXE_EXTENSION)
+$(FLOATTRIG_WIDE_PROBE): tools/probe-floattrig-wide.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP) | $(APP_DIR)/$(TARGET) $(LIBVER_GEN)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+
+.PHONY: check-floattrig-wide
+check-floattrig-wide: $(FLOATTRIG_WIDE_PROBE) ## Compare wide float trig results and state with the double baseline
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(FLOATTRIG_WIDE_PROBE)
+
 FLOATBASIC_SPECIAL_PROBE := $(APP_DIR)/tools/probe-floatbasic-special$(EXE_EXTENSION)
 
 $(FLOATBASIC_SPECIAL_PROBE): tools/probe-floatbasic-special.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
@@ -679,6 +688,7 @@ check-planted-floattrig: $(OBJ_DIR)/tests/test_floattrig.o $(LIBOBJECTS) $(HASH_
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_floattrig.o' PLANT_PROBE='$(HASH_PROBE)' \
+	 PLANT_CXX_INCLUDE='$(INCLUDE) -Itests' \
 	 PLANT_TRIG_OBJ='$(OBJ_DIR)/elementary/trig.o' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-floattrig' \
 	 python3 tools/check-planted-floattrig.py
@@ -693,6 +703,8 @@ check-floattrig-oracle: $(APP_DIR)/testFloattrig$(EXE_EXTENSION) ## Check commit
 	 printf 'check-floattrig-oracle: fresh seed %s\n' "$$seed"; \
 	 $(ORACLE) fresh-floattrig --out $(BUILD_DIR)/oracle-floattrig --seed $$seed --count 3000 || rc=$$?; \
 	 if [ $$rc -eq 0 ]; then \
+	   $(ORACLE) fit-floattrig-reduce --out $(BUILD_DIR)/floattrig_reduce_table.h && \
+	   cmp src/elementary/floattrig_reduce_table.h $(BUILD_DIR)/floattrig_reduce_table.h && \
 	   $(ORACLE) floattrig --out $(BUILD_DIR)/floattrig-committed --seed 20261027 --count 3000 && \
 	   for fn in sinf cosf tanf; do \
 	     cmp tests/corpus/$$fn.corpus $(BUILD_DIR)/floattrig-committed/$$fn.corpus || exit 1; \

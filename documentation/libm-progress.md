@@ -47,22 +47,29 @@ The deterministic contracts in the public headers remain authoritative.
   tied, while the measured subnormal sqrt path is substantially faster.
 
 - Binary32 trigonometry: `gmath_sinf`, `gmath_cosf`, `gmath_tanf`, with
-  bounded Taylor paths for |x|<=1 and the existing full-range double reduction
-  for larger inputs. Directed MPFR/mpmath reference certification covers
-  62,574 committed and 934,914 larger-sample results; measured maximum errors
-  are about 0.502127/0.500046/0.501626 ulp. Raw NaN/tiny/state probes and all
-  46 result sets agree across six emulated architectures. Full GCC14/GCC16
-  gates, all 134 tests on GCC14/GCC16/Clang, nine-test ASan/UBSan and independent
-  review pass. Small-angle paths
-  are competitive, but the large-argument fallback is roughly 8–9.5 times
-  slower than native float libm on the measured host and needs optimization.
+  bounded Taylor paths for |x|<=1, a private 80-fraction-bit wide reducer at
+  |x|>=2^30 and the existing double fallback for uncertain cases. Directed
+  MPFR/mpmath certification covers 62,574 committed and 934,914 larger-sample
+  results; maximum errors remain about 0.502127/0.500046/0.501626 ulp.
+  A broad-admission prototype exhaustively preserved the old results for all
+  2,147,483,646 signed finite float inputs above magnitude 1; the final
+  activation range is a subset. All 46 committed result hashes remain intact.
+  A dedicated wide probe checks 16,062 nearest records and 449,736 state cases,
+  across modes and incoming flags; numeric/raw probes pass on six emulated
+  architectures, default/portable and raw -O0/-O2. Independent reviews and
+  staged numerical/branch mutations accompany the change. Native full build
+  and sanitizer validation are recorded with the final verification below.
+  Direct same-binary paired measurements improve large inputs about 3.2–3.3
+  times versus the previous implementation, while remaining about 1.7–2.4
+  times slower than host libm. Small-angle sine retains some measured overhead;
+  there is no overall performance-win claim.
 
 ## Upcoming project-used gaps
 
 1. Remaining float elementary operations used by WebAssembly, model and
-   CJelly, including exp/log/hypot/atan2 families. A dedicated float trig
-   reduction is also a priority to address the measured fallback cost.
-   Float accuracy and exception handling remain separate targets.
+   CJelly, including exp/log/hypot/atan2 families. Further float-trig tuning
+   remains useful, especially small-path overhead and the residual wide-range
+   libm gap. Float accuracy and exception handling remain separate targets.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
@@ -79,6 +86,15 @@ Future float elementary operations must use binary32 rounding and ulp spacing
 in their reference data, not a binary64 corpus tolerance.
 
 ## Verification and remaining limits
+
+The wide-trig reduction phase passes full default `make test` gates on
+GCC14.2 and GCC16.2, all 139 unit tests on GCC14/GCC16/Clang, and 14 focused
+ASan/UBSan tests. All 34 implementation/branch/state plants, 66 loader fixtures,
+three oracle mutations, three hash corruptions and three omissions are detected.
+Pinned regeneration and fresh-reference checks execute on the host; optional
+nested-oracle checks are explicitly skipped inside the GCC16 build image.
+Independent numerical and blind reviews are resolved, including follow-up
+review of the final dispatch and benchmark environment control.
 
 The new exact APIs have independent committed reference corpora, fresh samples,
 raw-bit NaN/zero/infinity tests, all four rounding modes, errno/exception-state

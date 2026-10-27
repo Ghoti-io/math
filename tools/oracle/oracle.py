@@ -34,6 +34,8 @@ gmath_exp, gmath_log, gmath_pow and gmath_hypot.
                                            write exact binary32 basic references
     oracle.py fresh-floatbasic --out DIR --seed N
                                            write a fresh binary32 sample
+    oracle.py fit-floattrig-reduce [--out FILE]
+                                           generate certified binary32 2/pi residues
     oracle.py fit-cbrt                       generate cube-root seed table
     oracle.py cbrt --out DIR --seed N --count N
                                            write real cube-root references
@@ -104,7 +106,7 @@ def check_pin():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "fit-explog", "fit-logbase", "fit-cbrt", "fit-atan2", "fit-hypot", "corpus", "fresh", "logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt", "floatbasic", "fresh-floatbasic", "floattrig", "fresh-floattrig"))
+    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "fit-explog", "fit-logbase", "fit-cbrt", "fit-floattrig-reduce", "fit-atan2", "fit-hypot", "corpus", "fresh", "logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt", "floatbasic", "fresh-floatbasic", "floattrig", "fresh-floattrig"))
     ap.add_argument("--out")
     ap.add_argument("--seed", type=int)
     ap.add_argument("--count", type=int, default=3000)
@@ -132,6 +134,15 @@ def main():
         return engine_run(ref, ["python", "tools/oracle/fit_logbase.py"]).returncode
     if a.cmd == "fit-cbrt":
         return engine_run(ref, ["python", "tools/oracle/gen_cbrt_table.py"]).returncode
+    if a.cmd == "fit-floattrig-reduce":
+        argv = ["python", "tools/oracle/gen_floattrig_reduce_table.py"]
+        if a.out is not None:
+            header = os.path.abspath(a.out)
+            if not header.startswith(ROOT + os.sep):
+                sys.stderr.write("oracle.py: --out must be inside %s\n" % ROOT)
+                return 2
+            argv += ["--out", header]
+        return engine_run(ref, argv).returncode
     if a.cmd == "fit-atan2":
         return engine_run(ref, ["python", "tools/oracle/fit_atan2.py"]).returncode
     if a.cmd == "fit-hypot":

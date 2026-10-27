@@ -83,8 +83,8 @@ int main(int argc, char ** argv) {
     fprintf(stderr, "usage: bench-floattrig [repeats: 1..100000]\n");
     return 2;
   }
-  if (fesetround(FE_TONEAREST) != 0) {
-    fputs("cannot select FE_TONEAREST\n", stderr);
+  if (fesetenv(FE_DFL_ENV) != 0 || fesetround(FE_TONEAREST) != 0) {
+    fputs("cannot select the default environment and FE_TONEAREST\n", stderr);
     return 2;
   }
   int repeats = (int)requested;
@@ -98,7 +98,7 @@ int main(int argc, char ** argv) {
   }
   printf("float trig: %d alternating pairs, %d inputs; indirect calls include loop overhead\n", repeats, N);
   puts("Times are minima in ns/call; ratios are gmath/libm; pair median uses same-input pairs.");
-  puts("FE_TONEAREST; ours and libm receive identical fixed inputs in each pair.");
+  puts("Default floating environment, FE_TONEAREST; identical fixed inputs in each pair.");
   puts("Results describe each input set and function; they establish no overall speed advantage.");
   puts("range              function    gmath ns    libm ns  min ratio  pair median");
   for (int range = 0; range < 5; ++range) {

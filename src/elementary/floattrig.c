@@ -20,7 +20,7 @@
 
 /**
  * @file
- * Binary32 trig from bounded Taylor series and the existing double reduction.
+ * Binary32 trig from bounded Taylor series and an integer wide reduction.
  * The series coefficients are reciprocals of factorials, derived directly;
  * no implementation source or third-party coefficient set was used.
  * All polynomial operations are double with contraction disabled. Only the
@@ -29,6 +29,7 @@
 #include <ghoti.io/math/elementary.h>
 #include <float.h>
 #include "elem_common.h"
+#include "floattrig_reduce.h"
 
 GMATH_STATIC_ASSERT(sizeof(float) == sizeof(uint32_t) && FLT_RADIX == 2 &&
                     FLT_MANT_DIG == 24 && FLT_MAX_EXP == 128,
@@ -38,6 +39,7 @@ GMATH_STATIC_ASSERT(sizeof(float) == sizeof(uint32_t) && FLT_RADIX == 2 &&
 #define FLOAT_TRIG_INF 0x7f800000u
 #define FLOAT_TRIG_NAN 0x7fc00000u
 #define FLOAT_TRIG_ONE 0x3f800000u
+#define FLOAT_TRIG_FAST_MIN 0x4e800000u /* 2^30: below this the double reducer is cheaper. */
 #define FLOAT_TRIG_MIN_NORMAL 0x00800000u
 
 static inline uint32_t floattrig_word(float x) {
@@ -77,6 +79,33 @@ static inline double floattrig_cos_small(double x) {
   return 1.0 + z * p;
 }
 
+/* Wide-only estimate. Tiny reduced phases and rounding-cell uncertainty
+ * retain the established double result. Small-input expressions stay intact. */
+static inline int floattrig_wide(uint32_t word, unsigned operation,
+                                 float * result) {
+  unsigned q;
+  double r;
+  if (!floattrig_reduce(word & FLOAT_TRIG_ABS, &q, &r)) {
+    return 0;
+  }
+  double y;
+  if (operation == 2u) {
+    double s = floattrig_sin_small(r);
+    double c = floattrig_cos_small(r);
+    y = (q & 1u) ? -c / s : s / c;
+  }
+  else {
+    unsigned cosine = (q & 1u) ^ operation;
+    y = cosine ? floattrig_cos_small(r) : floattrig_sin_small(r);
+    unsigned negative = ((q + operation) >> 1) & 1u;
+    y = gmath_double(gmath_bits(y) ^ ((uint64_t)negative << 63));
+  }
+  if (operation != 1u) {
+    y = gmath_double(gmath_bits(y) ^ ((uint64_t)(word >> 31) << 63));
+  }
+  return floattrig_accept(y, result);
+}
+
 static inline float floattrig_finish(double y) {
   float result = (float)y;
   if ((floattrig_word(result) & FLOAT_TRIG_ABS) < FLOAT_TRIG_MIN_NORMAL) {
@@ -98,8 +127,16 @@ float gmath_sinf(float x) {
     }
     return x;
   }
+  if (a <= FLOAT_TRIG_ONE) {
+    double wide = (double)x;
+    return floattrig_finish(floattrig_sin_small(wide));
+  }
+  float fast;
+  if (a >= FLOAT_TRIG_FAST_MIN && floattrig_wide(floattrig_word(x), 0u, &fast)) {
+    return fast;
+  }
   double wide = (double)x;
-  double y = a <= FLOAT_TRIG_ONE ? floattrig_sin_small(wide) : gmath_sin(wide);
+  double y = gmath_sin(wide);
   return floattrig_finish(y);
 }
 
@@ -111,8 +148,16 @@ float gmath_cosf(float x) {
   if (a < FLOAT_TRIG_MIN_NORMAL) {
     return 1.0f;
   }
+  if (a <= FLOAT_TRIG_ONE) {
+    double wide = (double)x;
+    return floattrig_finish(floattrig_cos_small(wide));
+  }
+  float fast;
+  if (a >= FLOAT_TRIG_FAST_MIN && floattrig_wide(floattrig_word(x), 1u, &fast)) {
+    return fast;
+  }
   double wide = (double)x;
-  double y = a <= FLOAT_TRIG_ONE ? floattrig_cos_small(wide) : gmath_cos(wide);
+  double y = gmath_cos(wide);
   return floattrig_finish(y);
 }
 
@@ -127,8 +172,15 @@ float gmath_tanf(float x) {
     }
     return x;
   }
+  if (a <= FLOAT_TRIG_ONE) {
+    double wide = (double)x;
+    return floattrig_finish(floattrig_sin_small(wide) / floattrig_cos_small(wide));
+  }
+  float fast;
+  if (a >= FLOAT_TRIG_FAST_MIN && floattrig_wide(floattrig_word(x), 2u, &fast)) {
+    return fast;
+  }
   double wide = (double)x;
-  double y = a <= FLOAT_TRIG_ONE ?
-      floattrig_sin_small(wide) / floattrig_cos_small(wide) : gmath_tan(wide);
+  double y = gmath_tan(wide);
   return floattrig_finish(y);
 }
