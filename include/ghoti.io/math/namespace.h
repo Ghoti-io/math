@@ -49,6 +49,7 @@
 
 /* Public functions. */
 #define gmath_atan2 GHOTIIO_MATH(gmath_atan2)
+#define gmath_atan2f GHOTIIO_MATH(gmath_atan2f)
 #define gmath_ceil GHOTIIO_MATH(gmath_ceil)
 #define gmath_copysign GHOTIIO_MATH(gmath_copysign)
 #define gmath_cos GHOTIIO_MATH(gmath_cos)

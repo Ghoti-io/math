@@ -67,6 +67,7 @@
 #include <ghoti.io/math/macros.h>
 
 #include <ghoti.io/math/elementary.h>
+#include <float.h>
 
 #include "atan2_table.h"
 #include "elem_common.h"
@@ -186,4 +187,125 @@ double gmath_atan2(double y, double x) {
   gmath_pair s = gmath_fast_two_sum(bh, gmath_double(gmath_bits(hi) ^ sbit));
   double tail = (s.lo + bl) + gmath_double(gmath_bits(c) ^ sbit);
   return gmath_double(gmath_bits(s.hi + tail) | ys);
+}
+
+/* Binary32 has a dedicated short kernel; the established double path above
+ * retains its own evaluation and table use unchanged. */
+GMATH_STATIC_ASSERT(sizeof(float) == sizeof(uint32_t) && FLT_RADIX == 2 &&
+                    FLT_MANT_DIG == 24 && FLT_MIN_EXP == -125 &&
+                    FLT_MAX_EXP == 128, "atan2f requires IEEE binary32");
+
+static inline float af_value(uint32_t af_word) {
+  float af_result;
+  memcpy(&af_result, &af_word, sizeof af_result);
+  return af_result;
+}
+
+/* Integer widening also avoids denormal-operand conversion penalties. */
+static inline double af_widen(uint32_t af_word) {
+  unsigned af_field = af_word >> 23;
+  uint32_t af_m = af_word & 0x007fffffu;
+  if (af_field != 0) {
+    return gmath_double(((uint64_t)(af_field + 896u) << 52) | ((uint64_t)af_m << 29));
+  }
+  unsigned af_shift;
+#if defined(__GNUC__) || defined(__clang__)
+  af_shift = (unsigned)__builtin_clz(af_m) - 8u; /* Nonzero finite input. */
+#else
+  af_shift = 0;
+  while ((af_m << af_shift) < 0x00800000u) ++af_shift;
+#endif
+  af_m <<= af_shift;
+  return gmath_double(((uint64_t)(897u - af_shift) << 52) |
+      ((uint64_t)(af_m & 0x007fffffu) << 29));
+}
+
+static inline void af_inexact(void) {
+  volatile double af_big = 0x1p100;
+  volatile double af_ignored = af_big + 1.0;
+  (void)af_ignored;
+}
+
+static inline float af_angle(uint32_t af_magnitude, uint32_t af_sign) {
+  af_inexact();
+  return af_value(af_magnitude | af_sign);
+}
+
+/* For q<2^-30, atan(q)<q by <2^-36 Float ULP. A non-midpoint
+ * rational Float ratio is >2^-25 Float ULP from a midpoint, much farther
+ * than quotient roundoff. At an exact midpoint choose the lower magnitude. */
+static inline uint32_t af_tiny(double af_q) {
+  uint64_t af_bits = gmath_bits(af_q);
+  int af_e = (int)(af_bits >> 52) - 1023;
+  if (af_e < -150) return 0;
+  unsigned af_cut = af_e >= -126 ? 29u : (unsigned)(-97 - af_e);
+  uint64_t af_sig = (af_bits & UINT64_C(0x000fffffffffffff)) | (UINT64_C(1) << 52);
+  uint64_t af_fraction = af_sig & ((UINT64_C(1) << af_cut) - 1u);
+  uint64_t af_half = UINT64_C(1) << (af_cut - 1u);
+  uint32_t af_qword = (uint32_t)(af_sig >> af_cut) + (uint32_t)(af_fraction > af_half);
+  return af_e >= -126 ? ((uint32_t)(af_e + 126) << 23) + af_qword : af_qword;
+}
+
+static inline double af_kernel(double af_q) {
+  if (af_q < GMATH_ATAN2_TINY) return af_q; /* Reflected normal angles only. */
+  if (af_q < GMATH_ATAN2_DIRECT) {
+    double af_z = af_q * af_q;
+    double af_p = -0x1.5555555555555p-2 + af_z *
+        (0x1.999999999999ap-3 + af_z *
+        (-0x1.2492492492492p-3 + af_z * 0x1.c71c71c71c71cp-4));
+    return af_q + (af_q * af_z) * af_p;
+  }
+  double af_t = af_q * 64.0 + GMATH_ATAN2_MAGIC;
+  unsigned af_j = (unsigned)(gmath_bits(af_t) & 0x7fu);
+  double af_f = (af_t - GMATH_ATAN2_MAGIC) * 0x1p-6;
+  double af_beta = af_q - af_f;
+  const double * af_row = gmath_atan2_rows[af_j];
+  double af_p = af_row[2] + af_beta *
+      (af_row[3] + af_beta * (af_row[4] + af_beta * af_row[5]));
+  return (af_row[0] + af_row[1]) + af_beta * af_p;
+}
+
+float gmath_atan2f(float y, float x) {
+  uint32_t af_yw, af_xw;
+  memcpy(&af_yw, &y, sizeof af_yw);
+  memcpy(&af_xw, &x, sizeof af_xw);
+  uint32_t af_ay = af_yw & 0x7fffffffu;
+  uint32_t af_ax = af_xw & 0x7fffffffu;
+  uint32_t af_ys = af_yw & 0x80000000u;
+  unsigned af_xneg = (af_xw >> 31) != 0;
+  if ((af_ay > 0x7f800000u && (af_ay & 0x00400000u) == 0) ||
+      (af_ax > 0x7f800000u && (af_ax & 0x00400000u) == 0)) {
+    (void)gmath_invalid();
+    return af_value(0x7fc00000u);
+  }
+  if (af_ay > 0x7f800000u || af_ax > 0x7f800000u) return af_value(0x7fc00000u);
+  if (af_ay == 0) {
+    return af_xneg ? af_angle(0x40490fdbu, af_ys) : af_value(af_ys);
+  }
+  if (af_ax == 0) return af_angle(0x3fc90fdbu, af_ys);
+  if (af_ay == 0x7f800000u) {
+    if (af_ax == 0x7f800000u) return af_angle(af_xneg ? 0x4016cbe4u : 0x3f490fdbu, af_ys);
+    return af_angle(0x3fc90fdbu, af_ys);
+  }
+  if (af_ax == 0x7f800000u) {
+    return af_xneg ? af_angle(0x40490fdbu, af_ys) : af_value(af_ys);
+  }
+  if (af_ay == af_ax) return af_angle(af_xneg ? 0x4016cbe4u : 0x3f490fdbu, af_ys);
+  double af_dy = af_widen(af_ay);
+  double af_dx = af_widen(af_ax);
+  if (!af_xneg && af_dy < af_dx * GMATH_ATAN2_TINY) {
+    uint32_t af_magnitude = af_tiny(af_dy / af_dx);
+    if (af_magnitude < 0x00800000u) (void)gmath_underflow(0);
+    else af_inexact();
+    return af_value(af_magnitude | af_ys);
+  }
+  unsigned af_swap = af_ay > af_ax;
+  double af_q = af_swap ? af_dx / af_dy : af_dy / af_dx;
+  double af_result = af_kernel(af_q);
+  if (af_swap) af_result = GMATH_PIO2_HI - af_result;
+  if (af_xneg) af_result = GMATH_PI_HI - af_result;
+  af_result = gmath_double(gmath_bits(af_result) | ((uint64_t)af_ys << 32));
+  float af_narrow = (float)af_result;
+  af_inexact();
+  return af_narrow;
 }

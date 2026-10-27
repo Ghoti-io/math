@@ -355,6 +355,26 @@ GMATH_API double gmath_pow(double x, double y);
 GMATH_API double gmath_atan2(double y, double x);
 
 /**
+ * @brief Binary32 atan2(y,x), within 1 float ulp under nearest rounding.
+ *
+ * Any signaling NaN gives canonical NaN with invalid; other NaNs canonicalize
+ * without invalid. Signed zeros and infinities follow atan2's quadrants.
+ * Zero angles are exact; all nonzero mathematical angles require inexact,
+ * including tiny angles rounded to signed zero. Positive-x ratios below
+ * 2^-30 use true nearest tiny results in every mode, with underflow exactly
+ * when the rounded magnitude is zero/subnormal (tininess after rounding).
+ * Axis, infinite and equal-magnitude angles return nearest float constants
+ * in every mode. Other valid results are normal; no overflow or divide-by-zero
+ * is raised. errno, mode and incoming flags are preserved. General accuracy
+ * assumes nearest; full directed libm numerical/errno semantics are not promised.
+ *
+ * @param y The ordinate.
+ * @param x The abscissa.
+ * @return The angle in [-pi,pi], with the sign of y.
+ */
+GMATH_API float gmath_atan2f(float y, float x);
+
+/**
  * @brief sqrt(@p x * @p x + @p y * @p y), without spurious overflow or underflow.
  *
  * Within 1 ulp of the true value: measured at most 0.5000 ulp over the corpus and

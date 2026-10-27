@@ -542,6 +542,98 @@ cc --version
 taskset -c 0 build/linux/release/apps/tools/bench-exp2 200
 ```
 
+## Binary32 two-argument arctangent
+
+`gmath_atan2f(y,x)` has a one-Float-ULP numerical contract under nearest
+rounding. Any signaling NaN produces canonical NaN with invalid; other NaNs
+canonicalize without invalid. Signed-zero angles are exact for zero y with
+nonnegative x (including +0/+infinity), and for finite y with +infinity x.
+All other axis, infinite and equal-magnitude angles return nearest Float
+constants ±pi, ±pi/2, ±pi/4 or ±3pi/4 and require IX. Every other mathematically
+nonzero angle requires IX, including tiny angles rounded to signed zero.
+Tiny positive-x ratios use true nearest results in every mode, with UF only
+when the rounded magnitude is zero/subnormal (tininess after rounding).
+Other valid results are normal. errno, mode and incoming flags are preserved;
+no finite valid input raises invalid, divide-by-zero or overflow. General
+directed numerical/errno semantics remain outside this contract.
+
+A dedicated short kernel shares the existing immutable arctangent table.
+Integer widening preserves raw Float values without denormal conversions.
+For q=min(abs(y),abs(x))/max(abs(y),abs(x)), direct double division gives q<=1
+in every mode. Below 1/8, use the true odd Taylor series through q^9 with
+coefficients -1/3, +1/5, -1/7 and +1/9. Above that threshold, select F=j/64
+and evaluate atan(F)hi+lo plus G1*beta+...+G4*beta^4, beta=q-F, using four
+existing Taylor coefficients. Reflection with pi/2 and pi and the ordinate's
+sign reconstructs the quadrant. The established double kernel, fitted direct
+polynomial and tables keep their existing expressions and results.
+
+Under nearest rounding |beta|<=1/128. The omitted table tail is bounded by
+R^5/(5*(1-R)); its maximum Float-ULP contribution is about 0.000787402 because
+atan(1/8) has spacing 2^-27. The direct tail is at most q^11/11. Using
+atan(q)>=q/(1+q^2) accounts for true-angle binade crossings and bounds its
+Float-ULP contribution by 65/45056, about 0.001442649. A conservative 2^-16
+Float-ULP allowance covers ordinary double rounding/constants/reflection.
+Together with final Float rounding the bound is below 0.501457908 ULP,
+within the 0.51 regression cap and one-ULP public contract. Directed modes
+keep j<=64 and |beta|<=1/64; the existing table has 128 rows. General
+intermediates remain normal doubles or exact zeros, and the returned angles
+are normal Floats, so no incidental UF/OF can arise.
+
+For positive finite x and ratio r=abs(y)/x<2^-30, atan(r) is strictly below r
+by less than 2^-36 Float ULP. Normalized Float operands have at most 24
+significant bits. A rational ratio that is not a Float midpoint is separated
+from it by more than 2^-25 Float ULP; the same bound, or a conservative 2^-26,
+holds near the subnormal grid. Division error is at most 2^-29 Float ULP.
+Therefore the double quotient lies on a Float midpoint exactly when the
+rational ratio does. Integer nearest packing chooses the lower magnitude at
+those exact midpoint ties, preserving the true atan rounding. Quotients below
+half the minimum subnormal become signed zero. This avoids changing tiny
+result classes through ordinary double-to-Float tie-even narrowing.
+
+Examples (y,x) include (1,0x40000000)->0 and
+(3,0x40000000)->1 in raw Float words. Pair (0x00ffffff,0x40000000) rounds to
+maximum subnormal 0x007fffff, requiring UF/IX; the quotient alone is the exact
+midpoint below minimum normal. Pair (1,1.0f) returns minimum subnormal with
+UF/IX although its stored signed-error word rounds to negative zero. The
+loader independently certifies tiny targets and error directions, including
+±0 error fields, and never infers mathematical exactness from a zero error word.
+
+References use directed MPFR1200 atan2 and independent mpmath1240, escalating
+precision when necessary. Special nonzero angles retain their actual signed
+pi rounding errors. The committed population has 35,309 pairs; a larger
+seed 1793115000/count100000 population has 229,222. All pass a conservative
+closed-cell maximum of 0.50000003 ULP at the half-minimum-subnormal case.
+That sampled bound does not establish correct rounding for the general kernel.
+Complete-payload SHA256, LF attributes, atomic permission-preserving publication
+and fresh seed/count/population/path guards protect reference integrity.
+The source-linked certificate checks all 128 table rows, constants, numerical
+bounds, mode-safe indices and 2,378 tiny pairs across four modes. Source and
+independent table coefficient drift controls fail as intended.
+
+```sh
+python3 tools/oracle/oracle.py budget-atan2f
+python3 tools/oracle/oracle.py atan2f --out build/linux/atan2f-soak --seed 1793115000 --count 100000
+GMATH_ATAN2F_CORPUS_DIR=build/linux/atan2f-soak build/linux/release/apps/testAtan2f --gtest_brief=1
+```
+
+The 768-record raw hash 31f05aa5b9fb24ed covers nearest/no-incoming result
+bits and normalized flags; 21,504 calls separately assert all-mode/incoming
+state. Specials/equal magnitudes/tiny branches have fixed all-mode bits;
+other directed results are checked for valid class, sign and quadrant.
+
+Paired scalar timings on x86-64 Linux/GCC14.2/glibc2.41 use nearest/default
+fenv, CPU0 affinity, 4,096 identical pairs and 200 alternating trials with
+integer checksums. Median gmath/libm ratios are about 1.15 common, 0.81 table,
+0.69 direct, 0.97 tiny, 1.14 subnormal inputs, 1.35 wide and 1.03 quadrant
+sets. Some ranges are faster; common and wide ranges remain slower, so no
+overall speed win is claimed. The release executable uses C17, -O2, strict
+aliasing, -ffp-contract=off and -fno-math-errno with indirect Float calls.
+
+```sh
+make CC=cc CXX=g++ PREFIX="$DEPENDENCY_PREFIX" build/linux/release/apps/tools/bench-atan2f
+taskset -c 0 build/linux/release/apps/tools/bench-atan2f 200
+```
+
 ## Binary32 hypotenuse
 
 `gmath_hypotf` returns correctly rounded nearest/ties-even bits independently

@@ -71,6 +71,10 @@ static double frexp_fraction(double x, int * e) {
 }
 
 /* Float corpus values are stored as exactly widened doubles. */
+static double atan2f_widened(double y, double x) {
+  return (double)gmath_atan2f((float)y, (float)x);
+}
+
 static double hypotf_widened(double x, double y) {
   return (double)gmath_hypotf((float)x, (float)y);
 }
@@ -165,6 +169,7 @@ static const struct {
   {"cos", "cos", K_D_D, 1, NULL, gmath_cos, NULL, NULL},
   {"tan", "tan", K_D_D, 1, NULL, gmath_tan, NULL, NULL},
   {"atan2", "atan2", K_DD_D, 1, NULL, NULL, gmath_atan2, NULL},
+  {"atan2f", "atan2f", K_DD_D, 0, NULL, NULL, atan2f_widened, NULL},
   {"exp", "exp", K_D_D, 1, NULL, gmath_exp, NULL, NULL},
   {"log", "log", K_D_D, 1, NULL, gmath_log, NULL, NULL},
   {"pow", "pow", K_DD_D, 1, NULL, NULL, gmath_pow, NULL},

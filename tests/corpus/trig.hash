@@ -54,3 +54,4 @@ fn expf 5b4a4335ea3ccb3e 27228
 fn logf 71dc6cbd91e1c1f5 19120
 fn log10f cff1db20545a04bd 19888
 fn hypotf c9ddd5242a9bfd41 35910
+fn atan2f 8d0b62145c46c98a 35309
