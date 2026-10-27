@@ -633,6 +633,121 @@ cc --version
 taskset -c 0 build/linux/release/apps/tools/bench-cbrt 200
 ```
 
+## Binary32 basic operations
+
+`floatbasic.c` derives floor/ceil/trunc/round/rint from the binary32 encoding.
+Magnitudes at least `2^23` are already integers. Below `1`, explicit comparisons
+with `0`/`0.5` choose signed zero or signed one. In the remaining range, exponent e
+identifies `23-e` fractional bits: removing them truncates exactly; incrementing
+the remaining magnitude by its integer unit implements floor/ceil and the
+halfway rules. Every possible resulting integer is exactly representable as a
+float. No finite floating arithmetic is needed; even subnormal inputs are
+handled as integer bits. `rintf` uses ties to even independently of host mode,
+as the double API does; `roundf` uses ties away from zero.
+
+`fabsf` clears the sign and `copysignf` copies only y's sign bit. A NaN x
+returns the fixed float NaN `0x7fc00000`, raising invalid only for signaling x.
+A NaN y, including a signaling one, contributes its sign without arithmetic or
+an exception. These seven APIs raise no other exceptions and preserve errno,
+incoming flags and mode.
+
+`sqrtf` exactly widens its float input to the existing correctly rounded double
+square root and narrows once. This does not suffer double rounding. Normalize
+a positive input to a in [1,4), on a grid no finer than `2^-23`, with the root in
+[1,2). A binary32 root midpoint z has odd numerator times `2^-24`, so z² has odd
+numerator on the `2^-48` grid and cannot equal a. Hence |a-z²|>=2^-48; dividing
+by sqrt(a)+z<4 gives |sqrt(a)-z|>2^-50. Double sqrt rounding contributes at
+most `2^-53` in the normalized range, safely below that separation, so its result
+and the true root lie on the same side of every float midpoint. Scaling is
+exact; every positive finite float root is normal, from sqrt(2^-149) upward.
+Float NaN inputs are classified before widening or entering the double NaN
+path. This prevents the extra invalid observed for quiet float NaNs on SPARC64.
+NaN results from negative arguments are explicitly packed into canonical float
+bits after the double kernel, so cross-format NaN sign/payload conversion
+cannot vary them.
+
+Signed zeros and positive infinity survive; negative inputs give canonical NaN
+with invalid. Other NaNs canonicalize, signaling NaNs raise invalid. Positive
+finite calls may raise inexact even for exact roots because the portable double
+kernel's intermediate arithmetic can be inexact; no overflow, underflow or
+divide-by-zero occurs. Numerical accuracy assumes nearest; state preservation is
+checked under all modes.
+
+The eight committed corpora use exactly widened input/result words for the
+existing hash probe. Fraction integer arithmetic and pinned MPFR rint modes
+independently agree for rounding; sqrt results are rounded directly in MPFR24
+and certified against exact rational squares of their binary32 rounding-cell
+midpoints. Raw signaling float NaNs are unit cases because widening quiets
+them. Tests also require exact metadata counts, unique inputs/pairs, valid
+minimum-size overrides, raw special bits, each/all incoming flags and errno.
+
+The committed sample contains 8,268 rows for each unary function and 8,324 for
+copysignf (66,200 total). A larger exact-reference run covers 105,063 rows per
+unary function and 105,119 copy pairs (840,560 total). Reproduce it from the
+math directory with:
+
+```sh
+python3 tools/oracle/oracle.py floatbasic --out build/linux/floatbasic-soak --seed 1793073359 --count 100000
+GMATH_FLOATBASIC_CORPUS_DIR=build/linux/floatbasic-soak build/linux/release/apps/testFloatbasic --gtest_brief=1
+```
+
+Fresh references also run against the forced portable sqrt control. Mutation
+checks reject neighboring-ULP sqrt errors, rounding/tie/sign/NaN defects, state
+changes, malformed corpus representations/metadata and corrupted or omitted
+supplemental hashes. Five oracle plants exercise independent result checks
+and the exact sqrt rounding-cell certificate.
+
+`tools/probe-floatbasic-special.c` supplies a gtest-free raw-binary32 contract
+probe for cross compilation. It uses caller-local memcpy construction so a
+float-returning helper cannot quiet a signaling input in an ABI return
+register. All modes and zero/each/all incoming flags are checked, with a
+stable 450-record nearest/no-seed hash over result bits and normalized flags.
+Only sqrt's permitted positive-finite inexact is omitted from that hash; all
+other disallowed flags remain failures. Native and portable controls print
+`38d1ec61ca148585`. Raw caller construction was also checked at both `-O0` and `-O2` on all six
+emulated targets below, with no x87 input loads in the i686 `-O0` probe.
+
+GCC14.2 cross builds under QEMU10.0.13 pass both default and forced-portable
+raw probes on i686, AArch64, s390x, PowerPC64, PowerPC32 and SPARC64 Linux.
+On those six emulated targets, all 43 committed per-function result hashes,
+including prior supplemental functions, also match in both variants. These
+are emulated probe executions, not full GoogleTest runs or physical-host tests.
+The suite's automatic cross gate still compares only its legacy aggregate;
+adding supplemental/raw checks to that pipeline remains separate integration.
+A minimal raw-probe cross build from the math directory is:
+
+```sh
+make libver-gen PREFIX="$DEPENDENCY_PREFIX"
+"$CROSS_CC" -std=c17 -O2 -ffp-contract=off -DGMATH_BUILD $TARGET_FLAGS \
+  -Iinclude -Ibuild/linux/release/generated tools/probe-floatbasic-special.c \
+  src/elementary/floatbasic.c -lm -o probe-floatbasic-special
+"$EMULATOR" -L "$SYSROOT" ./probe-floatbasic-special
+```
+
+Use `-msse2 -mfpmath=sse` for i686 and add `-DGMATH_SQRT_PORTABLE` for its
+portable control. The corresponding numeric hash executable is built from
+`tools/corpus-hash.c` plus all elementary/decimal C sources; run it through
+`tools/check-corpus-hash.sh` with a target-runner wrapper to enforce every
+committed function entry. No suite or consumer source change is required to
+run these math-only probes.
+
+On the measured x86-64/GCC14.2/glibc2.41 host, 200 alternating pairs pinned
+to one core put common floorf/ceilf around 1.2–1.3 times host libm and rintf
+around 1.5 times; several small-input rounding paths remain slower. Sign
+operations are approximately tied. sqrtf is approximately tied or modestly
+faster for normal arguments and much faster for subnormal arguments in this
+input set (paired ratio about 0.06). Expressing rintf's halfway choice through
+bit predicates removed a data-dependent branch in this compiler and improved
+its measured common-input ratio from about 3.0 to 1.5. These are scalar calls
+with loop/call overhead and do not establish an overall speed advantage.
+Reproduce the measurements with:
+
+```sh
+make CC=cc CXX=g++ PREFIX="$DEPENDENCY_PREFIX" build/linux/release/apps/tools/bench-floatbasic
+cc --version
+taskset -c 0 build/linux/release/apps/tools/bench-floatbasic 200
+```
+
 ## Speed
 
 `make bench` (`tools/bench-trig.c`, `tools/bench-elementary.c`): 4,096 arguments per

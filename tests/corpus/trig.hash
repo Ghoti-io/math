@@ -36,5 +36,13 @@ fn log10 afa548ab20a0ef3a 12949
 fn log2f 1e2044420e1fd17d 5826
 fn exp2 36926416f0c60c45 14642
 fn cbrt 95d636e6af3ef5cc 19075
+fn floorf c1a755c98543de5c 8268
+fn ceilf 4d1a422da60aef02 8268
+fn truncf a16a712dda073e52 8268
+fn roundf f772cd8530fe264b 8268
+fn rintf 2972092dfe373946 8268
+fn fabsf 263051574f4f9063 8268
+fn sqrtf f79c4104d9f09d43 8268
+fn copysignf f7ca7dceb783dedd 8324
 fn decimal_parse 329c0f4b62b8d750 16537
 fn decimal_shortest ab09f1339f15c856 42064

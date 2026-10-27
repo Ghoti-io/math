@@ -87,6 +87,38 @@ static double log2f_widened(double x) {
   return (double)gmath_log2f((float)x);
 }
 
+static double floorf_widened(double x) {
+  return (double)gmath_floorf((float)x);
+}
+
+static double ceilf_widened(double x) {
+  return (double)gmath_ceilf((float)x);
+}
+
+static double truncf_widened(double x) {
+  return (double)gmath_truncf((float)x);
+}
+
+static double roundf_widened(double x) {
+  return (double)gmath_roundf((float)x);
+}
+
+static double rintf_widened(double x) {
+  return (double)gmath_rintf((float)x);
+}
+
+static double fabsf_widened(double x) {
+  return (double)gmath_fabsf((float)x);
+}
+
+static double sqrtf_widened(double x) {
+  return (double)gmath_sqrtf((float)x);
+}
+
+static double copysignf_widened(double x, double y) {
+  return (double)gmath_copysignf((float)x, (float)y);
+}
+
 static const struct {
   const char * name; /* the reported name */
   const char * file; /* the corpus read */
@@ -132,6 +164,14 @@ static const struct {
   {"log2f", "log2f", K_D_D, 0, NULL, log2f_widened, NULL, NULL},
   {"exp2", "exp2", K_D_D, 0, NULL, gmath_exp2, NULL, NULL},
   {"cbrt", "cbrt", K_D_D, 0, NULL, gmath_cbrt, NULL, NULL},
+  {"floorf", "floorf", K_D_D, 0, NULL, floorf_widened, NULL, NULL},
+  {"ceilf", "ceilf", K_D_D, 0, NULL, ceilf_widened, NULL, NULL},
+  {"truncf", "truncf", K_D_D, 0, NULL, truncf_widened, NULL, NULL},
+  {"roundf", "roundf", K_D_D, 0, NULL, roundf_widened, NULL, NULL},
+  {"rintf", "rintf", K_D_D, 0, NULL, rintf_widened, NULL, NULL},
+  {"fabsf", "fabsf", K_D_D, 0, NULL, fabsf_widened, NULL, NULL},
+  {"sqrtf", "sqrtf", K_D_D, 0, NULL, sqrtf_widened, NULL, NULL},
+  {"copysignf", "copysignf", K_DD_D, 0, NULL, NULL, copysignf_widened, NULL},
 };
 #define NFNS ((int)(sizeof fns / sizeof fns[0]))
 

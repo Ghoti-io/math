@@ -80,6 +80,17 @@ their bits; NaNs are canonical. Finite arguments cannot overflow or underflow.
 Binary cube powers are exact without exceptions; other exact cubes may raise
 inexact. errno, incoming exception flags and the rounding mode are preserved.
 
+Binary32 basic operations now include `gmath_sqrtf`, `gmath_floorf`,
+`gmath_ceilf`, `gmath_truncf`, `gmath_roundf`, `gmath_rintf`, `gmath_fabsf` and
+`gmath_copysignf`. Rounding and sign operations use integer bits, with no
+inexact exception, canonical float NaNs and signed-zero rules matching the
+double APIs. `rintf` deliberately chooses ties to even in every host mode.
+The square root is correctly rounded under nearest: exact widening to the
+double kernel followed by float narrowing is safe by the midpoint-square
+spacing proof. Positive finite roots are normal; inexact is allowed, including
+on exact positive roots when the portable kernel is used. errno, incoming
+exceptions and the host mode are preserved.
+
 And exact conversion between decimal and `double` (`ghoti.io/math/decimal.h`):
 * `gmath_decimal_parse` reads the decimal grammar CSS, SVG and `strtod` share.
 * `gmath_decimal_to_double` takes digits and a power of ten.

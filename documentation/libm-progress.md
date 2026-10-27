@@ -35,11 +35,22 @@ The deterministic contracts in the public headers remain authoritative.
   exponents slightly slower, subnormal arguments about twice as fast and exact
   binary cube powers about five times as fast on the measured host.
 
+- Binary32 basic operations: `gmath_sqrtf`, `gmath_floorf`, `gmath_ceilf`,
+  `gmath_truncf`, `gmath_roundf`, `gmath_rintf`, `gmath_fabsf`,
+  `gmath_copysignf`. Integer rounding/sign results are exact in every mode;
+  sqrt is correctly rounded under nearest. Independent pinned references
+  cover 66,200 committed and 840,560 larger-sample results. Raw special-value
+  probes cover NaNs, sign-only operands and state preservation. GCC14.2,
+  GCC16.2 and Clang pass all 125 unit tests; full GCC gates, seven-test
+  ASan/UBSan and independent reviews pass. Some rounding
+  paths remain slower than host libm; normal sqrt/sign paths are approximately
+  tied, while the measured subnormal sqrt path is substantially faster.
+
 ## Upcoming project-used gaps
 
-1. Float rounding, square root and trig operations used by WebAssembly, model,
-   and CJelly. Simple wrappers require proof that narrowing remains exact or
-   correctly rounded; float elementary accuracy is a separate target.
+1. Remaining float trig and elementary operations used by WebAssembly, model
+   and CJelly, including sin/cos/tan and float exp/log/hypot/atan2 families.
+   Float elementary accuracy and exception handling remain separate targets.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
@@ -62,10 +73,15 @@ raw-bit NaN/zero/infinity tests, all four rounding modes, errno/exception-state
 checks, mutation checks and supplemental result hashes. Existing hashes remain
 unchanged. Build/test validation and independent reviews accompany each commit.
 
-The suite's cross-target scripts compare the legacy aggregate and do not yet
-enforce these supplemental entries. Cross-target validation of the new APIs
-remains pending; host verification must not be represented as cross-platform
-execution evidence. Integrating that gate requires permission to edit suite.
+Math-only QEMU checks now match all 43 committed function hashes on i686,
+AArch64, s390x, PowerPC64, PowerPC32 and SPARC64 Linux, with both default and
+forced-portable square root. Raw binary32 special-value/exception probes also
+pass on those emulated targets at both `-O0` and `-O2`. These are probe executions, not physical-host or full GoogleTest
+results. Other targets and broader exception/state validation remain pending.
+
+The suite's automatic cross-target scripts still compare only the legacy
+aggregate. Integrating supplemental entries and raw probes into that pipeline
+remains separate work while consumer/suite edits are deferred.
 
 Scalar call benchmarks compare against host libm on identical input ranges.
 Extrema are approximately tied on the measured host. Base logarithms have

@@ -22,7 +22,8 @@
  * @file basic.h
  *
  * The square root, the rounding functions and the exponent functions on
- * `double`, plus binary32 remainder: the functions of `<math.h>` that C and
+ * `double`, plus binary32 square root, rounding, sign and remainder: the
+ * functions of `<math.h>` that C and
  * IEEE 754 specify exactly, implemented here so that no shape library takes
  * anything from libm (AD-22).
  *
@@ -74,6 +75,21 @@ extern "C" {
 GMATH_API double gmath_sqrt(double x);
 
 /**
+ * @brief Correctly rounded binary32 square root under round-to-nearest.
+ *
+ * Signed zeros and +infinity return unchanged; negative arguments raise invalid
+ * and give the canonical float NaN. Other NaNs canonicalize; signaling NaNs
+ * raise invalid. Positive finite results are normal and may raise inexact,
+ * including exact roots when the portable double kernel is used. No other
+ * exception is raised. errno, incoming flags and the rounding mode survive.
+ * Numerical accuracy assumes round-to-nearest, as for ::gmath_sqrt.
+ *
+ * @param x The binary32 argument.
+ * @return sqrt(@p x), rounded once to binary32.
+ */
+GMATH_API float gmath_sqrtf(float x);
+
+/**
  * @brief The square root by the portable method (integer and double arithmetic
  * only), whatever the target: the variant that every host can run, and the
  * reference the hardware one is gated against.  Same bits as ::gmath_sqrt.
@@ -99,6 +115,63 @@ GMATH_API double gmath_sqrt_hardware(double x);
  * @return 1 if they do, 0 if they use the portable method.
  */
 GMATH_API int gmath_sqrt_has_hardware(void);
+
+/**
+ * @brief Binary32 floor, independent of the host rounding mode.
+ *
+ * Signed zeros/infinities survive. The following state/NaN rules also apply
+ * to ceilf, truncf, roundf, rintf, fabsf and copysignf: a NaN x becomes
+ * 0x7fc00000; signaling x NaNs raise invalid; no other exception is raised.
+ * errno, existing flags and rounding mode survive. copysignf additionally
+ * ignores signaling status of y.
+ *
+ * @param x The argument.
+ * @return The largest integer not greater than @p x.
+ */
+GMATH_API float gmath_floorf(float x);
+
+/**
+ * @brief Binary32 ceil with the state/NaN policy of ::gmath_floorf.
+ * @param x The argument.
+ * @return The smallest integer not less than @p x; negative zero is preserved.
+ */
+GMATH_API float gmath_ceilf(float x);
+
+/**
+ * @brief Binary32 truncation with the state/NaN policy of ::gmath_floorf.
+ * @param x The argument.
+ * @return @p x with its fraction removed, preserving a zero's sign.
+ */
+GMATH_API float gmath_truncf(float x);
+
+/**
+ * @brief Binary32 nearest integer, ties away from zero, in every mode.
+ * @param x The argument; state/NaN policy is that of ::gmath_floorf.
+ * @return The nearest integer, preserving a zero's sign.
+ */
+GMATH_API float gmath_roundf(float x);
+
+/**
+ * @brief Binary32 nearest integer, ties to even, in every mode.
+ * @param x The argument; state/NaN policy is that of ::gmath_floorf.
+ * @return The nearest even integer on a tie, preserving a zero's sign.
+ */
+GMATH_API float gmath_rintf(float x);
+
+/**
+ * @brief Binary32 absolute value with the state/NaN policy of ::gmath_floorf.
+ * @param x The argument.
+ * @return The magnitude of @p x, or the canonical float NaN.
+ */
+GMATH_API float gmath_fabsf(float x);
+
+/**
+ * @brief Binary32 sign copy with the state/NaN policy of ::gmath_floorf.
+ * @param x The magnitude argument; its signaling NaN raises invalid.
+ * @param y Supplies only sign bits; even a signaling NaN raises nothing.
+ * @return The magnitude of @p x with @p y's sign, or canonical NaN for NaN x.
+ */
+GMATH_API float gmath_copysignf(float x, float y);
 
 /**
  * @brief The largest integer not greater than @p x.  `floor(-0)` is `-0`,

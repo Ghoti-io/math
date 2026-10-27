@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-cbrt-oracle run-examples
+TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -382,6 +382,7 @@ $(APP_DIR)/examples/%$(EXE_EXTENSION): examples/%.c $(APP_DIR)/$(STATIC_TARGET) 
 .PHONY: check-planted-logbase check-logbase-oracle oracle-logbase oracle-fit-logbase
 .PHONY: check-planted-exp2 check-exp2-oracle oracle-exp2
 .PHONY: check-planted-cbrt check-cbrt-oracle oracle-cbrt oracle-fit-cbrt
+.PHONY: check-planted-floatbasic check-floatbasic-oracle oracle-floatbasic check-floatbasic-special
 .PHONY: all install test test-quiet test-asan test-valgrind test-valgrind-quiet test-watch uninstall watch
 .PHONY: all-debug install-debug test-debug test-valgrind-debug test-watch-debug uninstall-debug watch-debug
 .PHONY: fuzz fuzz-clean
@@ -510,6 +511,19 @@ BENCH_PROBE_EXTREMA := $(APP_DIR)/tools/bench-extrema$(EXE_EXTENSION)
 BENCH_PROBE_LOGBASE := $(APP_DIR)/tools/bench-logbase$(EXE_EXTENSION)
 BENCH_PROBE_EXP2 := $(APP_DIR)/tools/bench-exp2$(EXE_EXTENSION)
 BENCH_PROBE_CBRT := $(APP_DIR)/tools/bench-cbrt$(EXE_EXTENSION)
+BENCH_PROBE_FLOATBASIC := $(APP_DIR)/tools/bench-floatbasic$(EXE_EXTENSION)
+FLOATBASIC_SPECIAL_PROBE := $(APP_DIR)/tools/probe-floatbasic-special$(EXE_EXTENSION)
+
+$(FLOATBASIC_SPECIAL_PROBE): tools/probe-floatbasic-special.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+
+check-floatbasic-special: $(FLOATBASIC_SPECIAL_PROBE) ## Check raw binary32 NaN, sign and exception contracts (also usable under emulation)
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(FLOATBASIC_SPECIAL_PROBE)
+
+$(BENCH_PROBE_FLOATBASIC): tools/bench-floatbasic.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
 
 $(BENCH_PROBE_CBRT): tools/bench-cbrt.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
@@ -541,7 +555,7 @@ $(BENCH_PROBE_ELEM): tools/bench-elementary.c $(APP_DIR)/$(STATIC_TARGET) \
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
 
-bench: $(BENCH_PROBE) $(BENCH_PROBE_ELEM) $(BENCH_PROBE_REMAINDER) $(BENCH_PROBE_EXTREMA) $(BENCH_PROBE_LOGBASE) $(BENCH_PROBE_EXP2) $(BENCH_PROBE_CBRT) ## Time math functions against host libm, per argument range (a measurement, not a test)
+bench: $(BENCH_PROBE) $(BENCH_PROBE_ELEM) $(BENCH_PROBE_REMAINDER) $(BENCH_PROBE_EXTREMA) $(BENCH_PROBE_LOGBASE) $(BENCH_PROBE_EXP2) $(BENCH_PROBE_CBRT) $(BENCH_PROBE_FLOATBASIC) ## Time math functions against host libm, per argument range (a measurement, not a test)
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(BENCH_PROBE) $(BENCH_REPEATS)
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(BENCH_PROBE_ELEM) $(BENCH_REPEATS)
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(BENCH_PROBE_REMAINDER) $(BENCH_REPEATS)
@@ -549,6 +563,7 @@ bench: $(BENCH_PROBE) $(BENCH_PROBE_ELEM) $(BENCH_PROBE_REMAINDER) $(BENCH_PROBE
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(BENCH_PROBE_LOGBASE) $(BENCH_REPEATS)
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(BENCH_PROBE_EXP2) $(BENCH_REPEATS)
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(BENCH_PROBE_CBRT) $(BENCH_REPEATS)
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(BENCH_PROBE_FLOATBASIC) $(BENCH_REPEATS)
 
 check-corpus-hash: $(HASH_PROBE) ## Fail if the hash over the trig corpus is not the committed one (AD-17)
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" tools/check-corpus-hash.sh $(HASH_PROBE) $(CORPUS_DIR) $(CORPUS_DIR)/trig.hash
@@ -557,7 +572,7 @@ corpus-hash-update: $(HASH_PROBE) ## Rewrite tests/corpus/trig.hash from this bu
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(HASH_PROBE) $(CORPUS_DIR) | awk 'BEGIN{print "# FNV-1a 64 over the little-endian bytes of every result, sin cos tan atan2 exp log pow hypot sqrt floor ceil trunc round rint fabs copysign scalbn frexp ilogb, in corpus order."; print "# `hash` and `count` are over all nineteen; each `fn` line is one function alone; sqrt_portable, sqrt_hardware and ldexp are variants, outside the total, that must equal sqrt and scalbn; decimal_parse (bits, flags, bytes consumed) and decimal_shortest (sign, digits, exponent) are outside the total too."; print "# Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig, testElementary and the cross-target scripts."} $$1=="math.trig.hash"{print "hash " $$2} $$1=="math.trig.count"{print "count " $$2} $$1 ~ /^math\.[a-z0-9_]+\.hash$$/ && $$1!="math.trig.hash"{split($$1,a,"."); h[a[2]]=$$2; o[++n]=a[2]} $$1 ~ /^math\.[a-z0-9_]+\.count$$/ && $$1!="math.trig.count"{split($$1,a,"."); c[a[2]]=$$2} END{for(i=1;i<=n;i++) print "fn " o[i] " " h[o[i]] " " c[o[i]]}' > $(CORPUS_DIR)/trig.hash
 	@cat $(CORPUS_DIR)/trig.hash
 
-check-planted: check-planted-exact check-planted-decimal check-planted-remainder check-planted-extrema check-planted-logbase check-planted-exp2 check-planted-cbrt $(OBJ_DIR)/tests/test_trig.o $(OBJ_DIR)/tests/test_elementary.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect fails its tests and the control passes
+check-planted: check-planted-exact check-planted-decimal check-planted-remainder check-planted-extrema check-planted-logbase check-planted-exp2 check-planted-cbrt check-planted-floatbasic $(OBJ_DIR)/tests/test_trig.o $(OBJ_DIR)/tests/test_elementary.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect fails its tests and the control passes
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_trig.o' PLANT_PROBE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
@@ -642,6 +657,34 @@ check-exp2-oracle: $(APP_DIR)/testExp2$(EXE_EXTENSION) ## Check committed and fr
 	   || { printf 'check-exp2-oracle: FAIL with seed %s\n' "$$seed" >&2; exit 1; }; \
 	 elif [ $$rc -eq 3 ]; then \
 	   printf 'check-exp2-oracle: SKIPPED fresh reference and committed regeneration; committed corpus still checked\n'; \
+	 else exit $$rc; fi
+
+check-planted-floatbasic: $(OBJ_DIR)/tests/test_floatbasic.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove floatbasic implementation, oracle and hash defects fail
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_floatbasic.o' PLANT_PROBE='$(HASH_PROBE)' \
+	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-floatbasic' \
+	 python3 tools/check-planted-floatbasic.py
+
+oracle-floatbasic: ## Regenerate committed binary32 basic references in the pinned image
+	@$(ORACLE) floatbasic --out $(CORPUS_DIR) --seed 20261026 --count 3000
+
+check-floatbasic-oracle: $(APP_DIR)/testFloatbasic$(EXE_EXTENSION) ## Check committed and fresh floatbasic references (skip fresh loudly without the pinned image)
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(APP_DIR)/testFloatbasic$(EXE_EXTENSION) --gtest_brief=1
+	@mkdir -p $(BUILD_DIR); \
+	 seed=$${GMATH_ORACLE_SEED:-$$(date +%s)}; rc=0; \
+	 printf 'check-floatbasic-oracle: fresh seed %s\n' "$$seed"; \
+	 $(ORACLE) fresh-floatbasic --out $(BUILD_DIR)/oracle-floatbasic --seed $$seed --count 3000 || rc=$$?; \
+	 if [ $$rc -eq 0 ]; then \
+	   $(ORACLE) floatbasic --out $(BUILD_DIR)/floatbasic-committed --seed 20261026 --count 3000 && \
+	   for fn in floorf ceilf truncf roundf rintf fabsf copysignf sqrtf; do \
+	     cmp tests/corpus/$$fn.corpus $(BUILD_DIR)/floatbasic-committed/$$fn.corpus || exit 1; \
+	   done && \
+	   GMATH_FLOATBASIC_CORPUS_DIR=$(BUILD_DIR)/oracle-floatbasic LD_LIBRARY_PATH="$(TEST_LD_PATH)" \
+	   $(APP_DIR)/testFloatbasic$(EXE_EXTENSION) --gtest_brief=1 \
+	   || { printf 'check-floatbasic-oracle: FAIL with seed %s\n' "$$seed" >&2; exit 1; }; \
+	 elif [ $$rc -eq 3 ]; then \
+	   printf 'check-floatbasic-oracle: SKIPPED fresh reference and committed regeneration; committed corpus still checked\n'; \
 	 else exit $$rc; fi
 
 check-planted-cbrt: $(OBJ_DIR)/tests/test_cbrt.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove cbrt implementation, oracle and hash defects fail
