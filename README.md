@@ -72,6 +72,14 @@ have a one-ulp contract under round-to-nearest; finite overflow and inexact
 underflow raise the corresponding IEEE exceptions. Signed zeros both return
 1, infinities return infinity or zero without exceptions, and NaNs are canonical.
 
+`gmath_cbrt` computes the real cube root for either sign, within one ulp under
+round-to-nearest. It normalizes even subnormal arguments with integer bits,
+uses a midpoint binomial seed and a compensated cube-residual Newton correction,
+and scales the normal result exactly. Signed zeros and infinities preserve
+their bits; NaNs are canonical. Finite arguments cannot overflow or underflow.
+Binary cube powers are exact without exceptions; other exact cubes may raise
+inexact. errno, incoming exception flags and the rounding mode are preserved.
+
 And exact conversion between decimal and `double` (`ghoti.io/math/decimal.h`):
 * `gmath_decimal_parse` reads the decimal grammar CSS, SVG and `strtod` share.
 * `gmath_decimal_to_double` takes digits and a power of ten.

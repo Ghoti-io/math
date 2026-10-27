@@ -25,13 +25,22 @@ The deterministic contracts in the public headers remain authoritative.
   inputs remain slower than host libm; wide ranges and exact integer powers
   are faster on the measured host (see design notes).
 
+- Real cube root: `gmath_cbrt`, with integer normalization, generated midpoint
+  seeds and a compensated Newton correction. GCC14.2, GCC16.2 and Clang each
+  pass 118 unit tests; full GCC14/GCC16 gates pass (nested optional oracles
+  skipped in the build image, executed on the host). Ten cube-root tests,
+  ASan/UBSan, 21 arithmetic/table/state plants and independent review pass.
+  A 116,075-input independently certified reference sample measures at most
+  0.49999902 ulp. Ordinary calls are approximately tied with host libm, wide
+  exponents slightly slower, subnormal arguments about twice as fast and exact
+  binary cube powers about five times as fast on the measured host.
+
 ## Upcoming project-used gaps
 
-1. Cube root (`cbrt`).
-2. Float rounding, square root and trig operations used by WebAssembly, model,
+1. Float rounding, square root and trig operations used by WebAssembly, model,
    and CJelly. Simple wrappers require proof that narrowing remains exact or
    correctly rounded; float elementary accuracy is a separate target.
-3. Broader real-function coverage: inverse trig, hyperbolic functions,
+2. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
 

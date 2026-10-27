@@ -542,6 +542,97 @@ cc --version
 taskset -c 0 build/linux/release/apps/tools/bench-exp2 200
 ```
 
+## Real cube root
+
+`gmath_cbrt` uses a seed and Newton correction derived directly from the
+binomial series and cube identity. Normalize |x|=m*2^e with 1<=m<2 entirely
+in integer bits, including subnormals. Write e=3q+r with 0<=r<3; the normalized
+problem is a=m*2^r in [1,8). Its root is in [1,2), so final scaling by 2^q is
+exact and always normal (the smallest result is 2^-358). Restore the input sign
+after this scaling. No floating operation acts on the original subnormal input.
+
+For one of 64 midpoint values mj=1+(j+1/2)/64, let s=(m-mj)/mj. The
+subtraction is exact, |s|<=1/128, and the reciprocal and cube-root midpoint
+constants have independently agreed nearest binary64 values from MPFR and
+mpmath. The seed is
+
+```
+y = cbrt(mj) * (1 + s*(1/3 + s*(-1/9 + s*5/81))) * 2^(r/3).
+```
+
+Let u=2^-53. The exact fourth derivative remainder is bounded by
+(10/243)*(1-1/128)^(-4)*(1/128)^4, below 1.6e-10 relative. The midpoint subtraction
+is exact. Reciprocal rounding and its multiplication perturb s by at most
+3*u/128. Bounding each nested polynomial operation and coefficient rounding,
+then the root/factor constants and two final products, by 16*u relative is a
+conservative allowance. Together these leave the relative seed error
+|delta|<2^-32, including all rounded operations.
+
+A compensated square y*y and product (y*y)*y recover the cube as high+low.
+The error-free product helpers' partial products neither overflow nor become
+subnormal. Taking y<3 conservatively, |square.lo|<=9*u and each cube tail is
+bounded by 27*u. The rounded square.lo*y and final tail addition lose at most
+81*u^2 in absolute terms. Since a and the high cube are close, a-high is exact
+by Sterbenz. Rounding residual=(a-high)-low contributes less than 2^-80
+absolute error: |a-y^3|<25*2^-32, so its rounding loss is at most u times that
+quantity, in addition to the much smaller tail loss.
+
+Compute correction=residual/((3*y)*y), root=y+correction. The denominator
+has relative error below 3*u; the division adds at most u. The exact correction
+has magnitude below 2^-30 and the denominator exceeds 2, so the total absolute
+error in the computed correction is below 2^-78. In exact arithmetic Newton's
+remaining relative error is delta^2*(3+2*delta)/(3*(1+delta)^2), below 2^-63.
+Since the true normalized root is below 2, the pre-addition root error is below
+2^-61 after allowing both errors. In [1,2), final addition costs at most half
+an ulp; the 2^-61 reserve is less than 0.002 ulp. If that pre-rounded value crosses
+1 or 2, it remains much nearer that endpoint than half its neighboring spacing
+and rounds to the endpoint. Thus these conservative bounds remain below
+0.502 ulp. The public target remains one ulp, rather than correct rounding.
+
+All working values are normalized and far from the exponent limits, including
+split products and residuals. Signed zeros/infinities return unchanged; NaNs
+canonicalize and signaling NaNs raise invalid. Binary powers with e divisible
+by three bypass approximation and return exactly with no exceptions. Other
+exact cubes may raise inexact. errno, incoming flags and rounding mode remain
+unchanged; the numerical bound assumes round-to-nearest.
+
+The reference generator independently rounds MPFR600 and mpmath640 values,
+then certifies both the binary64 root and binary32 signed-error word using
+exact rational cube comparisons at their neighboring rounding midpoints.
+The true root ULP comes independently from floor(input_exponent/3). Ties use
+even parity; exact cubes require zero error. Seed/factor roots also have exact
+rounding-cell certificates, and the generated header must reproduce byte for
+byte. A certificate disagreement fails generation rather than accepting an
+uncertain answer.
+
+The committed corpus has 19,075 inputs. The larger certified run is reproducible
+from the math directory:
+
+```sh
+python3 tools/oracle/oracle.py cbrt --out build/linux/cbrt-certified-soak --seed 1793071801 --count 100000
+GMATH_CBRT_CORPUS_DIR=build/linux/cbrt-certified-soak build/linux/release/apps/testCbrt --gtest_brief=1
+```
+
+Across 116,075 inputs the measured maximum error is 0.49999902 ulp at
+`0x1.1dab007db6d06p-846`. Fixed regression cases retain that witness and an
+earlier sample's worst case. The measured regression cap is 0.51 ulp, beside
+the public one-ulp target; samples do not establish correct rounding.
+
+On the measured x86-64/GCC14.2/glibc2.41 host at `-O2 -ffp-contract=off`,
+200 alternating same-input timing pairs pinned to one core give paired median
+ratios (gmath/libm) of 0.98 for signed [1,8], 1.08 for wide exponents, 0.50
+for subnormal arguments, 0.20–0.21 for binary cube powers and 0.98 for integer
+cube neighbors. Normal scalar calls are approximately tied, with a small
+wide-range slowdown; subnormal and exact binary-cube inputs are faster on this
+host. Loop/indirect-call overhead is included. These are scalar observations,
+not an overall application speed claim. Reproduce the timing with:
+
+```sh
+make CC=cc CXX=g++ PREFIX="$DEPENDENCY_PREFIX" build/linux/release/apps/tools/bench-cbrt
+cc --version
+taskset -c 0 build/linux/release/apps/tools/bench-cbrt 200
+```
+
 ## Speed
 
 `make bench` (`tools/bench-trig.c`, `tools/bench-elementary.c`): 4,096 arguments per

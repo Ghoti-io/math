@@ -35,5 +35,6 @@ fn log2 ac066a7410131f8a 12949
 fn log10 afa548ab20a0ef3a 12949
 fn log2f 1e2044420e1fd17d 5826
 fn exp2 36926416f0c60c45 14642
+fn cbrt 95d636e6af3ef5cc 19075
 fn decimal_parse 329c0f4b62b8d750 16537
 fn decimal_shortest ab09f1339f15c856 42064

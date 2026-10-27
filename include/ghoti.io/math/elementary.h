@@ -135,6 +135,22 @@ GMATH_API double gmath_exp(double x);
 GMATH_API double gmath_exp2(double x);
 
 /**
+ * @brief Real cube root of @p x, within 1 ulp under round-to-nearest.
+ *
+ * The function is odd. Signed zeros and infinities preserve their bits without
+ * exceptions. NaNs are canonicalized; signaling NaNs raise invalid. Every
+ * finite nonzero input gives a normal finite result without invalid,
+ * divide-by-zero, overflow or underflow. Binary powers whose exponent is a
+ * multiple of three return exactly without exceptions; other exact cubes may
+ * raise inexact. errno, incoming exceptions and the rounding mode are preserved.
+ * Numerical accuracy assumes the default IEEE round-to-nearest environment.
+ *
+ * @param x The argument, of either sign.
+ * @return The real cube root.
+ */
+GMATH_API double gmath_cbrt(double x);
+
+/**
  * @brief The natural logarithm of @p x.
  *
  * Within 1 ulp of the true value for every positive finite @p x, subnormals

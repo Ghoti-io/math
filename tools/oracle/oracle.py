@@ -26,6 +26,10 @@ gmath_exp, gmath_log, gmath_pow and gmath_hypot.
                                            write log2/log10/log2f reference corpora
     oracle.py fresh-logbase --out DIR --seed N
                                            write a fresh base-logarithm sample
+    oracle.py fit-cbrt                       generate cube-root seed table
+    oracle.py cbrt --out DIR --seed N --count N
+                                           write real cube-root references
+    oracle.py fresh-cbrt --out DIR --seed N  write a fresh cube-root sample
     oracle.py exp2 --out DIR --seed N --count N
                                            write binary exponential references
     oracle.py fresh-exp2 --out DIR --seed N  write a fresh binary exponential sample
@@ -92,7 +96,7 @@ def check_pin():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "fit-explog", "fit-logbase", "fit-atan2", "fit-hypot", "corpus", "fresh", "logbase", "fresh-logbase", "exp2", "fresh-exp2"))
+    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "fit-explog", "fit-logbase", "fit-cbrt", "fit-atan2", "fit-hypot", "corpus", "fresh", "logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt"))
     ap.add_argument("--out")
     ap.add_argument("--seed", type=int)
     ap.add_argument("--count", type=int, default=3000)
@@ -100,7 +104,7 @@ def main():
     try:
         ref, prov = check_pin()
     except Unavailable as e:
-        if a.cmd in ("fresh", "fresh-logbase", "fresh-exp2") and not REQUIRED:
+        if a.cmd in ("fresh", "fresh-logbase", "fresh-exp2", "fresh-cbrt") and not REQUIRED:
             sys.stderr.write("oracle: SKIPPED the fresh sample: %s\n" % e)
             sys.stderr.write("oracle: the committed corpus was still checked; "
                              "GHOTI_ORACLE_REQUIRED=1 makes this a failure\n")
@@ -118,6 +122,8 @@ def main():
         return engine_run(ref, ["python", "tools/oracle/fit_explog.py"]).returncode
     if a.cmd == "fit-logbase":
         return engine_run(ref, ["python", "tools/oracle/fit_logbase.py"]).returncode
+    if a.cmd == "fit-cbrt":
+        return engine_run(ref, ["python", "tools/oracle/gen_cbrt_table.py"]).returncode
     if a.cmd == "fit-atan2":
         return engine_run(ref, ["python", "tools/oracle/fit_atan2.py"]).returncode
     if a.cmd == "fit-hypot":
@@ -130,8 +136,8 @@ def main():
     if not out.startswith(ROOT + os.sep):
         sys.stderr.write("oracle.py: --out must be inside %s\n" % ROOT)
         return 2
-    if a.cmd in ("logbase", "fresh-logbase", "exp2", "fresh-exp2"):
-        family = "exp2" if a.cmd in ("exp2", "fresh-exp2") else "logbase"
+    if a.cmd in ("logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt"):
+        family = a.cmd.removeprefix("fresh-")
         argv = ["python", "tools/oracle/gen_corpus_" + family + ".py", "--out", out,
                 "--seed", str(a.seed), "--count", str(a.count)]
         if a.cmd.startswith("fresh-"):
