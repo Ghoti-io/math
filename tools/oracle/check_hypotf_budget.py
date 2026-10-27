@@ -10,6 +10,9 @@ updating its fingerprints. Reference corpus values never read this source.
 The independent target below binary-searches Float midpoint squares on the
 common2^-150 integer grid, rather than reproducing the96-bit reduction.
 """
+if not __debug__:
+    raise SystemExit("hypotf budget certificate requires assertions; run without -O/PYTHONOPTIMIZE")
+
 import argparse
 from fractions import Fraction as F
 import hashlib

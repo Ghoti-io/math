@@ -7,6 +7,9 @@ This checks implementation constants and a mathematical error budget. It is
 separate from gen_corpus_logf.py, whose reference values never read tables.
 All inequalities below use exact Fractions or directed MPFR enclosures.
 """
+if not __debug__:
+    raise SystemExit("logf budget certificate requires assertions; run without -O/PYTHONOPTIMIZE")
+
 from fractions import Fraction as F
 from pathlib import Path
 import re

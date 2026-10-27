@@ -155,6 +155,21 @@ in their reference data, not a binary64 corpus tolerance.
 
 ## Verification and remaining limits
 
+All four numerical budget certificates now reject optimized Python before
+imports or proof work. `make check-budget-optimization` exercises -O, -OO and
+PYTHONOPTIMIZE=1/2 on every certificate without requiring numerical dependencies,
+then runs normal positive controls in the pinned image. The 16 negative probes
+are mandatory; unavailable optional normal controls skip explicitly, and
+required-oracle mode fails closed. This closes the earlier logf/log10f/hypotf
+guard follow-up without changing runtime code, reference payloads or hashes.
+Independent review also hardened required-script discovery, pre-import
+rejection and image/version timeouts. Full GCC14.2/GCC16.2 default gates
+pass, including 190 unit tests and all 52 committed result sets. The gate
+itself passes under optimized Python; optional/required missing-image paths
+and deliberately broken guards, imports, output and discovery are checked.
+Normal pinned controls pass on the host and skip explicitly in the GCC16
+image. No runtime change calls for new cross-target or performance claims.
+
 The atan2f phase passes full default GCC14.2/GCC16.2 gates, 190 unit tests
 on GCC14/GCC16/Clang and seven focused ASan/UBSan tests. Independent numerical
 and blind reviews with follow-up are resolved. All 36 implementation/state

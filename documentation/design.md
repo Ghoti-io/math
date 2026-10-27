@@ -542,6 +542,28 @@ cc --version
 taskset -c 0 build/linux/release/apps/tools/bench-exp2 200
 ```
 
+## Numerical certificate execution
+
+The logf, log10f, hypotf and atan2f budget certificates use Python assertions as
+checked mathematical obligations. Each rejects optimized execution explicitly
+before importing numerical packages, so -O/-OO or PYTHONOPTIMIZE cannot remove
+the obligations while leaving a successful certificate message.
+
+`make check-budget-optimization` is part of the default test gates. It discovers
+all budget scripts, requires the four established certificates to be present,
+and checks four optimized invocations per script. An import sentinel rejects
+any import before the guard; each invocation must exit 1 with empty stdout
+and exactly its assertion-required diagnostic on stderr. These 16 negative
+probes need no optional numerical dependencies. Subprocesses, including image
+discovery and version checks, have a 60-second timeout.
+Normal positive controls run separately in the version-pinned image with
+PYTHONOPTIMIZE removed. If that image is unavailable, normal controls skip
+explicitly; required-oracle mode fails. The instrument itself uses explicit
+failures and remains effective when invoked under optimized Python. Runtime
+sources, references and deterministic result hashes are unchanged. Calibration
+rejects missing required scripts, late imports, prior output, missing guards,
+wrong diagnostics and wrong statuses; fake engines verify both pin timeouts.
+
 ## Binary32 two-argument arctangent
 
 `gmath_atan2f(y,x)` has a one-Float-ULP numerical contract under nearest

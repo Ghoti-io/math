@@ -104,21 +104,24 @@ def pin():
     raise SystemExit("oracle.py: no mpfr line in %s" % IMAGES)
 
 
-def engine_run(ref, argv, capture=False):
+def engine_run(ref, argv, capture=False, timeout=None):
     cmd = [ENGINE, "run", "--rm", "--userns=keep-id", "-v", "%s:%s:z" % (ROOT, ROOT),
            "-w", ROOT, ref] + argv
-    return subprocess.run(cmd, check=False, capture_output=capture, text=True)
+    return subprocess.run(cmd, check=False, capture_output=capture, text=True, timeout=timeout)
 
 
-def check_pin():
-    """Return (ref, provenance line); raise Unavailable when the instrument is not the pinned one."""
+def check_pin(timeout=None):
+    """Return (ref, provenance); raise Unavailable for a missing pinned instrument.
+
+    Optional timeout bounds each engine subprocess and propagates TimeoutExpired.
+    """
     if shutil.which(ENGINE) is None:
         raise Unavailable("no container engine (%s) on this machine" % ENGINE)
     ref, want = pin()
-    have = subprocess.run([ENGINE, "image", "exists", ref], check=False)
+    have = subprocess.run([ENGINE, "image", "exists", ref], check=False, timeout=timeout)
     if have.returncode != 0:
         raise Unavailable("the image %s is not built here (make oracle-build)" % ref)
-    r = engine_run(ref, ["mpfr-version"], capture=True)
+    r = engine_run(ref, ["mpfr-version"], capture=True, timeout=timeout)
     got = r.stdout.strip()
     if r.returncode != 0 or got != want:
         raise SystemExit("oracle.py: %s says '%s', the pin is '%s'; refusing" % (ref, got, want))

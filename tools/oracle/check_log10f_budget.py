@@ -10,6 +10,9 @@ All inequalities use exact Fractions or independently checked directed MPFR
 bounds. The calculation assumes nearest binary64 arithmetic and disabled
 contraction, matching the library's numerical build contract.
 """
+if not __debug__:
+    raise SystemExit("log10f budget certificate requires assertions; run without -O/PYTHONOPTIMIZE")
+
 import argparse
 from fractions import Fraction as F
 from pathlib import Path
