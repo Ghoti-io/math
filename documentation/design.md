@@ -329,6 +329,49 @@ Not provided: hexadecimal floating point, the spelling of infinity and NaN, digi
 any formatting of the digits (`1e23` against `1.0E+23` is the caller's). A format stricter than
 the shared grammar (JSON forbids `+1`, `.5` and `01`) checks its own rule.
 
+## Exact binary remainder
+
+`gmath_fmod` and `gmath_fmodf` use integer arithmetic on the IEEE significand
+and exponent. For positive normalized operands `x = mx * 2^(ex-p)` and
+`y = my * 2^(ey-p)`, with `p` fraction bits, the remainder in units of
+`2^(ey-p)` is `(mx * 2^(ex-ey)) mod my`. Reducing before each bounded shift
+keeps every intermediate in 64 bits: chunks are 11 bits for binary64 and 40
+bits for binary32. The normalized initial significands differ by less than a
+factor of two, so the initial reduction needs only a comparison/subtraction.
+Small exponent gaps need one division. Power-of-two divisors use a mask, and
+two subnormal inputs can be reduced directly in their common integer unit.
+
+The nonzero result fits in the input format exactly: it is smaller than the
+divisor and a multiple of the smaller input's binary unit. The final packing
+therefore discards only zero bits. No floating-point arithmetic is needed on
+the valid path, so rounding modes and underflow/inexact flags do not affect it.
+Leading-bit counts use a compiler intrinsic where available, with an integer
+loop fallback tested by `GMATH_REMAINDER_PORTABLE_BITS`. Neither function sets
+`errno`. NaNs use the existing canonical policy; signaling NaNs in either
+operand raise invalid, even when the other operand is a quiet NaN.
+
+`tools/oracle/gen_corpus_remainder.py` independently computes the quotient and
+remainder as unbounded rational numbers, then asserts exact representability.
+It generates normal exponent sweeps, subnormal bit lengths, extreme exponent
+gaps, exact multiples and their neighbors, special values, and seeded random
+pairs. Binary32 corpus words are stored as exactly widened binary64 values;
+raw float signaling-NaN and exception cases are tested separately. The corpus
+hash probe reports both new functions outside the legacy aggregate.
+The local `check-corpus-hash` gate checks those supplemental hashes. The suite's
+existing cross-target scripts compare the legacy aggregate, so they do not yet
+gate remainder results across architectures. Their integration is deferred
+while other repositories have independent work in progress; no cross-target
+remainder run is claimed here.
+
+The remainder benchmark compares both formats over ordinary quotients, nearby
+magnitudes, large exponent gaps, subnormal inputs, power-of-two divisors, and
+dividends smaller than divisors. On the Core 7 150U host with GCC 14.2, glibc
+2.41, `-O2`, one CPU pinned and best of 200 repeats, the initial measurement
+puts ordinary double remainder at about 3 ns versus 2.3 ns for libm. Float
+remainder with a 200-bit exponent gap takes about 10 ns versus 55 ns. The
+1800-bit double gap remains slower, about 546 ns versus 341 ns. Performance
+is input-dependent and broad speed superiority remains future work.
+
 ## Speed
 
 `make bench` (`tools/bench-trig.c`, `tools/bench-elementary.c`): 4,096 arguments per

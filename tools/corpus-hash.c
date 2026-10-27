@@ -70,6 +70,11 @@ static double frexp_fraction(double x, int * e) {
   return gmath_frexp(x, e);
 }
 
+/* Float corpus values are stored as exactly widened doubles. */
+static double fmodf_widened(double x, double y) {
+  return (double)gmath_fmodf((float)x, (float)y);
+}
+
 static const struct {
   const char * name; /* the reported name */
   const char * file; /* the corpus read */
@@ -103,6 +108,9 @@ static const struct {
   {"sqrt_portable", "sqrt", K_D_D, 0, "sqrt", gmath_sqrt_portable, NULL, NULL},
   {"sqrt_hardware", "sqrt", K_D_D, 0, "sqrt", gmath_sqrt_hardware, NULL, NULL},
   {"ldexp", "scalbn", K_DN_D, 0, "scalbn", NULL, NULL, gmath_ldexp},
+  /* Supplemental functions preserve the legacy aggregate hash. */
+  {"fmod", "fmod", K_DD_D, 0, NULL, NULL, gmath_fmod, NULL},
+  {"fmodf", "fmodf", K_DD_D, 0, NULL, NULL, fmodf_widened, NULL},
 };
 #define NFNS ((int)(sizeof fns / sizeof fns[0]))
 

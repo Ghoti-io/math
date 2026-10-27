@@ -25,5 +25,7 @@ fn ilogb a75ea8d334960067 8292
 fn sqrt_portable b854953ee667de3a 47036
 fn sqrt_hardware b854953ee667de3a 47036
 fn ldexp 17a1e96d3c3da909 6193
+fn fmod 11ec878f57266903 10253
+fn fmodf b04db76578e19238 4761
 fn decimal_parse 329c0f4b62b8d750 16537
 fn decimal_shortest ab09f1339f15c856 42064

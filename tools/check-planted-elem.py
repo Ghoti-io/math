@@ -362,7 +362,7 @@ def main():
     def build_probe(d):
         exe = d / "corpus-hash"
         objs = (d / "objs.txt").read_text().split("\n")
-        rest = [str(obj_dir / o) for o in ("sqrt.o", "round.o", "scale.o")]  # the functions of story 4a, built by the Makefile
+        rest = [str(obj_dir / o) for o in ("sqrt.o", "round.o", "scale.o", "remainder.o")]  # the exact functions, built by the Makefile
         r = subprocess.run(cc + probe_cflags + ["tools/corpus-hash.c"] + objs + rest + [trig_obj] + shlex.split(os.environ["PLANT_DECIMAL_OBJS"]) + ["-o", str(exe), "-lm"], capture_output=True, text=True)
         if r.returncode != 0:
             fail("%s: the probe does not build:\n%s" % (d.name, r.stderr))

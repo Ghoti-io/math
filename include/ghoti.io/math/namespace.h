@@ -58,6 +58,8 @@
 #define gmath_exp GHOTIIO_MATH(gmath_exp)
 #define gmath_fabs GHOTIIO_MATH(gmath_fabs)
 #define gmath_floor GHOTIIO_MATH(gmath_floor)
+#define gmath_fmod GHOTIIO_MATH(gmath_fmod)
+#define gmath_fmodf GHOTIIO_MATH(gmath_fmodf)
 #define gmath_frexp GHOTIIO_MATH(gmath_frexp)
 #define gmath_hypot GHOTIIO_MATH(gmath_hypot)
 #define gmath_ilogb GHOTIIO_MATH(gmath_ilogb)

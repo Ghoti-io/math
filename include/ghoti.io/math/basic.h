@@ -22,8 +22,9 @@
  * @file basic.h
  *
  * The square root, the rounding functions and the exponent functions on
- * `double`: the functions of `<math.h>` that C and IEEE 754 specify exactly,
- * implemented here so that no shape library takes anything from libm (AD-22).
+ * `double`, plus binary32 remainder: the functions of `<math.h>` that C and
+ * IEEE 754 specify exactly, implemented here so that no shape library takes
+ * anything from libm (AD-22).
  *
  * Each has one correct answer (the square root is correctly rounded), so each
  * is exact, not within an error: the result is the same on every target, at
@@ -207,6 +208,35 @@ GMATH_API double gmath_frexp(double x, int * e);
  * @return The exponent.
  */
 GMATH_API int gmath_ilogb(double x);
+
+/**
+ * @brief The exact remainder x - n*y, with n the quotient truncated to zero.
+ *
+ * For finite @p x and finite nonzero @p y the result has the sign of @p x
+ * (including zero), its magnitude is less than |y|, and no floating-point
+ * exception is raised, even for a subnormal result. The rounding mode has no
+ * effect. A finite @p x with infinite @p y returns @p x. An infinite @p x or
+ * zero @p y gives the library's canonical quiet NaN and raises invalid unless
+ * an argument is a quiet NaN. A NaN argument gives that canonical NaN; a
+ * signaling NaN in either argument always raises invalid. errno is unchanged.
+ *
+ * @param x The dividend.
+ * @param y The divisor.
+ * @return The remainder, with the sign of @p x.
+ */
+GMATH_API double gmath_fmod(double x, double y);
+
+/**
+ * @brief The exact binary32 remainder, with the rules of ::gmath_fmod.
+ *
+ * The canonical quiet NaN has bits 0x7fc00000. The reduction operates directly
+ * on the binary32 significands and exponents using integer arithmetic.
+ *
+ * @param x The dividend.
+ * @param y The divisor.
+ * @return The float remainder, with the sign of @p x.
+ */
+GMATH_API float gmath_fmodf(float x, float y);
 
 #ifdef __cplusplus
 }

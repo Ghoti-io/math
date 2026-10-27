@@ -41,6 +41,15 @@ where it rounds correctly, a portable method with the same bits elsewhere, both 
 
 `make bench` times all of them against the host libm, per argument range.
 
+Exact binary remainder is available as `gmath_fmod(double, double)` and
+`gmath_fmodf(float, float)` in `basic.h`. Both keep the dividend's sign,
+including zero, and compute subnormal results without rounding or raising an
+exception. Infinite dividends and zero divisors raise invalid; NaNs are
+canonicalized, and a signaling NaN in either argument raises invalid. Neither
+function changes `errno` or depends on the rounding mode. These are the first
+remainder additions toward broader libm coverage; float variants of the other
+functions are not yet provided.
+
 And exact conversion between decimal and `double` (`ghoti.io/math/decimal.h`):
 * `gmath_decimal_parse` reads the decimal grammar CSS, SVG and `strtod` share.
 * `gmath_decimal_to_double` takes digits and a power of ten.
@@ -76,6 +85,23 @@ polynomials (`src/elementary/trig_tables.h`, `trig_kernel_table.h`, `explog_tabl
 `atan2_table.h`, `hypot_table.h`); `make oracle-corpus` and
 `make corpus-hash-update` regenerate the corpus and its hash after a deliberate
 change.
+
+The remainder corpus has a separate, container-free oracle:
+`tools/oracle/gen_corpus_remainder.py` uses exact rational arithmetic to compute
+`x - trunc(x/y)*y`, and verifies that the result is exactly representable.
+`make check-remainder-corpus` reproduces the committed files and checks a fresh
+sample in every rounding mode. `make check-planted-remainder` verifies that
+deliberate defects fail the tests. The remainder result hashes are supplemental
+entries in `trig.hash`, preserving the existing aggregate hash.
+
+To regenerate the committed remainder files from the library directory:
+
+```bash
+python3 tools/oracle/gen_corpus_remainder.py --out tests/corpus --seed 20261026 --count 3000
+make corpus-hash-update
+```
+
+Pass the same `PREFIX` used for the build when updating the hash.
 
 ## Building
 
