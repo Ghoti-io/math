@@ -40,6 +40,9 @@ gmath_exp, gmath_log, gmath_pow and gmath_hypot.
     oracle.py cbrt --out DIR --seed N --count N
                                            write real cube-root references
     oracle.py fresh-cbrt --out DIR --seed N  write a fresh cube-root sample
+    oracle.py logf --out DIR --seed N --count N
+                                           write binary32 natural logarithm references
+    oracle.py fresh-logf --out DIR --seed N  write a fresh binary32 natural-log sample
     oracle.py expf --out DIR --seed N --count N
                                            write binary32 natural exponential references
     oracle.py fresh-expf --out DIR --seed N  write a fresh binary32 natural-exp sample
@@ -112,7 +115,7 @@ def check_pin():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "fit-explog", "fit-logbase", "fit-cbrt", "fit-floattrig-reduce", "fit-atan2", "fit-hypot", "corpus", "fresh", "logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt", "floatbasic", "fresh-floatbasic", "floattrig", "fresh-floattrig", "exp2f", "fresh-exp2f", "expf", "fresh-expf"))
+    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "fit-explog", "fit-logbase", "fit-cbrt", "fit-floattrig-reduce", "fit-atan2", "fit-hypot", "corpus", "fresh", "logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt", "floatbasic", "fresh-floatbasic", "floattrig", "fresh-floattrig", "exp2f", "fresh-exp2f", "expf", "fresh-expf", "logf", "fresh-logf"))
     ap.add_argument("--out")
     ap.add_argument("--seed", type=int)
     ap.add_argument("--count", type=int, default=3000)
@@ -120,7 +123,7 @@ def main():
     try:
         ref, prov = check_pin()
     except Unavailable as e:
-        if a.cmd in ("fresh", "fresh-logbase", "fresh-exp2", "fresh-cbrt", "fresh-floatbasic", "fresh-floattrig", "fresh-exp2f", "fresh-expf") and not REQUIRED:
+        if a.cmd in ("fresh", "fresh-logbase", "fresh-exp2", "fresh-cbrt", "fresh-floatbasic", "fresh-floattrig", "fresh-exp2f", "fresh-expf", "fresh-logf") and not REQUIRED:
             sys.stderr.write("oracle: SKIPPED the fresh sample: %s\n" % e)
             sys.stderr.write("oracle: the committed corpus was still checked; "
                              "GHOTI_ORACLE_REQUIRED=1 makes this a failure\n")
@@ -161,7 +164,7 @@ def main():
     if not out.startswith(ROOT + os.sep):
         sys.stderr.write("oracle.py: --out must be inside %s\n" % ROOT)
         return 2
-    if a.cmd in ("logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt", "floatbasic", "fresh-floatbasic", "floattrig", "fresh-floattrig", "exp2f", "fresh-exp2f", "expf", "fresh-expf"):
+    if a.cmd in ("logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt", "floatbasic", "fresh-floatbasic", "floattrig", "fresh-floattrig", "exp2f", "fresh-exp2f", "expf", "fresh-expf", "logf", "fresh-logf"):
         family = a.cmd.removeprefix("fresh-")
         argv = ["python", "tools/oracle/gen_corpus_" + family + ".py", "--out", out,
                 "--seed", str(a.seed), "--count", str(a.count)]

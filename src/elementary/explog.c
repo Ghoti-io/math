@@ -647,6 +647,61 @@ float gmath_log2f(float x) {
   return r;
 }
 
+/* The binary32 front is exact: m has <=24 bits and c has 26, so m*c-1
+ * needs at most 50 bits. Natural reconstruction avoids a base-two conversion. */
+static inline double logf_positive(double lf_x) {
+  uint64_t lf_xb = gmath_bits(lf_x);
+  uint64_t lf_tmp = lf_xb - GMATH_LOG_OFF;
+  int64_t lf_e = (int64_t)lf_tmp >> 52;
+  unsigned lf_j = (unsigned)((lf_tmp >> (52 - GMATH_LOG_ROW_BITS)) &
+      ((1u << GMATH_LOG_ROW_BITS) - 1u));
+  double lf_m = gmath_double(lf_xb - ((uint64_t)lf_e << 52));
+  const double * lf_row = gmath_log_rows[lf_j];
+  double lf_z = lf_m * lf_row[0] - 1.0;
+  double lf_p = lf_z + (lf_z * lf_z) * (-0.5 + lf_z *
+      (0x1.5555555555555p-2 + lf_z * (-0.25 + lf_z * 0x1.999999999999ap-3)));
+  double lf_ed = gmath_small_int((int)lf_e);
+  double lf_a = lf_ed * GMATH_LN2_HI + lf_row[1];
+  double lf_tail = (lf_ed * GMATH_LN2_LO + lf_row[2]) + lf_p;
+  /* For z!=0 the 1/5 product or its addition to -1/4 rounds. For z=0,
+   * nonzero e times the 93-bit ln2 split must round. Thus positive x!=1
+   * necessarily raises inexact; all intermediates are normal or exact zero. */
+  return lf_a + lf_tail;
+}
+
+static inline float logf_value(uint32_t lf_word) {
+  float lf_value;
+  memcpy(&lf_value, &lf_word, sizeof lf_value);
+  return lf_value;
+}
+
+float gmath_logf(float x) {
+  uint32_t lf_word;
+  memcpy(&lf_word, &x, sizeof lf_word);
+  uint32_t lf_abs = lf_word & 0x7fffffffu;
+  if (lf_abs > 0x7f800000u) {
+    if ((lf_abs & 0x00400000u) == 0) {
+      (void)gmath_invalid();
+    }
+    return logf_value(0x7fc00000u);
+  }
+  if (lf_abs == 0) {
+    (void)gmath_div_by_zero(GMATH_SIGN_BIT);
+    return logf_value(0xff800000u);
+  }
+  if (lf_word & 0x80000000u) {
+    (void)gmath_invalid();
+    return logf_value(0x7fc00000u);
+  }
+  if (lf_abs == 0x7f800000u) {
+    return x;
+  }
+  if (lf_word == 0x3f800000u) {
+    return 0.0f; /* Explicit +0 even with downward rounding. */
+  }
+  return (float)logf_positive((double)x);
+}
+
 /* ------------------------------------------------------------------------- */
 /* pow                                                                        */
 /* ------------------------------------------------------------------------- */

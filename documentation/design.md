@@ -542,6 +542,71 @@ cc --version
 taskset -c 0 build/linux/release/apps/tools/bench-exp2 200
 ```
 
+## Binary32 natural logarithm
+
+`gmath_logf` uses the existing 128-row logarithm table with a dedicated
+five-term log1p polynomial. No previous function, table entry or result changes.
+Raw classification precedes widening: quiet NaNs canonicalize without invalid,
+signaling NaNs raise invalid, both zeros return negative infinity with divide
+by zero, and negative finite values/negative infinity return canonical NaN with
+invalid. Positive infinity passes through. Input one returns explicit positive
+zero without exceptions in every mode. Every other positive finite input has
+a finite nonzero normal output and raises inexact only. errno, rounding mode
+and incoming flags are preserved; numerical accuracy assumes nearest rounding.
+
+Positive binary32 subnormals widen exactly to normal binary64 values. The
+24-bit significand times a 26-bit reciprocal fits exactly in binary64; Sterbenz
+subtraction gives exact z=m*c-1. Across all rows |z|<2^-7, and nonzero |z|>=2^-49.
+Rows 74/75 have c=1 and zero log splits, so inputs [255/256,129/128) avoid
+cancellation near one. Otherwise, for exponent e=0, |ln(x)|>=1/256; for e!=0,
+|ln(x)|>1/4. Table and ln2 split errors are each below 2^-90, independently
+checked using directed MPFR600 and mpmath640.
+
+With R=2^-7, u=2^-53 and gamma(n)=n*u/(1-n*u), the omitted series tail is
+T=R^6/(6*(1-R)); a conservative evaluation allowance is P=gamma(16)*R/(1-R).
+Near one, relative error is bounded by R^5*(1+R)/(6*(1-R)) plus
+gamma(16)*(1+R)/(1-R). Outside that region with e=0, the bound is
+256*(T+P+gamma(8)+2^-90). For e!=0 it is
+4*(T+P+150*gamma(8)+150*2^-90). Their maximum is below 2^-36.
+One final float rounding therefore stays below 0.500168 ULP, within the
+one-ULP public contract and 0.51 regression cap. The reproducible constant/
+endpoint/budget checker is `tools/oracle/check_logf_budget.py`; it reads only
+this library's tables, separately from the direct reference generator.
+
+Inexact is unavoidable without a synthetic force: the stored 1/5 coefficient
+is odd 3602879701896397/2^54. For nonzero non-power-of-two z its product needs
+more than 53 bits; for power-of-two z, the subsequent addition to -1/4 must
+round. If z=0, dyadic normalization requires m=c=1, hence x is a binary power.
+Except for the early-returned one, multiplication or reconstruction with the
+93-significant-bit ln2 split must round. Intermediates are zero or normal
+doubles; outputs are normal floats, so underflow/overflow cannot occur.
+
+The committed directed reference population has 19,120 rows, protected by a
+complete-payload SHA256 and LF attributes. A larger seed 1793107000/count 100000
+sample has 309,591 rows; its conservative closed-error-cell maximum is
+0.49999999 ULP at raw input 0x3f7ffffe. Signed error cells include the full
+rounding interval, including negative outputs. Generation certifies direct
+rational float target/error rounding with directed MPFR and independent
+mpmath, publishes atomically, and preserves destination permissions. Tests
+check per-row state, every exponent, table/half seams, inverse-output midpoints,
+all 277 binary-power arguments, and actual fresh-corpus selection.
+
+```sh
+python3 tools/oracle/oracle.py logf --out build/linux/logf-soak --seed 1793107000 --count 100000
+GMATH_LOGF_CORPUS_DIR=build/linux/logf-soak build/linux/release/apps/testLogf --gtest_brief=1
+```
+
+The raw probe hashes 668 nearest/no-incoming result/normalized-flag records
+(`ea80c434fab18eaa`), and asserts errno/mode/flags/result class over 18,704
+all-mode/incoming-state calls. A separate native near-one scan checks 524,288
+public calls across four modes. Directed numerical accuracy is not promised.
+
+Paired scalar timings use nearest/default fenv, one logical CPU, 4,096
+identical inputs and 200 alternating pairs with integer checksums. Median
+gmath/libm ratios are about 1.76 for common, wide and near-one inputs, 1.75
+for table seams, 0.09 for subnormal arguments and 0.64 for binary-power
+arguments. Ordinary calls remain slower; no overall speed win is established.
+
 ## Binary32 natural exponential
 
 `gmath_expf` reuses the existing natural-exp core and 128-row table. Raw float

@@ -32,6 +32,7 @@
 #undef gmath_expf
 #undef gmath_exp2
 #undef gmath_log
+#undef gmath_logf
 #undef gmath_log2
 #undef gmath_log10
 #undef gmath_log2f
@@ -44,6 +45,7 @@
 #define gmath_exp2f test_copy_of_gmath_exp2f
 #define gmath_exp2 test_copy_of_gmath_exp2
 #define gmath_log test_copy_of_gmath_log
+#define gmath_logf test_copy_of_gmath_logf
 #define gmath_log2 test_copy_of_gmath_log2
 #define gmath_log10 test_copy_of_gmath_log10
 #define gmath_log2f test_copy_of_gmath_log2f

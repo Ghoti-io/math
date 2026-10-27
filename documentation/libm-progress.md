@@ -25,6 +25,16 @@ The deterministic contracts in the public headers remain authoritative.
   inputs remain slower than host libm; wide ranges and exact integer powers
   are faster on the measured host (see design notes).
 
+- Binary32 natural logarithm: `gmath_logf`, with exact float reduction and a
+  dedicated five-term series using the existing logarithm table. One returns
+  positive zero without flags; all other positive finite arguments require
+  inexact and produce normal outputs. Raw NaN/domain/zero handling and state
+  preservation have explicit tests. Committed/larger directed samples contain
+  19,120/309,591 rows; conservative maximum error is 0.49999999 ULP, below the
+  0.51 cap. A separate derivation bounds nearest error below 0.500168 ULP.
+  Ordinary scalar calls remain about 1.76 times slower than host libm; measured
+  subnormal and binary-power arguments are faster. No overall win is claimed.
+
 - Binary32 natural exponential: `gmath_expf`, reusing the existing natural
   reduction/table/polynomial with independently certified float cutoffs.
   Only zeros are exact finite cases; every other finite nonzero input has
@@ -90,7 +100,7 @@ The deterministic contracts in the public headers remain authoritative.
 ## Upcoming project-used gaps
 
 1. Remaining float elementary operations used by WebAssembly, model and
-   CJelly, including `logf`, `log10f`, `hypotf` and `atan2f`. Further float-trig tuning
+   CJelly, including `log10f`, `hypotf` and `atan2f`. Further float-trig tuning
    remains useful, especially small-path overhead and the residual wide-range
    libm gap. Float accuracy and exception handling remain separate targets.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
@@ -109,6 +119,22 @@ Future float elementary operations must use binary32 rounding and ulp spacing
 in their reference data, not a binary64 corpus tolerance.
 
 ## Verification and remaining limits
+
+The logf phase passes full default GCC14.2/GCC16.2 gates and 166 unit tests
+on GCC14/GCC16/Clang, plus nine focused ASan/UBSan tests,
+pinned reference regeneration, a 309,591-row direct-reference sample, and
+independent review with follow-up. All 23 implementation/state plants, 28
+loader fixtures, two parse-valid reference corruptions, four oracle faults,
+raw/output hash corruptions, omitted-entry detection and the actual former
+corpus-directory typo are detected on the host. Optional nested oracles are
+explicitly skipped inside the GCC16 image and execute on the host. Fresh population and directory
+selection are verified independently of row count. Six-target QEMU probes agree
+on all 49 result sets; raw probes pass default/portable at -O0/-O2. The 668-row
+raw logf hash covers nearest result/normalized flags; 18,704 calls separately
+assert all-mode/incoming state. Native near-one scanning covers 524,288 calls.
+These runs do not establish correctly rounded results for every input or
+numerical accuracy in directed modes; physical-target and broader compatibility
+coverage remain pending.
 
 The expf phase passes full default GCC14.2/GCC16.2 gates and 157 unit tests
 on GCC14/GCC16/Clang, plus nine focused ASan/UBSan tests. All 23 arithmetic/
@@ -144,7 +170,7 @@ raw-bit NaN/zero/infinity tests, all four rounding modes, errno/exception-state
 checks, mutation checks and supplemental result hashes. Existing hashes remain
 unchanged. Build/test validation and independent reviews accompany each commit.
 
-Math-only QEMU checks now match all 48 committed function hashes on i686,
+Math-only QEMU checks now match all 49 committed function hashes on i686,
 AArch64, s390x, PowerPC64, PowerPC32 and SPARC64 Linux, with both default and
 forced-portable square root. Raw binary32 special-value/exception probes also
 pass on those emulated targets at both `-O0` and `-O2`. These are probe executions, not physical-host or full GoogleTest

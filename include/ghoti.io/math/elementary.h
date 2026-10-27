@@ -242,6 +242,23 @@ GMATH_API double gmath_cbrt(double x);
 GMATH_API double gmath_log(double x);
 
 /**
+ * @brief Binary32 natural logarithm, within 1 float ulp under nearest rounding.
+ *
+ * Both zeros return negative infinity with divide-by-zero. Negative finite
+ * inputs and negative infinity return canonical NaN with invalid. Quiet NaNs
+ * canonicalize without invalid; signaling NaNs raise invalid. Positive infinity
+ * passes through, and input 1 returns explicit positive zero without flags in
+ * every mode. Other positive finite inputs give nonzero normal results and
+ * raise only inexact. errno, mode and incoming flags are preserved. Numerical
+ * accuracy assumes the default nearest environment; full libm errno and
+ * directed-rounding compatibility are not promised.
+ *
+ * @param x The argument.
+ * @return ln(x) as a float.
+ */
+GMATH_API float gmath_logf(float x);
+
+/**
  * @brief The base-two logarithm of @p x, within 1 ulp of the true value.
  *
  * Round to nearest is assumed, as for the other elementary kernels. Positive
