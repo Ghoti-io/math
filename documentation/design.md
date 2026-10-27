@@ -615,10 +615,13 @@ indirect-call, loop, checksum and timestamp overhead.
 
 ## Binary32 unary arctangent
 
-`gmath_atanf(x)` calls the existing `gmath_atan2f(x,1.0f)` kernel. The exact
-positive abscissa makes this the same real angle for every finite input; raw
-NaN, signed-zero and infinity handling follows the established Float path.
-No existing kernel, table or polynomial changes. The public nearest numerical
+`gmath_atanf(x)` specializes the exact positive abscissa one while sharing
+the unchanged Float kernel/helpers with `gmath_atan2f(x,1.0f)`. Unary raw
+dispatch removes unused operand/quadrant work; below one the old divide by
+one was exact, while above one the same reciprocal and half-pi reflection
+remain. Apply the sign to the double before Float narrowing to preserve
+directed-mode results. Raw NaNs, signed zeros and constants retain the same
+handling. No existing binary kernel, table or polynomial changes. The public nearest numerical
 contract is one Float ULP; the inherited conservative bound is 0.501457908 ULP.
 The test's 0.51-ULP ceiling is a tighter regression guard for this implementation,
 not a general correct-rounding claim or a stronger public API requirement.
@@ -643,6 +646,27 @@ attributes protect committed references. Atomic publication tests inject
 first/middle/last failures and check destination/permission preservation and
 temporary cleanup. Fresh selection verifies requested metadata, row count and
 path with a disposable empty-directory counterfactual.
+
+Result-only compatibility tools compare the specialized function to the old
+binary path in accounted disjoint intervals. Native nearest scans cover all
+signed finite encodings; sampled all-mode checks compare bits and complete
+caller state separately. A result scan does not establish independent accuracy
+or exhaustive exception equivalence. The final normal IX force is retained;
+its deletion alone has no observed witness in tested inputs, even though
+visible normal-path IX loss is detected by a separate mutation.
+
+For a performance baseline preserving prior compiler context, compile
+`src/elementary/atan2.c` from revision
+`a606f32d9428e5d5b4f866a101f644f9374d7f21` using matching `LIB_CFLAGS` and
+include flags. Use objcopy to rename its three public versioned symbols
+(`gmath_atan2`, `gmath_atan2f`, `gmath_atanf`) to separate baseline names,
+leaving local helpers, code and intra-module references intact. Link this
+object beside the current archive with `tools/bench-atanf.c`, defining
+`GMATH_ATANF_BASELINE` to the renamed unary symbol. The comparison probe accepts
+the same symbol through `GMATH_ATANF_REFERENCE`. Without these macros, tools
+use the old wrapper body/current binary kernel; benchmark output explicitly
+identifies this different baseline. Inputs are checked before timing and
+reused across exception states; flag queries occur before the start timestamp.
 
 Validation and paired performance results are recorded in the progress log.
 Benchmark clean/UF-IX states are set before each timed batch; the reported

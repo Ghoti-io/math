@@ -21,19 +21,43 @@ static int seeded;
 static double measure(float (*volatile fn)(float)) {
   if (feclearexcept(FE_ALL_EXCEPT)||(seeded&&feraiseexcept(FE_UNDERFLOW|FE_INEXACT))) exit(2);
   uint32_t sum=0;struct timespec start,end;
-  if (clock_gettime(CLOCK_MONOTONIC,&start)) {perror("clock_gettime");exit(2);}
   if (fetestexcept(FE_ALL_EXCEPT)!=(seeded?(FE_UNDERFLOW|FE_INEXACT):0)) exit(2);
+  if (clock_gettime(CLOCK_MONOTONIC,&start)) {perror("clock_gettime");exit(2);}
   for (int i=0;i<N;++i) {float y=fn(inputs[i]);uint32_t raw;memcpy(&raw,&y,4);sum+=raw;}
   if (clock_gettime(CLOCK_MONOTONIC,&end)) {perror("clock_gettime");exit(2);}
   double elapsed=((double)(end.tv_sec-start.tv_sec)*1e9+(double)(end.tv_nsec-start.tv_nsec))/N;
   sink=sum;return elapsed;
 }
+/* Optional prior-object baseline preserves its original compiler context;
+ * the default is the exact old wrapper body over the current binary kernel. */
+#ifdef GMATH_ATANF_BASELINE
+extern float GMATH_ATANF_BASELINE(float);
+#define previous GMATH_ATANF_BASELINE
+#define BASELINE_DESCRIPTION "separately compiled prior public function"
+#else
+static float previous(float x) {return gmath_atan2f(x,1.0f);}
+#define BASELINE_DESCRIPTION "old wrapper body over current binary kernel"
+#endif
+static uint32_t bits(float x) {uint32_t raw;memcpy(&raw,&x,4);return raw;}
+static uint32_t ordered(uint32_t word) {return word&0x80000000u?~word:word^0x80000000u;}
+static void verify(void) {
+  for (int i=0;i<N;++i) {
+    float (*volatile current)(float)=gmath_atanf;
+    float (*volatile old)(float)=previous;
+    float (*volatile host)(float)=atanf;
+    uint32_t a=bits(current(inputs[i])),b=bits(old(inputs[i])),c=bits(host(inputs[i]));
+    uint32_t ka=ordered(a),kc=ordered(c);uint32_t distance=ka>kc?ka-kc:kc-ka;
+    if (a!=b||(c&0x7fffffffu)>=0x7f800000u||distance>1u) {
+      fputs("benchmark result compatibility/host guard failed\n",stderr);exit(2);
+    }
+  }
+}
 static int compare(const void * a,const void * b) {double x=*(const double *)a,y=*(const double *)b;return (x>y)-(x<y);}
 int main(void) {
   if (fesetenv(FE_DFL_ENV)||fesetround(FE_TONEAREST)) return 2;
   const char * names[]={"common signed","table [1/8,1]","direct [0,1/8]","tiny normal","subnormal","wide finite"};
-  puts("atanf: 401 alternating same-input pairs, indirect calls; gmath/libm ratios include loop/checksum overhead");
-  for (seeded=0;seeded<2;++seeded) for (int range=0;range<6;++range) {
+  puts("atanf: 401 alternating same-input pairs; previous=" BASELINE_DESCRIPTION "; indirect-call/loop/checksum/timestamp overhead included");
+  for (int range=0;range<6;++range) {
     for (int i=0;i<N;++i) {
       uint32_t raw=random_word();float u=(float)(raw&0x7fffffu)*0x1p-23f;
       switch (range) {
@@ -45,13 +69,22 @@ int main(void) {
       default:inputs[i]=value((raw&0x807fffffu)|((raw%255u)<<23));break;
       }
     }
-    for (int r=0;r<10;++r) {(void)measure(gmath_atanf);(void)measure(atanf);}
-    double ratios[401];
+    verify();
+    for (seeded=0;seeded<2;++seeded) {
+    for (int r=0;r<10;++r) {(void)measure(gmath_atanf);(void)measure(previous);(void)measure(atanf);}
+    double new_old[401],old[401],new_host[401],host[401],ratio_old[401],ratio_host[401];
     for (int r=0;r<401;++r) {
-      double a,b;if (r&1) {b=measure(atanf);a=measure(gmath_atanf);}else {a=measure(gmath_atanf);b=measure(atanf);}
-      ratios[r]=a/b;
+      if (r&1) {old[r]=measure(previous);new_old[r]=measure(gmath_atanf);host[r]=measure(atanf);new_host[r]=measure(gmath_atanf);}
+      else {new_old[r]=measure(gmath_atanf);old[r]=measure(previous);new_host[r]=measure(gmath_atanf);host[r]=measure(atanf);}
+      ratio_old[r]=new_old[r]/old[r];ratio_host[r]=new_host[r]/host[r];
     }
-    qsort(ratios,401,sizeof *ratios,compare);printf("%-20s %s batch-entry flags median %.3fx\n",names[range],seeded?"UF/IX":"clean",ratios[200]);
+    qsort(new_old,401,sizeof *new_old,compare);qsort(old,401,sizeof *old,compare);
+    qsort(new_host,401,sizeof *new_host,compare);qsort(host,401,sizeof *host,compare);
+    qsort(ratio_old,401,sizeof *ratio_old,compare);qsort(ratio_host,401,sizeof *ratio_host,compare);
+    printf("%-20s %-5s new/old %.3fx p10-p90 %.3f..%.3f ns %.3f/%.3f; new/libm %.3fx p10-p90 %.3f..%.3f ns %.3f/%.3f\n",
+        names[range],seeded?"UF/IX":"clean",ratio_old[200],ratio_old[40],ratio_old[360],new_old[200],old[200],
+        ratio_host[200],ratio_host[40],ratio_host[360],new_host[200],host[200]);
+    }
   }
   return 0;
 }

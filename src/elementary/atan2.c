@@ -310,7 +310,33 @@ float gmath_atan2f(float y, float x) {
   return af_narrow;
 }
 
-/* Reuse the binary32 kernel and its raw special/exception handling. */
+/* Exact positive abscissa one removes general quadrant/operand handling.
+ * Keep the shared kernel and sign-before-narrow evaluation unchanged. */
 float gmath_atanf(float x) {
-  return gmath_atan2f(x, 1.0f);
+  uint32_t uf_word;
+  memcpy(&uf_word, &x, sizeof uf_word);
+  uint32_t uf_absolute = uf_word & 0x7fffffffu;
+  uint32_t uf_sign = uf_word & 0x80000000u;
+  if (uf_absolute >= 0x7f800000u) {
+    if (uf_absolute > 0x7f800000u) {
+      if ((uf_absolute & 0x00400000u) == 0) (void)gmath_invalid();
+      return af_value(0x7fc00000u);
+    }
+    return af_angle(0x3fc90fdbu, uf_sign);
+  }
+  if (uf_absolute < 0x30800000u) {
+    if (uf_absolute == 0) return af_value(uf_word);
+    if (uf_absolute < 0x00800000u) (void)gmath_underflow(0);
+    else af_inexact();
+    return af_value(uf_word);
+  }
+  if (uf_absolute == 0x3f800000u) return af_angle(0x3f490fdbu, uf_sign);
+  double uf_d = af_widen(uf_absolute);
+  double uf_q = uf_absolute > 0x3f800000u ? 1.0 / uf_d : uf_d;
+  double uf_result = af_kernel(uf_q);
+  if (uf_absolute > 0x3f800000u) uf_result = GMATH_PIO2_HI - uf_result;
+  uf_result = gmath_double(gmath_bits(uf_result) | ((uint64_t)uf_sign << 32));
+  float uf_narrow = (float)uf_result;
+  af_inexact();
+  return uf_narrow;
 }

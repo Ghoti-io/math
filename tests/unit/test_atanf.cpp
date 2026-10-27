@@ -170,4 +170,26 @@ TEST(Atanf, ParserRejectsBrokenPayloads) {
     std::istringstream bad(header+row);EXPECT_THROW(Parse(bad),std::runtime_error);
   }
 }
+TEST(Atanf, OldPathBitAndStateCompatibility) {
+  Environment saved;
+  struct Result {uint32_t bits;int flags,error,mode;};
+  auto call=[](uint32_t word,int mode,int seed,bool previous) {
+    float input=Value(word);EXPECT_EQ(std::fesetround(mode),0);EXPECT_EQ(std::feclearexcept(FE_ALL_EXCEPT),0);
+    EXPECT_EQ(std::feraiseexcept(seed),0);errno=733;float output;
+    if (previous) {float (*volatile fn)(float,float)=gmath_atan2f;output=fn(input,1.0f);}
+    else {float (*volatile fn)(float)=gmath_atanf;output=fn(input);}
+    int error=errno,flags=std::fetestexcept(FE_ALL_EXCEPT),rounding=std::fegetround();
+    return Result{Bits(output),flags,error,rounding};
+  };
+  std::vector<Entry> entries;ASSERT_NO_THROW(entries=Load());std::vector<uint32_t> words;
+  for (const auto & e:entries) words.push_back(e.input);
+  uint32_t random=0x6174616eu;
+  for (unsigned i=0;i<32768;++i) {random^=random<<13;random^=random>>17;random^=random<<5;words.push_back(random);}
+  for (uint32_t word:words) for (int mode:{FE_TONEAREST,FE_DOWNWARD,FE_UPWARD,FE_TOWARDZERO})
+    for (int seed:{0,FE_INVALID,FE_DIVBYZERO,FE_OVERFLOW,FE_UNDERFLOW,FE_INEXACT,FE_ALL_EXCEPT}) {
+      auto a=call(word,mode,seed,false),b=call(word,mode,seed,true);
+      EXPECT_EQ(a.bits,b.bits)<<std::hex<<word;EXPECT_EQ(a.flags,b.flags)<<std::hex<<word;
+      EXPECT_EQ(a.error,b.error);EXPECT_EQ(a.mode,b.mode);
+    }
+}
 int main(int argc,char ** argv) {::testing::InitGoogleTest(&argc,argv);return RUN_ALL_TESTS();}

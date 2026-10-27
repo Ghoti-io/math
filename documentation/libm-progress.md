@@ -148,11 +148,11 @@ The deterministic contracts in the public headers remain authoritative.
 
 ## Upcoming project-used gaps
 
-1. Remaining project-used Float families beyond the completed exp/log, trig,
-   hypotenuse and atan2 operations. Recheck current consumer usage before
-   selecting the next API. Further trig tuning remains useful, especially
-   small-path overhead and the residual wide-range libm gap. Float accuracy
-   and exception handling remain separate targets.
+1. The audited production Float gap (`atanf`) and tool-used integer rounding
+   gap (`lround`) are now provided; consumer migration remains deferred.
+   Recheck usage before choosing further project-used APIs. Continue broader
+   float/double coverage, with decomposition/scaling forms among the remaining
+   basic gaps. Keep accuracy, exception behavior and performance separate.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
@@ -169,6 +169,68 @@ Future float elementary operations must use binary32 rounding and ulp spacing
 in their reference data, not a binary64 corpus tolerance.
 
 ## Verification and remaining limits
+
+The atanf specialization preserves every numerical contract while removing
+fixed-abscissa operand/quadrant work. The binary atan2 function, shared kernel,
+helpers and table are unchanged in source. Full GCC14.2/GCC16.2 default gates
+pass, with 199 unit tests in 25 binaries on GCC14/GCC16/Clang (Clang unit-only),
+five focused ASan/UBSan tests and resolved independent review follow-ups.
+All 57 committed function hashes, legacy aggregate `f5fa269eb60ee34f` and
+native-width integer-rounding probe contracts remain unchanged. Twenty unary
+implementation/state plants and five reference checksum controls detect.
+Moving the sign after narrowing is specifically caught by all-mode equality.
+Deleting only the final normal IX force escaped the tested inputs because
+other kernel/cast operations already raise IX. The production force remains;
+a normal-path IX-loss mutation is detected, which does not establish that
+narrow force-only deletion coverage.
+
+Native GCC14 result-only scans cover every signed finite binary32 encoding:
+4,278,190,080 inputs, including both zeros, under nearest in 32 disjoint
+step-one intervals. They match both the unchanged current binary path and a
+separately compiled actual prior public function. This proves compatibility
+for those builds, not independent reference accuracy or exhaustive exception
+behavior. Sampled all-mode checks compare bits, flags, errno and mode for
+45,882 inputs with individual incoming exception seeds; the actual-prior
+variant passes 1,284,696 paired observations. The 107,903-row independent
+larger corpus also passes, with reported closed-cell error about 0.50000002
+ULP; general correct rounding remains unclaimed. Pinned regeneration/fresh
+checks preserve committed reference bytes.
+
+Six emulated targets agree on all 57 numeric sets in default/portable builds,
+and 24 O0/O2 default/portable raw probes retain nearest hash
+`ba74d43d61e3eaf0` and all-mode hash `97c05e26310d4b1c` over 42 fixtures.
+Each target additionally compares 65,280 signed encodings under all four
+modes at O2 (261,120 input/mode evaluations). These are emulated probes, not full cross-target GoogleTest or
+physical hosts. Windows and exhaustive directed-mode/exception validation
+remain unrun. The comparison runner validates interval/count metadata, has
+configurable timeouts distinct from mismatch failures, and cancels active
+scans promptly on failure; deliberately wrong counts/intervals, later failures,
+timeouts and child cleanup have been calibrated.
+
+Two paired benchmark runs on the same allowed processor use the actual prior
+module from `a606f32d9428e5d5b4f866a101f644f9374d7f21`, compiled with matching
+library flags and public symbols renamed before linking beside the candidate.
+This preserves the prior compiler context. The default benchmark separately
+labels its old-wrapper-body/current-kernel baseline. Each run uses 401
+alternating pairs of 4,096 inputs; every range is reused unchanged in clean
+and preseeded UF/IX states, with untimed equality checks, integer timestamps,
+median ns and ratio p10/p90. Relative times are:
+
+| Input range | New / actual prior | New / host libm |
+| --- | ---: | ---: |
+| Common signed | 0.665–0.683 | 1.046–1.089 |
+| Table | 0.667–0.669 | 1.125–1.126 |
+| Direct | 0.620–0.654 | 0.877–0.912 |
+| Tiny normal | 0.316–0.318 | 0.463–0.501 |
+| Subnormal | 0.257–0.258 | 0.047 |
+| Wide finite | 0.452–0.465 | 0.882–0.897 |
+
+Ratios include call/loop/checksum/timestamp overhead. Unpinned runs showed
+substantial subnormal timing variation, including much smaller gains. Common
+and table ranges remain slower than host libm on these measurements; no
+workload-wide or cross-platform speed win is claimed. This phase adds no API:
+classic real-function name coverage remains 53 of 171, with 61 float/double
+and 57 long-double entry points missing; behavioral parity is additional work.
 
 The integer-rounding phase passes full final GCC14.2/GCC16.2 default gates,
 198 unit tests in 25 binaries on GCC14/GCC16/Clang (Clang unit-only), and

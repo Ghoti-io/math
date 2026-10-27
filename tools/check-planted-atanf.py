@@ -52,19 +52,42 @@ def main():
     cxx, ldflags = shlex.split(env['PLANT_CXX']), shlex.split(env['PLANT_LDFLAGS'])
     work = Path(env['PLANT_WORK']);work.mkdir(parents=True, exist_ok=True)
     original = Path('src/elementary/atan2.c').read_text()
-    anchor = 'return gmath_atan2f(x, 1.0f);'
-    if original.count(anchor) != 1: raise RuntimeError('unary wrapper anchor must match once')
-    plants = [('control', None), ('zero', '(void)x; return 0.0f;'),
-              ('swapped', 'return gmath_atan2f(1.0f, x);'),
-              ('wrong-abscissa', 'return gmath_atan2f(x, 2.0f);'),
-              ('wrong-sign', 'return gmath_atan2f(-x, 1.0f);'),
-              ('errno', 'errno = 0; return gmath_atan2f(x, 1.0f);'),
-              ('mode', '(void)fesetround(FE_TONEAREST); return gmath_atan2f(x, 1.0f);'),
-              ('flags', 'float result = gmath_atan2f(x, 1.0f); (void)feclearexcept(FE_ALL_EXCEPT); return result;')]
-    for name, replacement in plants:
+    marker = 'float gmath_atanf(float x) {'
+    if original.count(marker) != 1: raise RuntimeError('unary function marker must match once')
+    anchor = original[original.index(marker):]
+    wrappers = [('zero', '(void)x; return 0.0f;'),
+                ('swapped', 'return gmath_atan2f(1.0f, x);'),
+                ('wrong-abscissa', 'return gmath_atan2f(x, 2.0f);'),
+                ('wrong-sign', 'return gmath_atan2f(-x, 1.0f);'),
+                ('errno', 'errno = 0; return gmath_atan2f(x, 1.0f);'),
+                ('mode', '(void)fesetround(FE_TONEAREST); return gmath_atan2f(x, 1.0f);'),
+                ('flags', 'float result = gmath_atan2f(x, 1.0f); (void)feclearexcept(FE_ALL_EXCEPT); return result;')]
+    plants = [('control', None, None)] + [(name,anchor,marker+'\n  '+body+'\n}\n') for name,body in wrappers]
+    plants += [
+      ('unary-snan','if ((uf_absolute & 0x00400000u) == 0) (void)gmath_invalid();','if ((uf_absolute & 0x00400000u) == 0) (void)0;'),
+      ('unary-qnan','return af_value(0x7fc00000u);','return af_value(0x7fc00001u);'),
+      ('unary-infinity','return af_angle(0x3fc90fdbu, uf_sign);','return af_angle(0x3f490fdbu, uf_sign);'),
+      ('unary-zero','if (uf_absolute == 0) return af_value(uf_word);','if (uf_absolute == 0) return af_value(0);'),
+      ('unary-underflow','if (uf_absolute < 0x00800000u) (void)gmath_underflow(0);','if (uf_absolute < 0x00800000u) af_inexact();'),
+      ('unary-underflow-boundary','if (uf_absolute < 0x00800000u)','if (uf_absolute <= 0x00800000u)'),
+      ('unary-tiny-inexact','else af_inexact();','else (void)0;'),
+      ('unary-tiny-bits','    return af_value(uf_word);\n  }','    return af_value(uf_word & 0x7fffffffu);\n  }'),
+      ('unary-one','return af_angle(0x3f490fdbu, uf_sign);','return af_angle(0x3fc90fdbu, uf_sign);'),
+      ('unary-reciprocal','1.0 / uf_d : uf_d','1.0 / uf_d : 0.5 * uf_d'),
+      ('unary-reflection','uf_result = GMATH_PIO2_HI - uf_result;','uf_result = GMATH_PI_HI - uf_result;'),
+      ('unary-normal-inexact-loss','  af_inexact();\n  return uf_narrow;','  (void)feclearexcept(FE_INEXACT);\n  return uf_narrow;'),
+      ('unary-sign-before-narrow',
+       '  uf_result = gmath_double(gmath_bits(uf_result) | ((uint64_t)uf_sign << 32));\n  float uf_narrow = (float)uf_result;',
+       '  float uf_narrow = (float)uf_result;\n  uint32_t uf_raw_narrow; memcpy(&uf_raw_narrow,&uf_narrow,sizeof uf_raw_narrow);\n  uf_narrow = af_value(uf_raw_narrow | uf_sign);')]
+    for name,old,new in plants:
         stage = work/name;stage.mkdir(parents=True, exist_ok=True)
-        source = stage/'atan2.c'
-        source.write_text('#include <errno.h>\n#include <fenv.h>\n'+(original if replacement is None else original.replace(anchor, replacement)))
+        text=original
+        if old is not None:
+            # Local unary anchors are checked only in the unary function,
+            # preserving binary mutation fingerprints even for shared literals.
+            if anchor.count(old)!=1: raise RuntimeError('unary plant anchor must match once: '+name)
+            text=original.replace(anchor,anchor.replace(old,new,1),1)
+        source = stage/'atan2.c';source.write_text('#include <errno.h>\n#include <fenv.h>\n'+text)
         for header in ('elem_common.h', 'atan2_table.h'):
             shutil.copyfile(Path('src/elementary')/header, stage/header)
         obj = stage/'atan2.o';binary = stage/'testAtanf'
@@ -72,9 +95,9 @@ def main():
             raise RuntimeError('plant compile failed: '+name)
         if command(cxx+['-o', str(binary), env['PLANT_TEST_OBJ'], str(obj)]+ldflags, stage/'link.log'):
             raise RuntimeError('plant link failed: '+name)
-        status = command([str(binary), '--gtest_filter=Atanf.PinnedAccuracyAndAllModeState:Atanf.RawSpecialsAndIncomingState', '--gtest_brief=1'], stage/'test.log')
-        if status != (0 if replacement is None else 1): raise RuntimeError('plant outcome wrong: '+name)
-        print('  ok   atanf '+name+(' passes' if replacement is None else ' detected'), flush=True)
+        status = command([str(binary), '--gtest_filter=Atanf.PinnedAccuracyAndAllModeState:Atanf.RawSpecialsAndIncomingState:Atanf.OldPathBitAndStateCompatibility', '--gtest_brief=1'], stage/'test.log')
+        if status != (0 if old is None else 1): raise RuntimeError('plant outcome wrong: '+name)
+        print('  ok   atanf '+name+(' passes' if old is None else ' detected'), flush=True)
     payload=Path('tests/corpus/atanf.corpus').read_text()
     rows=payload.splitlines(keepends=True)
     first=next(i for i,line in enumerate(rows) if not line.startswith('#'))

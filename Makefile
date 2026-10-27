@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -626,6 +626,14 @@ $(INTROUND_PROBE): tools/probe-intround.c tests/corpus_hash.h $(APP_DIR)/$(STATI
 check-intround-special: $(INTROUND_PROBE)
 	@$(INTROUND_PROBE) > $(BUILD_DIR)/intround-special.actual && \
 	 python3 tools/check-intround-output.py $(BUILD_DIR)/intround-special.actual
+
+ATANF_COMPAT_PROBE := $(APP_DIR)/tools/compare-atanf$(EXE_EXTENSION)
+$(ATANF_COMPAT_PROBE): tools/compare-atanf.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS)
+.PHONY: check-atanf-compat
+check-atanf-compat: $(ATANF_COMPAT_PROBE)
+	@python3 tools/check-atanf-compat.py $(ATANF_COMPAT_PROBE)
 
 ATANF_SPECIAL_PROBE := $(APP_DIR)/tools/probe-atanf-special$(EXE_EXTENSION)
 $(ATANF_SPECIAL_PROBE): tools/probe-atanf-special.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
