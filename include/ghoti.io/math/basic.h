@@ -306,6 +306,26 @@ GMATH_API double gmath_ldexp(double x, int n);
 GMATH_API double gmath_frexp(double x, int * e);
 
 /**
+ * @brief Exact binary exponent as a floating value, independent of rounding mode.
+ *
+ * Finite nonzero x gives floor(log2(abs(x))), including subnormal inputs and
+ * either sign. Exponent zero is positive zero. Both zeros return negative
+ * infinity with divide-by-zero only; both infinities return positive infinity.
+ * NaNs canonicalize, invalid only for signaling NaNs. No other new exceptions;
+ * errno, rounding mode and incoming flags are preserved. Full libm errno
+ * behavior is not promised.
+ * @param x The argument.
+ * @return The exponent as Double, or the canonical special value.
+ */
+GMATH_API double gmath_logb(double x);
+/**
+ * @brief Binary32 counterpart of ::gmath_logb with the same exact contract.
+ * @param x The Float argument.
+ * @return The exponent as Float, or the canonical Float special value.
+ */
+GMATH_API float gmath_logbf(float x);
+
+/**
  * @brief The unbiased exponent of @p x as an integer: `floor(log2(|x|))`, for a
  * subnormal as well.  A zero gives ::GMATH_ILOGB0, an infinity `INT_MAX`, a NaN
  * ::GMATH_ILOGBNAN, each raising invalid.

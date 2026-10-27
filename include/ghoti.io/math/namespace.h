@@ -86,6 +86,8 @@
 #define gmath_frexp GHOTIIO_MATH(gmath_frexp)
 #define gmath_hypot GHOTIIO_MATH(gmath_hypot)
 #define gmath_hypotf GHOTIIO_MATH(gmath_hypotf)
+#define gmath_logb GHOTIIO_MATH(gmath_logb)
+#define gmath_logbf GHOTIIO_MATH(gmath_logbf)
 #define gmath_ilogb GHOTIIO_MATH(gmath_ilogb)
 #define gmath_ldexp GHOTIIO_MATH(gmath_ldexp)
 #define gmath_log GHOTIIO_MATH(gmath_log)

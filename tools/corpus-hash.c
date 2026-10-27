@@ -73,6 +73,8 @@ static double frexp_fraction(double x, int * e) {
 }
 
 /* Float corpus values are stored as exactly widened doubles. */
+static double logbf_widened(double x) {return (double)gmath_logbf((float)x);}
+
 static double modf_fraction(double x) {return gmath_modf(x, NULL);}
 static double modf_integral(double x) {double whole;(void)gmath_modf(x,&whole);return whole;}
 static double modff_fraction(double x) {return (double)gmath_modff((float)x,NULL);}
@@ -197,6 +199,8 @@ static const struct {
   {"cos", "cos", K_D_D, 1, NULL, gmath_cos, NULL, NULL},
   {"tan", "tan", K_D_D, 1, NULL, gmath_tan, NULL, NULL},
   {"atan2", "atan2", K_DD_D, 1, NULL, NULL, gmath_atan2, NULL},
+  {"logb", "logb", K_D_D, 0, NULL, gmath_logb, NULL, NULL},
+  {"logbf", "logbf", K_D_D, 0, NULL, logbf_widened, NULL, NULL},
   {"modf_fraction", "modf_fraction", K_D_D, 0, NULL, modf_fraction, NULL, NULL},
   {"modf_integral", "modf_integral", K_D_D, 0, NULL, modf_integral, NULL, NULL},
   {"modff_fraction", "modff_fraction", K_D_D, 0, NULL, modff_fraction, NULL, NULL},

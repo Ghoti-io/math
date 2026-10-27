@@ -38,3 +38,9 @@ tests/corpus/modff-special.corpus text eol=lf
 tests/corpus/modff_fraction.corpus text eol=lf
 tests/corpus/modff_integral.corpus text eol=lf
 tests/corpus/fraction_split-special.hash text eol=lf
+
+tests/corpus/logb-special.corpus text eol=lf
+tests/corpus/logbf-special.corpus text eol=lf
+tests/corpus/logb.corpus text eol=lf
+tests/corpus/logbf.corpus text eol=lf
+tests/corpus/exponent_value-special.hash text eol=lf

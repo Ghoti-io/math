@@ -2018,3 +2018,78 @@ Use SSE arithmetic flags on i686, and repeat at O0 and O2. The portable build
 switches do not change this new module. These math-local probes were executed
 separately; external suite runners and consumers remain unmigrated. Emulated
 results do not substitute for physical hardware, Windows or application timing.
+
+### Exact floating exponent values
+
+`gmath_logb` and `gmath_logbf` implement the floating-valued binary exponent of
+[N1570 7.12.6.11/F.10.3.11](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf).
+Finite nonzero inputs of either sign return `floor(log2(abs(x)))` exactly in
+every rounding mode. Both zeros return negative infinity with divide-by-zero;
+both infinities return positive infinity. NaNs produce the canonical quiet NaN,
+invalid only for signaling inputs. No other new exceptions occur. errno,
+rounding mode and incoming flags are preserved; libm's errno policy is not
+promised. The existing integer-valued exponent/scaling functions are unchanged.
+
+Normal magnitudes give stored exponent minus bias. A nonzero subnormal
+significand `F` gives `floor(log2(F))-1074` for Double or `-149` for Float.
+The leading-bit builtin is used only for nonzero words with a matching
+unsigned-long-long width; `GMATH_LOGB_PORTABLE_BITS` forces a shift/count loop.
+Output ranges `[-1074,1023]` and `[-149,127]` are exactly representable. Exponent
+zero is constructed as raw positive zero: a PPC32 directed-mode probe exposed
+negative zero from its software integer conversion, despite numerical exactness.
+No floating arithmetic is performed on input values, including subnormals.
+
+The implementation derives directly from these representation rules. Existing
+project helpers/test conventions are reused. Other libm implementation source
+was neither read nor copied for this work; MPFR and host libm supply independent
+outputs and timing comparisons, not source templates. Standard algorithms and
+representation identities are not claimed as novel inventions.
+
+The reference generator decodes exact rational inputs from integer fields and
+checks the defining exponent inequalities. Separately, MPFR converts the raw
+IEEE value through a different path and uses `get_exp()-1` at precision 1200.
+Special results/flags follow the explicit contract. Binade/edge strata and all
+subnormal leading-bit transitions cover every possible finite exponent output;
+this does not constitute an exhaustive raw-input execution. The widened Float
+corpus excludes signaling inputs, while the standalone raw probe retains them.
+
+Five complete-file SHA256 gates and LF checkout attributes protect raw/widened
+references and generated result/order hashes. The existing set publisher rolls
+back exceptions and preserves prior permissions; it is not crash-atomic. Fresh
+checks reconstruct every widened row/exclusion with independent integer
+widening and run the real generic hash checker against an overlay containing
+only the two new fresh corpora. All other function references and the legacy
+aggregate remain independently checked. Requested provenance, seed/count,
+entry counts and directory selection are verified without renaming evidence.
+
+The C17 probe and unit tests compare exact bits plus actual flags, errno and
+rounding mode on each call. Every row covers all four modes and two errno seeds;
+nonfinite and explicit finite boundary cases additionally request all 32 flag
+subsets, with ordinal sampling elsewhere. Actual incoming flags are captured,
+since hardware can merge requested subsets. Digests encode results/call order;
+state comparisons occur before hashing and are not hashes of hardware flags.
+A separate unit test checks restoration of a seeded caller environment after
+success and after a late malformed row following executed calls. Injected
+failure-only environment/errno restoration defects are detected. Source plants
+run both the C++ tests and standalone C17 executable, including forced-loop
+builds; shared defects must fail both formats. The C17 driver runs both formats
+before combining their statuses.
+
+For a standalone target check, run from the math checkout after generating the
+public version header. Supply a compiler and a runner wrapper configured with
+the target sysroot; select the appropriate generated header path:
+
+```sh
+"$TARGET_CC" -std=c17 -O2 -ffp-contract=off -DGMATH_BUILD \
+  -Iinclude -Ibuild/linux/release/generated \
+  tools/probe-exponent-value.c src/elementary/exponent_value.c -lm \
+  -o build/probe-exponent-value-target
+"$TARGET_RUNNER" build/probe-exponent-value-target > build/exponent-target.actual
+sed 's/ from .*//' build/exponent-target.actual > build/exponent-target.normalized
+cmp tests/corpus/exponent_value-special.hash build/exponent-target.normalized
+```
+
+Repeat at O0/O2 and with `-DGMATH_LOGB_PORTABLE_BITS`; use SSE arithmetic flags
+on i686. These math-local probes were run separately from the external suite
+runners, which remain unchanged. Emulation does not establish physical-host,
+Windows, exhaustive state-space or application performance coverage.

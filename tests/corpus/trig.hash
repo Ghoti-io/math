@@ -70,3 +70,5 @@ fn modf_fraction a15da59a64013194 32022
 fn modf_integral a2eed88d4ae647d5 32022
 fn modff_fraction feea8ae7dd573424 6174
 fn modff_integral 3f7a8130f27b762b 6174
+fn logb e0aa81ad34f8834b 32318
+fn logbf bb32234cb185f773 6296

@@ -4,12 +4,18 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 22 verified phases add 41 APIs, three performance optimizations
-and certificate maintenance. Classic real-function name coverage is 61/171;
-53 Float/Double additions remain, or 110 including long double. The phase
+Current snapshot: 23 verified phases add 43 APIs, three performance optimizations
+and certificate maintenance. Classic real-function name coverage is 63/171;
+51 Float/Double additions remain, or 108 including long double. The phase
 sections below retain historical counts and measurements.
 
 ## Completed capabilities
+
+- Exact floating exponent values: `gmath_logb` and `gmath_logbf`, including
+  subnormals and either input sign. Zero gives negative infinity/divide-by-zero;
+  infinity gives positive infinity; canonical NaNs raise invalid only for
+  signaling inputs. Exact mode-independent results, positive exponent zero and
+  preserved errno/mode/incoming flags have dedicated references and probes.
 
 - Exact signed integral/fractional splitting: `gmath_modf` and `gmath_modff`.
   Both parts preserve the input sign, including zero; infinities return signed
@@ -178,11 +184,113 @@ sections below retain historical counts and measurements.
    float/double coverage, including remaining basic decomposition and
    rounding/remainder families. Adjacent Float overhead is now reduced by the
    verified direction optimization; exact modf/modff is now supplied.
-   Investigate remaining exact `logb`/`scalbln` families next.
+   Exact `logb`/`logbf` is now supplied; investigate `scalbln`/`scalblnf` next.
    Keep accuracy, exception behavior and performance separate.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
+
+## Floating exponent validation
+
+The two APIs bring classic real-function name coverage to 63/171: 32 Double,
+31 Float and no long-double entries. Missing 25 Double + 26 Float = 51
+float/double additions, or 108 including 57 long-double entries; complex adds
+66 more. These are name counts, excluding fenv/macros/vendor extensions and
+additional behavioral parity. A read-only 6,230-file source/header audit found
+no project-owned logb/logbf production calls; broader coverage is intentional.
+Consumers remain unmigrated.
+
+Committed references contain 32,318 Double/6,302 Float raw inputs, including
+every binade and subnormal leading-bit transition with neighboring values and
+both signs. Raw integer-field rational decoding and independent pinned MPFR
+conversion agree on exact exponents. All possible finite output exponents
+occur in these strata; execution is not exhaustive over all raw inputs.
+The new numeric sets are `logb e0aa81ad34f8834b` over 32,318 rows and
+`logbf bb32234cb185f773` over 6,296 widened rows (Float signaling inputs are
+excluded from generic widening). All 67 previous sets and legacy aggregate
+`f5fa269eb60ee34f` over 292,711 results remain unchanged.
+
+Raw result hashes are `e0aa81ad34f8834b` Double and `7ae1289a0939fb11` Float.
+Selected all-mode result/order hashes are `5ca7e7db52126b65` over 399,656 calls
+and `c405790601745025` over 86,872 calls. Actual flags, errno and mode are
+compared separately before successful hash publication; digests do not encode
+hardware flag states. Explicit finite boundaries, nonfinite cases and ordinal
+sampling request all 32 incoming subsets, using actual raised flags when
+hardware merges them. All rows run every mode and two errno seeds.
+
+Five complete-file SHA256 checks and LF checkout attributes protect references,
+with byte-identical pinned regeneration. Larger references check 130,318
+Double/104,301 Float raw inputs and 2,958,480 selected state calls. Fresh
+validation checks complete widened rows/exclusions, metadata, counts and paths,
+and runs the real generic checker over all 69 sets with only the two fresh
+corpora overlaid. Eight fresh widened corruptions detect; same-sized unit
+selection and disposable empty-directory counterfactuals pass. The reused
+publisher passes ten existing/absent exception-rollback controls across five
+replacement positions; it is not crash-atomic.
+
+Seventy default/forced-loop source/state plant executions pass both the C++
+unit driver and standalone C17 executable. Shared defects must fail both
+formats; format-specific defects must leave the other format passing. Controls
+include quiet-only invalid, signaling-only payload preservation, flag-only
+zero divide-by-zero loss, errno/mode/incoming-state changes and positive-zero
+loss. An initially proposed '<' to '<=' minimum-normal mutation was equivalent
+and correctly survived; the admitted threshold fault changes actual results.
+Thirty-two native loader/value fixtures, ten complete-payload corruptions,
+a valid recording process plus eight full output hash/count/order/path faults,
+four schema controls, five actual oracle faults and four new numeric hash
+omission/corruption controls detect. Two actual probe-header faults demonstrate
+restoration after a late malformed row following executed calls. Both wrapper
+commands' real family-dispatch omission is calibrated with a recording engine;
+those controls are not numerical oracle evidence. Optional missing-engine mode
+skips explicitly, while required absence fails without publishing outputs.
+
+Six emulated targets match all 69 numeric sets in default/portable builds and
+24 raw O0/O2/default/forced-loop profiles, checking 38,620 nearest records and
+486,528 selected state calls each. Initial PPC32 directed-mode checks exposed
+negative exponent-zero bits from software integer conversion. Explicit raw
+positive-zero construction fixes that case before final passing profiles.
+The i686 O0 caller has no fldl/flds argument loads. These are emulated probes,
+not physical-host/full cross-target GoogleTest coverage. External suite runners
+remain unchanged. Windows, exhaustive raw-input/state space and application
+performance remain unrun.
+
+Final recorded full GCC14.2/GCC16.2 commands return zero, with 212 unit tests
+in 29 binaries each. Clang passes the same unit set (unit-only), and three
+focused ASan/UBSan tests pass. Independent contract/proof, blind review and
+follow-ups are resolved, with no findings deferred. Two initial outer command
+sessions reported signal termination despite complete passing logs; confirmed
+reruns persist the actual successful child return codes. No failed or ambiguous
+invocation is counted as a passing final run. Earlier expf/exp2f/atanf force-only
+deletion witness gaps remain unchanged.
+
+Two final native x86-64/GCC14.2 runs use eight discarded alternating paired
+warmups followed by 401 alternating pairs of 4,096 identical values per
+format/range/state case. Integer timestamps, compiler/build identity, exact
+bit/class guards, expected new flags and own errno preservation accompany
+absolute median ns/call and paired ratio p10/median/p90. Host NaN payloads and
+exceptional errno may differ. Median gmath/libm ratios across the two runs and
+clean/UF-IX entry states are:
+
+| Input range | Double | Float |
+| --- | ---: | ---: |
+| Ordinary normal | 1.283–1.371 | 1.399–1.414 |
+| Subnormal | 0.601–0.603 | 0.667–0.668 |
+| Binary powers | 1.128–1.130 | 1.141–1.152 |
+| Near one | 2.408–2.440 | 2.689–2.708 |
+| Wide finite | 1.125–1.128 | 1.027–1.159 |
+| Zero | 0.998–1.001 | 0.857–0.858 |
+| Infinity | 0.778–0.778 | 0.556–0.557 |
+| Quiet NaN | 0.778–0.779 | 0.556–0.559 |
+| Signaling NaN | 0.667–0.668 | 0.557–0.559 |
+
+Ordinary normal absolute medians span 2.287–3.111 ns gmath versus 1.783–2.240 ns
+libm for Double, 2.067–2.208 versus 1.463–1.562 ns for Float. These include
+call/loop/checksum/timestamp work and amortize initial exception costs. Ordinary
+and near-one inputs remain slower, despite measured subnormal/special gains.
+Timings describe the native default builtin path; forced-loop/other-compiler/
+other-platform timing and application workloads remain unrun. No overall
+performance win is claimed. A later result-preserving zero-repair strategy may
+address the measured branch overhead, but no unimplemented candidate is proven.
 
 ## Fraction split validation
 

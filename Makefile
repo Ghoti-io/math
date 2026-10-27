@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -1714,3 +1714,37 @@ check-fraction-split-oracle: $(FRACTION_SPLIT_PROBE)
 	     cmp tests/corpus/$$f $(BUILD_DIR)/split-committed/$$f || exit 1; \
 	   done && python3 tools/check-split-controls.py $(FRACTION_SPLIT_PROBE) --fresh $(BUILD_DIR)/oracle-fraction-split --seed $$seed --count 2000; \
 	 elif [ $$rc -eq 3 ]; then echo 'split oracle: SKIPPED optional pinned regeneration/fresh'; else exit $$rc; fi
+
+# Exact floating exponent values; raw state validation is standalone C17.
+EXPONENT_VALUE_PROBE := $(APP_DIR)/tools/probe-exponent-value$(EXE_EXTENSION)
+$(EXPONENT_VALUE_PROBE): tools/probe-exponent-value.c tests/exponent_value_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: check-exponent-value oracle-exponent-value
+check-exponent-value: $(EXPONENT_VALUE_PROBE)
+	@python3 tools/check-exponent-value.py $(CORPUS_DIR)
+	@python3 tools/check-exponent-controls.py $(EXPONENT_VALUE_PROBE) --corpus $(CORPUS_DIR)
+oracle-exponent-value:
+	@$(ORACLE) exponent_value --out $(CORPUS_DIR) --seed 20261027 --count 2000
+.PHONY: check-planted-exponent-value check-exponent-value-oracle
+check-planted-exponent-value: $(OBJ_DIR)/tests/test_exponent_value.o $(LIBOBJECTS) $(EXPONENT_VALUE_PROBE)
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_exponent_value.o' PLANT_WORK='$(BUILD_DIR)/planted-exponent-value' \
+	 python3 tools/check-planted-exponent-value.py
+check-exponent-value-oracle: $(EXPONENT_VALUE_PROBE) $(HASH_PROBE)
+	@rc=0; seed=$$(python3 -c 'import secrets;print(secrets.randbits(63))'); \
+	 $(ORACLE) fresh-exponent_value --out $(BUILD_DIR)/oracle-exponent-value --seed $$seed --count 2000 || rc=$$?; \
+	 if [ $$rc -eq 0 ]; then \
+	   $(ORACLE) exponent_value --out $(BUILD_DIR)/exponent-committed --seed 20261027 --count 2000 && \
+	   for f in logb-special.corpus logbf-special.corpus logb.corpus logbf.corpus exponent_value-special.hash; do \
+	     cmp tests/corpus/$$f $(BUILD_DIR)/exponent-committed/$$f || exit 1; \
+	   done && python3 tools/check-exponent-controls.py $(EXPONENT_VALUE_PROBE) --fresh $(BUILD_DIR)/oracle-exponent-value --seed $$seed --count 2000 --numeric-probe $(HASH_PROBE); \
+	 elif [ $$rc -eq 3 ]; then echo 'exponent oracle: SKIPPED optional pinned regeneration/fresh'; else exit $$rc; fi
+EXPONENT_VALUE_BENCH := $(APP_DIR)/tools/bench-exponent-value$(EXE_EXTENSION)
+$(EXPONENT_VALUE_BENCH): tools/bench-exponent-value.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: bench-exponent-value
+bench-exponent-value: $(EXPONENT_VALUE_BENCH)
+	@$(EXPONENT_VALUE_BENCH)
