@@ -40,6 +40,7 @@
 #undef gmath_pow
 #undef gmath_atan2
 #undef gmath_hypot
+#undef gmath_hypotf
 #define gmath_exp test_copy_of_gmath_exp
 #define gmath_expf test_copy_of_gmath_expf
 #undef gmath_exp2f
@@ -54,6 +55,7 @@
 #define gmath_pow test_copy_of_gmath_pow
 #define gmath_atan2 test_copy_of_gmath_atan2
 #define gmath_hypot test_copy_of_gmath_hypot
+#define gmath_hypotf test_copy_of_gmath_hypotf
 
 #include "../../src/elementary/atan2.c"
 #include "../../src/elementary/explog.c"

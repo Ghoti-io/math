@@ -542,6 +542,150 @@ cc --version
 taskset -c 0 build/linux/release/apps/tools/bench-exp2 200
 ```
 
+## Binary32 hypotenuse
+
+`gmath_hypotf` returns correctly rounded nearest/ties-even bits independently
+of the current rounding mode. Either signaling NaN yields canonical NaN with
+invalid; otherwise infinity dominates quiet NaNs, and remaining quiet NaNs
+canonicalize without invalid. Input signs are ignored. Zero pairs give +0;
+one zero returns the other magnitude exactly. Exact finite hypotenuses raise
+no new flags. Other finite results require IX, adding UF only for an inexact
+rounded-subnormal result (tininess after rounding). Rounded overflow returns
+infinity with OF/IX in every mode. errno, mode and incoming flags survive.
+These deterministic bits do not implement directed libm numerical semantics.
+The existing double hypot and all prior functions remain unchanged.
+
+Each finite nonzero operand is normalized in integer bits to M*2^k with
+2^23<=M<2^24. Sort a>=b and let d=ka-kb. For d>=13, the increment over a in
+ULPs is strictly less than Mb^2/(2*Ma)*2^-26<1/4; return a with IX (and UF
+if the rounded a is subnormal). For d<=12, form the exact integer
+S=(Ma^2<<(2*d))+Mb^2 in a high32/low64 pair. It fits 96 bits without int128.
+With L=bitlen(S), t=max(floor((L-1)/2)-23,-149-kb) is nonnegative and at most
+23. T=floor(S/2^(2*t)) has fewer than 49 bits, and q=floor(sqrt(T)) is the
+integer part of the Float significand/grid coordinate.
+
+Round q by comparing 4*S with (2*q+1)^2*2^(2*t). For t=0 the comparison fits
+in 64 bits. Otherwise compare S>>(2*t-2), which fits 50 bits, with (2*q+1)^2;
+low sticky bits distinguish strict inequality from an exact midpoint. Midpoints
+choose even q. Integer packing handles normal/subnormal carry and overflow;
+S==rounded_q^2*2^(2*t) identifies exactly representable finite results.
+No arithmetic narrowing can accidentally choose another mode's result or
+raise an incorrect boundary exception.
+
+Portable builds obtain q with 24 radix-four integer steps. Where native double
+sqrt is available, integer T is constructed exactly as (2^52+T)-2^52 and its
+root is floored from raw bits. A noninteger root is at least 2^-25 from an
+integer boundary, compared with Double spacing at most 2^-29 below 2^24;
+flooring therefore agrees in every mode. An exact Float result implies T is
+a perfect square, so this estimate cannot spuriously raise IX for an exact case.
+
+Native builds also admit an inexpensive approximation before the integer
+fallback. Integer bit widening avoids denormal Float conversions; both operand
+squares are exact normal doubles. One positive sum and native sqrt have
+all-mode relative error below 4*2^-53, under eight Double ULPs across
+binade boundaries. Reject a band
+of 32 Double ULPs around every Float midpoint, then pack nearest bits from the
+estimate in integers. Exact Float roots make every preceding operation exact.
+An ignored Float narrowing inside the closed [FLT_MIN,FLT_MAX] range supplies
+IX for exact-Double/non-Float roots without incidental UF/OF. Nearest normal
+results straddling those mathematical boundaries force IX separately. Tiny
+accepted results use independent raw-subnormal integer squares to decide UF;
+overflow forces OF/IX. Any rejected midpoint-band result is necessarily inexact,
+so prior approximation IX is appropriate before the exact fallback.
+
+Important independently certified cases include subnormal (3,4)->5 without
+flags, (1,1)->1 with UF/IX, (0x007fffff,0x00000fff)->minimum normal with IX
+and no UF, and overflow midpoint (0x7f6eccf8,0x7eb8807f), which ties to infinity.
+The finite tie (0x4b7fffff,0x46000000) rounds downward to even; another finite
+tie rounds upward. Inputs (49990000,9999) have exact double hypotenuse
+49990001 but inexact Float result 49990000, exercising the IX narrowing.
+
+References compute the exact dyadic squared sum before directed MPFR sqrt and
+independent mpmath checking. Rational Float target/error rounding and full
+closed error cells remain independent of implementation helpers. The strict
+pair loader independently certifies nearest targets by comparing exact squared
+midpoints using test-only wide integers; flags use exact squared equality,
+including inexact cases whose tiny stored error rounds to zero. Atomic
+publication, complete-payload SHA256 and LF attributes protect committed data.
+The committed sample has 35,910 pairs; seed 1793111000/count 100000 produces
+229,568. Both have a conservative closed-cell upper bound 0.50000003 ULP at
+an exact finite tie. This small excess over 0.5 encloses the stored error's
+rounding cell; exact squared-midpoint checks still require the correct target
+bit pattern, including tie parity. Tiny stored errors may round to zero while
+the true result remains inexact; flags are certified from squared equality.
+
+The source-linked certificate binds the reviewed numerical model explicitly,
+without claiming formal C verification. It checks 96-bit bounds, radix-four
+and native floor rules, the gap shortcut, 6,254 independent integer midpoint
+cases, and native admission under all four modes. Complete native flag modeling
+is compared with independent target classifications. Five real-input deletion
+controls detect missing early overflow, rounded overflow, subnormal UF, normal
+narrowing IX and boundary-forced IX. The last uses
+(0x7e0420f5,0x7f7ddc25): its exact double norm is FLT_MAX plus a quarter Float
+ULP, so the normal-range narrowing is deliberately skipped, yet IX is required.
+The 792-record raw hash ac3f7ac6b25d308d covers nearest/no-incoming result bits
+and normalized flags; 22,176 calls assert all-mode/incoming state separately.
+
+```sh
+python3 tools/oracle/oracle.py budget-hypotf
+python3 tools/oracle/oracle.py hypotf --out build/linux/hypotf-soak --seed 1793111000 --count 100000
+GMATH_HYPOTF_CORPUS_DIR=build/linux/hypotf-soak build/linux/release/apps/testHypotf --gtest_brief=1
+```
+
+Paired scalar timings on x86-64 Linux/GCC14.2/glibc2.41 use nearest/default
+fenv, CPU0 affinity, 4,096 identical input pairs and 200 alternating trials
+with integer checksums. Same-binary new/integer-baseline median ratios are
+0.47 common, 1.08 wide-gap, 0.70 subnormal, 0.78 exact triples, 0.79 normal
+seams and 0.82 overflow neighbors. The admission improves common inputs about
+2.1 times but slightly regresses the wide-gap sample. New/host-libm medians
+remain 3.03, 1.34, 4.21, 3.08, 3.63 and 1.57 respectively in those ranges;
+there is no overall speed-win claim. The release executable uses C17, -O2,
+strict aliasing, -ffp-contract=off and -fno-math-errno, with indirect float
+calls. Portable targets and application/vector workloads need separate timing.
+
+```sh
+make CC=cc CXX=g++ PREFIX="$DEPENDENCY_PREFIX" build/linux/release/apps/tools/bench-hypotf
+taskset -c 0 build/linux/release/apps/tools/bench-hypotf 200
+```
+
+To reproduce the same-binary integer-baseline comparison, build the release
+target above, then construct a private copy with only the native admission call
+removed. Its bounded native integer-root estimate remains enabled, matching the
+baseline measured here. Compile both implementations into one executable:
+
+```sh
+python3 - <<'PYBENCH'
+from pathlib import Path
+import subprocess
+stage = Path('build/linux/hypotf-comparison')
+stage.mkdir(parents=True, exist_ok=True)
+source = Path('src/elementary/hypot.c').read_text()
+marker = '#ifdef GMATH_HW_SQRT\n  uint32_t hf_fast_result;\n'
+assert source.count(marker) == 1
+start = source.index(marker)
+end = source.index('#endif\n', start) + len('#endif\n')
+baseline = source[:start] + source[end:]
+baseline = baseline.replace('double gmath_hypot(', 'double hypot_double_integer_baseline(')
+baseline = baseline.replace('float gmath_hypotf(', 'float hypotf_integer_baseline(')
+(stage / 'baseline.c').write_text(baseline)
+bench = Path('tools/bench-hypotf.c').read_text()
+bench = bench.replace('static double sample(int host) {',
+    'extern float hypotf_integer_baseline(float, float);\nstatic double sample(int host) {')
+bench = bench.replace('host ? hypotf : gmath_hypotf',
+    'host ? hypotf_integer_baseline : gmath_hypotf')
+bench = bench.replace('gmath/libm', 'gmath/integer').replace('libm ns', 'integer ns')
+(stage / 'bench.c').write_text(bench)
+flags = ['cc', '-std=c17', '-O2', '-ffp-contract=off', '-fno-math-errno',
+         '-fstrict-aliasing', '-fPIC', '-fvisibility=hidden', '-DGMATH_BUILD',
+         '-Iinclude', '-Ibuild/linux/release/generated', '-Isrc/elementary']
+for src, name in [('src/elementary/hypot.c', 'current'), (str(stage / 'baseline.c'), 'baseline')]:
+    subprocess.run(flags + ['-c', src, '-o', str(stage / (name + '.o'))], check=True)
+subprocess.run(flags + [str(stage / 'bench.c'), str(stage / 'current.o'),
+    str(stage / 'baseline.o'), '-lm', '-o', str(stage / 'bench')], check=True)
+PYBENCH
+taskset -c 0 build/linux/hypotf-comparison/bench 200
+```
+
 ## Binary32 base-ten logarithm
 
 `gmath_log10f` reuses the unchanged natural float kernel and multiplies its

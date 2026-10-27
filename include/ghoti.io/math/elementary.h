@@ -371,6 +371,25 @@ GMATH_API double gmath_atan2(double y, double x);
  */
 GMATH_API double gmath_hypot(double x, double y);
 
+/**
+ * @brief Binary32 hypotenuse, correctly rounded to nearest with ties to even.
+ *
+ * Finite-result bits use nearest rounding independently of the current mode.
+ * A signaling NaN gives canonical NaN and invalid, even with infinity.
+ * Otherwise infinity dominates quiet NaNs; remaining quiet NaNs canonicalize
+ * without invalid. Signs are ignored; two zeros give +0. Exact finite results
+ * raise no new exceptions. Inexact results raise inexact, plus underflow only
+ * when the rounded result is subnormal (tininess after rounding). Rounded
+ * overflow gives infinity with overflow/inexact in every mode. errno, mode
+ * and incoming flags are preserved. Full directed libm numerical/errno
+ * semantics are not promised.
+ *
+ * @param x One leg.
+ * @param y The other leg.
+ * @return The length of the hypotenuse as a float.
+ */
+GMATH_API float gmath_hypotf(float x, float y);
+
 #ifdef __cplusplus
 }
 #endif

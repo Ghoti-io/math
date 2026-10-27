@@ -25,6 +25,17 @@ The deterministic contracts in the public headers remain authoritative.
   inputs remain slower than host libm; wide ranges and exact integer powers
   are faster on the measured host (see design notes).
 
+- Binary32 hypotenuse: `gmath_hypotf`, correctly rounded nearest/ties-even in
+  every mode with exact-result/no-new-flags behavior. Signaling NaNs have
+  explicit priority; finite inexact results use tininess after rounding and
+  deterministic overflow flags. Exact 96-bit integer rounding backs a guarded
+  native approximation. Committed/larger independent samples have
+  35,910/229,568 rows; strict midpoint-square certificates enforce target bits,
+  with closed error-cell upper bound 0.50000003 ULP at an exact finite tie.
+  Native admission improves the common sample about 2.1 times versus the
+  integer baseline, but ordinary calls remain about three times host libm.
+  No overall performance win is claimed.
+
 - Binary32 base-ten logarithm: `gmath_log10f`, reusing the unchanged natural
   float kernel with one double base conversion. Exact representable decimal
   powers 10^0 through 10^10 return integers without new flags in every mode;
@@ -112,7 +123,7 @@ The deterministic contracts in the public headers remain authoritative.
 ## Upcoming project-used gaps
 
 1. Remaining float elementary operations used by WebAssembly, model and
-   CJelly, including `hypotf` and `atan2f`. Further float-trig tuning
+   CJelly, including `atan2f`. Further float-trig tuning
    remains useful, especially small-path overhead and the residual wide-range
    libm gap. Float accuracy and exception handling remain separate targets.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
@@ -131,6 +142,24 @@ Future float elementary operations must use binary32 rounding and ulp spacing
 in their reference data, not a binary64 corpus tolerance.
 
 ## Verification and remaining limits
+
+The hypotf phase passes full default GCC14.2/GCC16.2 gates, 183 unit tests
+on GCC14/GCC16/Clang and seven focused ASan/UBSan tests. Independent numerical
+and blind reviews with follow-up are resolved. Native mutation checks detect
+42 implementation/state plants; forced-portable checks detect 31 and explicitly
+skip 11 unavailable hardware plants. Both configurations pass 35 loader fixtures,
+four oracle faults, strict target/reference integrity, raw/output hash and
+actual former-directory-typo guards. Fresh metadata/population/path checks run
+in the ordinary oracle gate too. The pinned certificate independently models
+final flags and rejects five real-input flag-only deletions across all modes.
+Host pinned checks run; optional nested oracles/certificates skip explicitly
+in the GCC16 image. All 51 result sets and the old aggregate agree across six
+emulated targets. Final 792-case raw probes pass default/portable at -O0/-O2;
+22,176 calls per run separately assert all-mode/incoming state. Larger references
+cover 229,568 pairs with strict nearest-target certificates and the same
+0.50000003 conservative closed-cell bound. Physical-target timing, vector and
+application performance remain unmeasured; directed libm semantics remain
+outside this API's deterministic-nearest contract.
 
 The log10f phase passes full default GCC14.2/GCC16.2 gates, 176 unit tests
 on GCC14/GCC16/Clang and ten focused ASan/UBSan tests. Independent numerical
@@ -199,7 +228,7 @@ raw-bit NaN/zero/infinity tests, all four rounding modes, errno/exception-state
 checks, mutation checks and supplemental result hashes. Existing hashes remain
 unchanged. Build/test validation and independent reviews accompany each commit.
 
-Math-only QEMU checks now match all 50 committed function hashes on i686,
+Math-only QEMU checks now match all 51 committed function hashes on i686,
 AArch64, s390x, PowerPC64, PowerPC32 and SPARC64 Linux, with both default and
 forced-portable square root. Raw binary32 special-value/exception probes also
 pass on those emulated targets at both `-O0` and `-O2`. These are probe executions, not physical-host or full GoogleTest

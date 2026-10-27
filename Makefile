@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -385,6 +385,7 @@ $(APP_DIR)/examples/%$(EXE_EXTENSION): examples/%.c $(APP_DIR)/$(STATIC_TARGET) 
 .PHONY: check-planted-expf check-expf-oracle oracle-expf
 .PHONY: check-planted-logf check-logf-oracle oracle-logf
 .PHONY: check-planted-log10f check-log10f-oracle oracle-log10f
+.PHONY: check-planted-hypotf check-hypotf-oracle oracle-hypotf
 .PHONY: check-planted-cbrt check-cbrt-oracle oracle-cbrt oracle-fit-cbrt
 .PHONY: check-planted-floattrig check-floattrig-oracle oracle-floattrig check-floattrig-special
 .PHONY: check-planted-floatbasic check-floatbasic-oracle oracle-floatbasic check-floatbasic-special
@@ -595,6 +596,22 @@ check-log10f-special: $(LOG10F_SPECIAL_PROBE) tests/corpus/log10f-special.hash
 	 cmp tests/corpus/log10f-special.hash $(BUILD_DIR)/log10f-special.actual && \
 	 cat $(BUILD_DIR)/log10f-special.actual
 
+BENCH_PROBE_HYPOTF := $(APP_DIR)/tools/bench-hypotf$(EXE_EXTENSION)
+HYPOTF_SPECIAL_PROBE := $(APP_DIR)/tools/probe-hypotf-special$(EXE_EXTENSION)
+$(BENCH_PROBE_HYPOTF): tools/bench-hypotf.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+
+$(HYPOTF_SPECIAL_PROBE): tools/probe-hypotf-special.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+
+.PHONY: check-hypotf-special
+check-hypotf-special: $(HYPOTF_SPECIAL_PROBE) tests/corpus/hypotf-special.hash
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(HYPOTF_SPECIAL_PROBE) > $(BUILD_DIR)/hypotf-special.actual && \
+	 cmp tests/corpus/hypotf-special.hash $(BUILD_DIR)/hypotf-special.actual && \
+	 cat $(BUILD_DIR)/hypotf-special.actual
+
 FLOATTRIG_WIDE_PROBE := $(APP_DIR)/tools/probe-floattrig-wide$(EXE_EXTENSION)
 $(FLOATTRIG_WIDE_PROBE): tools/probe-floattrig-wide.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP) | $(APP_DIR)/$(TARGET) $(LIBVER_GEN)
 	@mkdir -p $(@D)
@@ -665,7 +682,7 @@ corpus-hash-update: $(HASH_PROBE) ## Rewrite tests/corpus/trig.hash from this bu
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(HASH_PROBE) $(CORPUS_DIR) | awk 'BEGIN{print "# FNV-1a 64 over the little-endian bytes of every result, sin cos tan atan2 exp log pow hypot sqrt floor ceil trunc round rint fabs copysign scalbn frexp ilogb, in corpus order."; print "# `hash` and `count` are over all nineteen; each `fn` line is one function alone; sqrt_portable, sqrt_hardware and ldexp are variants, outside the total, that must equal sqrt and scalbn; decimal_parse (bits, flags, bytes consumed) and decimal_shortest (sign, digits, exponent) are outside the total too."; print "# Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig, testElementary and the cross-target scripts."} $$1=="math.trig.hash"{print "hash " $$2} $$1=="math.trig.count"{print "count " $$2} $$1 ~ /^math\.[a-z0-9_]+\.hash$$/ && $$1!="math.trig.hash"{split($$1,a,"."); h[a[2]]=$$2; o[++n]=a[2]} $$1 ~ /^math\.[a-z0-9_]+\.count$$/ && $$1!="math.trig.count"{split($$1,a,"."); c[a[2]]=$$2} END{for(i=1;i<=n;i++) print "fn " o[i] " " h[o[i]] " " c[o[i]]}' > $(CORPUS_DIR)/trig.hash
 	@cat $(CORPUS_DIR)/trig.hash
 
-check-planted: check-planted-exact check-planted-decimal check-planted-remainder check-planted-extrema check-planted-logbase check-planted-exp2 check-planted-exp2f check-planted-expf check-planted-logf check-planted-log10f check-planted-cbrt check-planted-floatbasic check-planted-floattrig $(OBJ_DIR)/tests/test_trig.o $(OBJ_DIR)/tests/test_elementary.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect fails its tests and the control passes
+check-planted: check-planted-exact check-planted-decimal check-planted-remainder check-planted-extrema check-planted-logbase check-planted-exp2 check-planted-exp2f check-planted-expf check-planted-logf check-planted-log10f check-planted-hypotf check-planted-cbrt check-planted-floatbasic check-planted-floattrig $(OBJ_DIR)/tests/test_trig.o $(OBJ_DIR)/tests/test_elementary.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect fails its tests and the control passes
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_trig.o' PLANT_PROBE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
@@ -758,6 +775,13 @@ check-planted-log10f: $(OBJ_DIR)/tests/test_log10f.o $(LIBOBJECTS) $(HASH_PROBE)
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_log10f.o' PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-log10f' \
 	 python3 tools/check-planted-log10f.py
+
+check-planted-hypotf: $(OBJ_DIR)/tests/test_hypotf.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove hypotf implementation, oracle and hash defects fail
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_hypotf.o' PLANT_PROBE='$(HASH_PROBE)' \
+	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-hypotf' \
+	 python3 tools/check-planted-hypotf.py
 
 oracle-exp2: ## Regenerate committed binary exponential references in the pinned image
 	@$(ORACLE) exp2 --out $(CORPUS_DIR) --seed 20261026 --count 3000
@@ -858,6 +882,28 @@ check-log10f-oracle: $(APP_DIR)/testLog10f$(EXE_EXTENSION) ## Check committed an
 	   || { printf 'check-log10f-oracle: FAIL with seed %s\n' "$$seed" >&2; exit 1; }; \
 	 elif [ $$rc -eq 3 ]; then \
 	   printf 'check-log10f-oracle: SKIPPED fresh reference, committed regeneration and pinned budget; committed corpus still checked\n'; \
+	 else exit $$rc; fi
+
+oracle-hypotf: ## Regenerate committed binary32 hypotenuse references in the pinned image
+	@$(ORACLE) hypotf --out $(CORPUS_DIR) --seed 20261027 --count 3000
+
+check-hypotf-oracle: $(APP_DIR)/testHypotf$(EXE_EXTENSION) ## Check committed and fresh hypotf references (skip fresh loudly without the pinned image)
+	@python3 tools/check-hypotf-reference.py
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(APP_DIR)/testHypotf$(EXE_EXTENSION) --gtest_brief=1
+	@mkdir -p $(BUILD_DIR); \
+	 seed=$${GMATH_ORACLE_SEED:-$$(date +%s)}; rc=0; \
+	 printf 'check-hypotf-oracle: fresh seed %s\n' "$$seed"; \
+	 $(ORACLE) fresh-hypotf --out $(BUILD_DIR)/oracle-hypotf --seed $$seed --count 3000 || rc=$$?; \
+	 if [ $$rc -eq 0 ]; then \
+	   $(ORACLE) budget-hypotf && \
+	   $(ORACLE) hypotf --out $(BUILD_DIR)/hypotf-committed --seed 20261027 --count 3000 && \
+	   cmp tests/corpus/hypotf.corpus $(BUILD_DIR)/hypotf-committed/hypotf.corpus && \
+	   LD_LIBRARY_PATH="$(TEST_LD_PATH)" python3 tools/check-planted-hypotf.py --verify-fresh \
+	     "$(abspath $(APP_DIR)/testHypotf$(EXE_EXTENSION))" "$(abspath $(BUILD_DIR)/oracle-hypotf)" \
+	     "$$seed" 3000 "$(abspath $(BUILD_DIR)/hypotf-fresh-selection)" \
+	   || { printf 'check-hypotf-oracle: FAIL with seed %s\n' "$$seed" >&2; exit 1; }; \
+	 elif [ $$rc -eq 3 ]; then \
+	   printf 'check-hypotf-oracle: SKIPPED fresh reference, committed regeneration and pinned budget; committed corpus still checked\n'; \
 	 else exit $$rc; fi
 
 check-planted-floattrig: $(OBJ_DIR)/tests/test_floattrig.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove floattrig implementation, oracle and hash defects fail

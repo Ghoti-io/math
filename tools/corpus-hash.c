@@ -71,6 +71,10 @@ static double frexp_fraction(double x, int * e) {
 }
 
 /* Float corpus values are stored as exactly widened doubles. */
+static double hypotf_widened(double x, double y) {
+  return (double)gmath_hypotf((float)x, (float)y);
+}
+
 static double fmodf_widened(double x, double y) {
   return (double)gmath_fmodf((float)x, (float)y);
 }
@@ -165,6 +169,7 @@ static const struct {
   {"log", "log", K_D_D, 1, NULL, gmath_log, NULL, NULL},
   {"pow", "pow", K_DD_D, 1, NULL, NULL, gmath_pow, NULL},
   {"hypot", "hypot", K_DD_D, 1, NULL, NULL, gmath_hypot, NULL},
+  {"hypotf", "hypotf", K_DD_D, 0, NULL, NULL, hypotf_widened, NULL},
   {"sqrt", "sqrt", K_D_D, 1, NULL, gmath_sqrt, NULL, NULL},
   {"floor", "floor", K_D_D, 1, NULL, gmath_floor, NULL, NULL},
   {"ceil", "ceil", K_D_D, 1, NULL, gmath_ceil, NULL, NULL},
