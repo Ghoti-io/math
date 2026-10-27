@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -613,6 +613,15 @@ check-hypotf-special: $(HYPOTF_SPECIAL_PROBE) tests/corpus/hypotf-special.hash
 	 cmp tests/corpus/hypotf-special.hash $(BUILD_DIR)/hypotf-special.actual && \
 	 cat $(BUILD_DIR)/hypotf-special.actual
 
+ADJACENT_PROBE := $(APP_DIR)/tools/probe-adjacent$(EXE_EXTENSION)
+$(ADJACENT_PROBE): tools/probe-adjacent.c tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: check-adjacent-special
+check-adjacent-special: $(ADJACENT_PROBE)
+	@$(ADJACENT_PROBE) > $(BUILD_DIR)/adjacent-special.actual && \
+	 python3 tools/check-adjacent-output.py $(BUILD_DIR)/adjacent-special.actual
+
 FLOATSCALE_PROBE := $(APP_DIR)/tools/probe-float-scale$(EXE_EXTENSION)
 $(FLOATSCALE_PROBE): tools/probe-float-scale.c tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
@@ -653,6 +662,14 @@ check-atanf-special: $(ATANF_SPECIAL_PROBE) tests/corpus/atanf-special.hash
 	@$(ATANF_SPECIAL_PROBE) > $(BUILD_DIR)/atanf-special.actual && \
 	 cmp tests/corpus/atanf-special.hash $(BUILD_DIR)/atanf-special.actual && \
 	 cat $(BUILD_DIR)/atanf-special.actual
+
+BENCH_PROBE_ADJACENT := $(APP_DIR)/tools/bench-adjacent$(EXE_EXTENSION)
+$(BENCH_PROBE_ADJACENT): tools/bench-adjacent.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: bench-adjacent
+bench-adjacent: $(BENCH_PROBE_ADJACENT)
+	@$(BENCH_PROBE_ADJACENT)
 
 BENCH_PROBE_FLOATSCALE := $(APP_DIR)/tools/bench-floatscale$(EXE_EXTENSION)
 $(BENCH_PROBE_FLOATSCALE): tools/bench-floatscale.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
@@ -987,6 +1004,33 @@ check-hypotf-oracle: $(APP_DIR)/testHypotf$(EXE_EXTENSION) ## Check committed an
 .PHONY: check-budget-optimization
 check-budget-optimization: ## Reject optimized certificates and check normal pinned controls
 	@python3 tools/check-budget-optimization.py
+
+.PHONY: oracle-adjacent check-adjacent-oracle check-planted-adjacent
+oracle-adjacent: ## Regenerate exact adjacent-value references
+	@$(ORACLE) adjacent --out $(CORPUS_DIR) --seed 20261027 --count 2000
+
+check-adjacent-oracle: $(APP_DIR)/testAdjacent$(EXE_EXTENSION) $(ADJACENT_PROBE)
+	@python3 tools/check-adjacent-reference.py
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(APP_DIR)/testAdjacent$(EXE_EXTENSION) --gtest_brief=1
+	@rc=0; seed=$${GMATH_ORACLE_SEED:-$$(date +%s)}; \
+	 $(ORACLE) fresh-adjacent --out $(BUILD_DIR)/oracle-adjacent --seed $$seed --count 2000 || rc=$$?; \
+	 if [ $$rc -eq 0 ]; then \
+	   $(ORACLE) adjacent --out $(BUILD_DIR)/adjacent-committed --seed 20261027 --count 2000 && \
+	   for f in nextafter-special.corpus nextafterf-special.corpus nextafter.corpus nextafterf.corpus adjacent-special.hash; do \
+	     cmp tests/corpus/$$f $(BUILD_DIR)/adjacent-committed/$$f || exit 1; \
+	   done && \
+	   LD_LIBRARY_PATH="$(TEST_LD_PATH)" python3 tools/check-planted-adjacent.py --verify-fresh \
+	     "$(abspath $(APP_DIR)/testAdjacent$(EXE_EXTENSION))" "$(abspath $(BUILD_DIR)/oracle-adjacent)" "$$seed" 2000 \
+	   || exit 1; \
+	 elif [ $$rc -eq 3 ]; then \
+	   printf 'check-adjacent-oracle: SKIPPED fresh references and pinned regeneration; committed corpus checked\n'; \
+	 else exit $$rc; fi
+
+check-planted-adjacent: $(OBJ_DIR)/tests/test_adjacent.o $(LIBOBJECTS) $(ADJACENT_PROBE)
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_adjacent.o' PLANT_RAW_PROBE='$(ADJACENT_PROBE)' PLANT_WORK='$(BUILD_DIR)/planted-adjacent' \
+	 python3 tools/check-planted-adjacent.py
 
 .PHONY: oracle-floatscale check-floatscale-oracle check-planted-floatscale
 oracle-floatscale: ## Regenerate exact Float decomposition/scaling references

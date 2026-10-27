@@ -73,6 +73,9 @@ static double frexp_fraction(double x, int * e) {
 }
 
 /* Float corpus values are stored as exactly widened doubles. */
+static double nextafterf_widened(double x, double y) {
+  return (double)gmath_nextafterf((float)x, (float)y);
+}
 static double scalbnf_widened(double x, int n) {
   return (double)gmath_scalbnf((float)x, n);
 }
@@ -189,6 +192,8 @@ static const struct {
   {"cos", "cos", K_D_D, 1, NULL, gmath_cos, NULL, NULL},
   {"tan", "tan", K_D_D, 1, NULL, gmath_tan, NULL, NULL},
   {"atan2", "atan2", K_DD_D, 1, NULL, NULL, gmath_atan2, NULL},
+  {"nextafter", "nextafter", K_DD_D, 0, NULL, NULL, gmath_nextafter, NULL},
+  {"nextafterf", "nextafterf", K_DD_D, 0, NULL, NULL, nextafterf_widened, NULL},
   {"scalbnf", "scalbnf", K_DN_D, 0, NULL, NULL, NULL, scalbnf_widened},
   {"ldexpf", "scalbnf", K_DN_D, 0, "scalbnf", NULL, NULL, ldexpf_widened},
   {"frexpf", "frexpf", K_F_DN, 0, NULL, NULL, NULL, NULL},

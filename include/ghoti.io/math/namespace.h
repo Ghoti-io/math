@@ -100,6 +100,8 @@
 #define gmath_llround GHOTIIO_MATH(gmath_llround)
 #define gmath_llroundf GHOTIIO_MATH(gmath_llroundf)
 #define gmath_round GHOTIIO_MATH(gmath_round)
+#define gmath_nextafter GHOTIIO_MATH(gmath_nextafter)
+#define gmath_nextafterf GHOTIIO_MATH(gmath_nextafterf)
 #define gmath_scalbnf GHOTIIO_MATH(gmath_scalbnf)
 #define gmath_ldexpf GHOTIIO_MATH(gmath_ldexpf)
 #define gmath_frexpf GHOTIIO_MATH(gmath_frexpf)

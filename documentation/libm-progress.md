@@ -6,6 +6,12 @@ The deterministic contracts in the public headers remain authoritative.
 
 ## Completed capabilities
 
+- Adjacent representable values: `gmath_nextafter` and `gmath_nextafterf`,
+  with exact mode-independent integer stepping, y's bits on equality,
+  canonical NaNs and explicit overflow/underflow/inexact rules. Unequal tiny
+  steps require UF/IX even when exactly representable. errno, mode and
+  incoming flags are preserved; full errno semantics are not promised.
+
 - Exact binary32 decomposition/scaling: `gmath_frexpf`, `gmath_ilogbf`,
   `gmath_scalbnf` and `gmath_ldexpf`. Integer normalization and once-only
   nearest/ties-even packing preserve exact outputs and caller state in every
@@ -157,11 +163,93 @@ The deterministic contracts in the public headers remain authoritative.
 1. The audited production Float gap (`atanf`) and tool-used integer rounding
    gap (`lround`) are now provided; consumer migration remains deferred.
    Recheck usage before choosing further project-used APIs. Continue broader
-   float/double coverage, including adjacent values and remaining basic
-   rounding/remainder families. Keep accuracy, exception behavior and performance separate.
+   float/double coverage, including remaining basic decomposition and
+   rounding/remainder families. Investigate measured adjacent Float overhead
+   before another broad family if a safe meaningful gain is available. Keep accuracy, exception behavior and performance separate.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
+
+## Adjacent-value validation
+
+The two APIs bring classic real-function name coverage to 59 of 171: 30 Double,
+29 Float and no long-double entries. Missing 27 Double + 28 Float = 55 float/double
+additions, or 112 including 57 long-double entries; complex arithmetic adds 66
+more. These are name counts, excluding fenv/macros/vendor extensions and
+additional behavioral parity. Twenty cohesive phases now add 39 APIs, two
+optimizations and certificate maintenance. Consumers remain unmigrated.
+
+Full default GCC14.2/GCC16.2 gates and 206 unit tests in 27 binaries pass, with
+Clang unit-only coverage and four focused ASan/UBSan tests. Independent contract
+investigation, blind review and follow-ups are resolved. Review strengthened
+standalone parsing, independent fresh widening, immediate destinations,
+zero-errno and all-subset state coverage. A residual embedded-NUL bypass in
+the standalone probe was reproduced and fixed with byte-counted input; both
+unit validation and SHA already rejected that corruption. No review finding
+is deferred.
+
+Committed raw references contain 125,378 Double and 17,858 Float pairs; 17,752
+Float pairs remain after excluding signaling inputs for exact widening.
+Fraction spacing and pinned directed MPFR agree on targets, with explicit
+fixed boundary controls. A larger 173,378/65,858-pair sample and three fresh
+128,378/20,858-pair samples pass values, independent widened-row consistency
+and generated raw/state hashes. All five payloads have mandatory complete
+SHA256/LF gates and byte-identical pinned regeneration. Fresh checks verify
+metadata/populations/directory, including a disposable empty-directory
+counterfactual; caller evidence is never renamed. The actual old-family
+directory typo is detected with equal-sized fallback. Actual wrapper dispatch
+omission is separately detected for both normal/fresh commands using a
+recording engine. Optional nested-oracle absence skips explicitly; strict
+required absence fails.
+
+All 36 source/state plants detect, including conditional zero-errno writes and
+mixed-flag clearing on both APIs. Fifty unit-loader rejection fixtures,
+20 independent raw-loader negatives, seven widened-payload negatives, five
+complete-file checksum corruptions, eight raw-output field corruptions,
+seven pinned oracle faults and four supplemental hash omission/corruption
+controls detect. Overflow and zero/subnormal UF deletion variants are real
+flag-only controls: integer construction introduces no preceding FP flag.
+Earlier expf/exp2f/atanf force-only deletion witness limits remain unchanged.
+
+New supplemental sets are `nextafter beb51b91820d1a0c` over 125,378 results and
+`nextafterf acbbbeef9ad7711f` over 17,752. All 61 previous hashes and legacy
+aggregate `f5fa269eb60ee34f` over 292,711 results remain unchanged. Six emulated
+targets agree on all 63 numeric sets in default/portable profiles. Raw O0/O2
+profiles on i686, AArch64, s390x, PowerPC64, PowerPC32 and SPARC64 agree:
+
+| API | Raw result/flag hash | Raw pairs | All-mode hash | State calls |
+| --- | --- | ---: | --- | ---: |
+| nextafter | `3c4a5af59878d4cc` | 125378 | `79a3304685a58bdd` | 424448 |
+| nextafterf | `1b1f2fec1551d519` | 17858 | `b79be56e77366a25` | 207616 |
+
+State calls request four modes, 32 incoming-flag subsets and both zero/nonzero
+errno seeds on selected pairs, asserting actual incoming state separately
+from the unseeded normalized-flag hash. The larger native probe checks 239,236
+nearest results and 826,112 state calls. The i686 O0 raw caller contains no
+x87 fldl/flds argument loads. These are emulated probes, not physical-host or
+full cross-target GoogleTest coverage. Windows, exhaustive pair-space testing
+and application timings remain unrun.
+
+Two same-processor runs use 401 alternating pairs of 4,096 identical inputs,
+clean/UF-IX states and zero/nonzero errno, integer timestamps, untimed host-bit
+guards, absolute medians and paired ratio p10/median/p90. Call/loop/checksum/
+timestamp overhead and amortized first-exception costs are included. Median
+gmath/libm ratios across runs/entry states are:
+
+| Input range | Double | Float |
+| --- | ---: | ---: |
+| Common normal | 0.949–0.990 | 1.247–1.424 |
+| Equality | 0.701–0.776 | 0.876–0.877 |
+| Subnormal inputs | 0.765–0.801 | 1.141–1.152 |
+| Normal boundary | 0.779–0.783 | 1.033–1.059 |
+| Overflow/inward | 0.608–0.631 | 0.980–1.013 |
+
+Common absolute medians span 5.854–6.565 ns Double (host 6.042–6.735 ns) and
+5.608–5.911 ns Float (host 4.229–4.613 ns). Earlier runs varied. Double samples
+show some range-specific gains; common Float inputs remain slower. No overall,
+application or cross-platform win is claimed, and host errno semantics differ
+where specified. A later result-preserving sign/magnitude simplification may
+address Float overhead; it is not implemented or measured here.
 
 ## Float decomposition/scaling validation
 

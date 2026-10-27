@@ -1767,3 +1767,74 @@ The negative directory control uses a disposable empty directory, without
 renaming caller evidence. Per-function hashes are supplemental, leaving the
 legacy aggregate unchanged. Measurements and actual validation scope are
 recorded in `libm-progress.md`.
+
+### Exact adjacent representable values
+
+`gmath_nextafter` and `gmath_nextafterf` implement binary64/binary32 adjacency
+using integer encodings. Value and exception classes follow WG14
+[N1570 sections 7.12.11.3 and F.10.8.3](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf).
+Canonical NaNs and preserved errno are explicit library policy. No other
+implementation source was read or copied.
+
+NaNs are classified before equality, examining both signaling bits. Equality
+returns the destination's exact bits, including opposing zeros, without new
+flags. Unequal zero starts at the signed minimum subnormal toward the target.
+For nonzero ordered x, let S be its sign mask and a its unsigned magnitude.
+The key is S+a for positive encodings and S-a for negative ones. Both zero keys
+are S; every non-NaN magnitude is smaller than S, so these operations fit the
+unsigned word. Keys order all finite values and infinities numerically.
+Increment x's raw encoding when the upward-direction Boolean differs from
+x's sign Boolean; otherwise decrement it. This traverses one representable
+value. Infinity always moves inward unless equality already returned it;
+nonzero inputs never decrement an unsigned zero. Binary32 words are widened
+to `uint64_t` for this shared helper and narrowed only as integer bits.
+
+Finite-to-infinity steps require OF/IX. Any unequal result below minimum normal,
+including zero, requires UF/IX, even when the adjacent value is represented
+exactly. Maximum-subnormal to minimum-normal adds no flags, while the reverse
+step requires UF/IX. Other cases add none. The exception helpers are used only
+for effects, with final values constructed as bits; results and flag classes
+are independent of the caller's rounding direction. errno, mode and incoming
+flags are preserved; full libm errno semantics are not promised. Earlier
+functions and their documented exception contracts remain unchanged.
+
+Reference generation derives the neighbor through exact Fraction spacing:
+use the binade's ULP, halve it when stepping inward from an exact power of two,
+and clamp to minimum-subnormal spacing. An exact-representability check guards
+encoding. Independently, pinned MPFR adds a tiny perturbation under upward or
+downward target-format rounding, with precision 53/24, bounded exponent range
+and subnormalization. The perturbation 2^-1200 is smaller than the binary64
+minimum spacing. Both signs are constructed before entering the restricted
+context: constructing its negative inside that context can itself underflow.
+Fixed zero/subnormal/normal-one/infinity/NaN controls protect these choices;
+an actual restricted-unary-minus oracle fault is detected. MPFR and Fraction
+agree on numerical targets; flag classes come from the stated contract.
+
+The sweep includes edge significands in every exponent field, both signs,
+both immediate destinations for finite inputs and distant directions, plus random pairs
+and a raw special-value cross product. Raw Float references retain signaling
+inputs; widened Float hash inputs exclude them. The unit loader certifies
+adjacency/destination bounds through finite host comparisons and magnitude
+distance, checking raw special classes first. Fresh widened payloads must
+match their certified raw rows exactly, through independent integer IEEE
+widening and the signaling-input exclusion rule. Both committed and fresh
+raw/state hashes are exercised; all incoming five-flag subsets and zero/nonzero
+errno seeds are requested on selected cases. Actual incoming flags are captured
+because feraiseexcept can add implementation-dependent related flags.
+
+Five complete-file SHA256 gates and LF attributes protect committed payloads.
+The generator reuses the existing staged five-file publisher, with exception
+rollback/permission controls exercised by the Float scaling gate. Publication
+is not crash-atomic as a set; checksums reject interrupted mixed generations.
+The standalone C probe also enforces provenance/function/schema, bounded
+metadata/population, unique pairs, complete fields and legal flag masks. Its
+byte-counted line reader rejects embedded NUL and oversized lines instead of
+letting C string termination hide trailing input. Negative parser controls run
+without relying on the checksum or output comparator.
+
+Reproduce using `make oracle-adjacent`, `make check-adjacent-oracle`,
+`make check-adjacent-special`, `make check-planted-adjacent` and
+`make bench-adjacent`. The full wrapper's actual family-dispatch omission is
+calibrated with a recording engine; this is a routing control, separate from
+pinned numerical evidence. Validation and performance limits follow in
+`libm-progress.md`.

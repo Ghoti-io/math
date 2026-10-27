@@ -24,3 +24,9 @@ tests/corpus/float_scale-special.hash text eol=lf
 tests/corpus/scalbnf.corpus text eol=lf
 tests/corpus/frexpf.corpus text eol=lf
 tests/corpus/ilogbf.corpus text eol=lf
+
+tests/corpus/nextafter-special.corpus text eol=lf
+tests/corpus/nextafterf-special.corpus text eol=lf
+tests/corpus/nextafter.corpus text eol=lf
+tests/corpus/nextafterf.corpus text eol=lf
+tests/corpus/adjacent-special.hash text eol=lf

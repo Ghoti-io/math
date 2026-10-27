@@ -360,6 +360,29 @@ GMATH_API float gmath_frexpf(float x, int * e);
 GMATH_API int gmath_ilogbf(float x);
 
 /**
+ * @brief Adjacent binary64 value after x toward y, independent of rounding mode.
+ *
+ * Equal values return y, including its zero sign. Unequal zero steps toward y
+ * to the signed minimum subnormal. Infinity steps inward to signed maximum
+ * finite. Any NaN canonicalizes, invalid if either operand signals. Finite
+ * overflow requires overflow/inexact; any unequal subnormal or zero result
+ * requires underflow/inexact, including exact subnormal steps. Other cases
+ * add no flags. errno, mode and incoming flags are preserved; full libm errno
+ * semantics are not promised.
+ * @param x The starting value.
+ * @param y The direction value.
+ * @return The adjacent value, y on equality, or canonical NaN.
+ */
+GMATH_API double gmath_nextafter(double x, double y);
+/**
+ * @brief Binary32 counterpart of ::gmath_nextafter, with the same contract.
+ * @param x The starting Float value.
+ * @param y The Float direction value.
+ * @return The adjacent Float value, y on equality, or canonical NaN.
+ */
+GMATH_API float gmath_nextafterf(float x, float y);
+
+/**
  * @brief The exact remainder x - n*y, with n the quotient truncated to zero.
  *
  * For finite @p x and finite nonzero @p y the result has the sign of @p x

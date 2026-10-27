@@ -64,3 +64,5 @@ fn scalbnf 27a1b98daffdda7a 178156
 fn ldexpf 27a1b98daffdda7a 178156
 fn frexpf 8bccabb7ed1f52ec 4196
 fn ilogbf 0ef843f80e25384f 4196
+fn nextafter beb51b91820d1a0c 125378
+fn nextafterf acbbbeef9ad7711f 17752

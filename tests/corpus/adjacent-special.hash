@@ -1,0 +1,8 @@
+math.nextafter_raw.hash 3c4a5af59878d4cc
+math.nextafter_raw.count 125378
+math.nextafter_all_modes.hash 79a3304685a58bdd
+math.nextafter_state.count 424448
+math.nextafterf_raw.hash 1b1f2fec1551d519
+math.nextafterf_raw.count 17858
+math.nextafterf_all_modes.hash b79be56e77366a25
+math.nextafterf_state.count 207616
