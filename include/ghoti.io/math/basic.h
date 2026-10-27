@@ -383,6 +383,28 @@ GMATH_API double gmath_nextafter(double x, double y);
 GMATH_API float gmath_nextafterf(float x, float y);
 
 /**
+ * @brief Exact signed integral/fractional splitting in every rounding mode.
+ *
+ * Stores the integral part toward zero and returns the fractional part; both
+ * have x's sign, including zeros. Infinities store themselves and return
+ * signed zero. NaNs give canonical NaN in both outputs, invalid only for
+ * signaling NaNs. No other new exceptions; errno, mode and incoming flags
+ * are preserved. NULL omits the integral output without changing the return
+ * or exception behavior (an extension to the standard modf interface).
+ * @param x The argument.
+ * @param integral Receives the integral part; may be NULL.
+ * @return The signed fractional part or canonical NaN.
+ */
+GMATH_API double gmath_modf(double x, double * integral);
+/**
+ * @brief Binary32 counterpart of ::gmath_modf with the same exact contract.
+ * @param x The Float argument.
+ * @param integral Receives the Float integral part; may be NULL.
+ * @return The signed Float fractional part or canonical Float NaN.
+ */
+GMATH_API float gmath_modff(float x, float * integral);
+
+/**
  * @brief The exact remainder x - n*y, with n the quotient truncated to zero.
  *
  * For finite @p x and finite nonzero @p y the result has the sign of @p x

@@ -4,7 +4,19 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
+Current snapshot: 22 verified phases add 41 APIs, three performance optimizations
+and certificate maintenance. Classic real-function name coverage is 61/171;
+53 Float/Double additions remain, or 110 including long double. The phase
+sections below retain historical counts and measurements.
+
 ## Completed capabilities
+
+- Exact signed integral/fractional splitting: `gmath_modf` and `gmath_modff`.
+  Both parts preserve the input sign, including zero; infinities return signed
+  zero and store themselves. Canonical NaNs, signaling-invalid only, exact
+  finite results in every mode, preserved errno/mode/incoming flags and an
+  optional NULL integral output have explicit contracts. Consumers remain
+  unmigrated. Numerical/state evidence and performance limits follow.
 
 - Adjacent representable values: `gmath_nextafter` and `gmath_nextafterf`,
   with exact mode-independent integer stepping, y's bits on equality,
@@ -165,11 +177,103 @@ The deterministic contracts in the public headers remain authoritative.
    Recheck usage before choosing further project-used APIs. Continue broader
    float/double coverage, including remaining basic decomposition and
    rounding/remainder families. Adjacent Float overhead is now reduced by the
-   verified direction optimization; exact modf/modff is a candidate next family.
+   verified direction optimization; exact modf/modff is now supplied.
+   Investigate remaining exact `logb`/`scalbln` families next.
    Keep accuracy, exception behavior and performance separate.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
+
+## Fraction split validation
+
+The two APIs bring classic real-function name coverage to 61/171: 31 Double,
+30 Float and no long-double entries. Missing 26 Double + 27 Float = 53
+float/double additions, or 110 including 57 long-double entries; complex adds
+66 more. These count names, excluding fenv/macros/vendor extensions and
+additional behavioral parity. The prior read-only audit found no project-owned
+modf/modff production calls; this advances broader coverage. Consumers remain
+unmigrated.
+
+Committed independent references contain 32,022 Double and 6,180 Float inputs.
+Exact rational truncation and pinned MPFR independently agree on both outputs;
+all comparisons require exact bits. Four new supplemental result sets preserve
+every previous line and the legacy aggregate `f5fa269eb60ee34f` over 292,711:
+
+| Result set | Hash | Rows |
+| --- | --- | ---: |
+| modf fraction | a15da59a64013194 | 32,022 |
+| modf integral | a2eed88d4ae647d5 | 32,022 |
+| modff fraction, widened | feea8ae7dd573424 | 6,174 |
+| modff integral, widened | 3f7a8130f27b762b | 6,174 |
+
+The Float widened sets exclude signaling inputs. Raw result-pair hashes are
+`81bc8f432ad796cc` Double and `c12a535f7cf63fa7` Float; selected all-mode result/
+order hashes are `8e022d9fe7fe7da5` over 778,704 calls and `f2e4bcb03b4bec25`
+over 157,408 calls. Actual flags, errno and mode are asserted separately,
+including present/NULL outputs. These hashes do not encode hardware flag bits.
+A larger sample checks 130,022 Double/104,179 Float inputs and 5,883,984 selected
+state calls; fresh samples check requested metadata/counts/path and generated
+hashes, including equal-sized populations and unit selection. Mandatory seven
+SHA256 checks, LF attributes and byte-identical pinned regeneration protect
+complete payloads. Publication exception rollback covers all seven replacement
+positions with existing/absent outputs and preserved permissions; no
+crash-atomic claim.
+
+All 32 source/state plants detect through the affected format's test while the
+other format remains passing. Controls include omitted-output-only return/
+flag defects, zero-errno and mixed incoming flags. Thirty native loader/value
+fixtures cover both formats, including NUL, width and numeric-metadata errors;
+fourteen checksum corruptions include parse-valid semantic output changes.
+A valid recording process and eight full output hash/count/order/path defects,
+four schema/omission controls and eight new supplemental hash omission/value
+controls detect. Four actual oracle-source faults fail before publication.
+Both new wrapper commands' real dispatch omission is calibrated with a recording
+engine; those controls are not numerical oracle evidence. Optional absence
+skips explicitly, while required absent-engine mode fails specifically.
+
+Six emulated targets agree on all 67 numeric result sets in default/portable
+builds and 24 raw O0/O2/default/portable profiles: 38,202 nearest records plus
+936,112 selected state calls per profile. Direct raw memcpy preserves signaling
+inputs on i686; the final O0 caller has no fldl/flds argument loads. An initial
+probe exposed a value-return test helper quieting signaling input before flag
+setup, then an assembly guard exposed remaining unrelated value-return sentinel
+helpers. Both were removed before final passing profiles. These are emulated
+probes, not physical-host/full cross-target GoogleTest results; Windows,
+exhaustive input/state space and application timing remain unrun. External
+suite runners are unchanged; standalone reproduction is in the design notes.
+
+Full final GCC14.2/GCC16.2 default gates pass, with 209 unit tests in 28
+binaries on GCC14/GCC16/Clang (Clang unit-only) and three focused ASan/UBSan
+tests. Independent proof, blind review and follow-ups are resolved, with no
+finding deferred. Build wiring and an old wrapper-dispatch mutation anchor
+collision were corrected before final passing gates; the old calibrated anchor
+is preserved. Initial full runs hit a 1 GiB resident cap, then final runs pass
+under 2 GiB with reduced parallelism. These failed attempts are not reported
+as numerical failures or passing runs. Earlier expf/exp2f/atanf force-only
+deletion witness gaps remain unchanged.
+
+Two final-build same-processor paired runs on native x86-64/GCC14.2 use 401
+alternating pairs of 4,096 identical values, non-NULL integral outputs, clean/
+UF-IX entry states, zero/nonzero errno and integer timestamps. Untimed guards
+check both result bits against host libm. Compiler identity, build arguments,
+absolute median ns/call and paired ratio p10/median/p90 are retained. Median
+gmath/libm ratios across both runs and entry states are:
+
+| Input range | Double | Float |
+| --- | ---: | ---: |
+| Mixed fractions | 0.949–1.000 | 0.998–1.001 |
+| Below one | 0.750–0.751 | 0.750–0.775 |
+| Integral binades | 0.998–1.087 | 0.638–0.779 |
+| Subnormal | 0.750–0.883 | 0.754–0.942 |
+| Wide finite | 1.099–1.162 | 1.119–1.153 |
+
+Final mixed-fraction absolute medians are 1.437–1.785 ns gmath versus
+1.499–1.784 ns libm for Double, 1.608–1.675 versus 1.608–1.672 ns for Float.
+Earlier samples varied substantially, including slower mixed-fraction ratios;
+these final-build runs follow completion of the heavy validation. Call/loop/
+checksum/timestamp overhead is included. Common mixed inputs are near parity;
+wide finite inputs remain slower. No overall/application/cross-platform win,
+other-compiler timing or exhaustive performance claim is made.
 
 ## Adjacent direction optimization
 

@@ -66,3 +66,7 @@ fn frexpf 8bccabb7ed1f52ec 4196
 fn ilogbf 0ef843f80e25384f 4196
 fn nextafter beb51b91820d1a0c 125378
 fn nextafterf acbbbeef9ad7711f 17752
+fn modf_fraction a15da59a64013194 32022
+fn modf_integral a2eed88d4ae647d5 32022
+fn modff_fraction feea8ae7dd573424 6174
+fn modff_integral 3f7a8130f27b762b 6174

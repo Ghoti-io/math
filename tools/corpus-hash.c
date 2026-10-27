@@ -73,6 +73,11 @@ static double frexp_fraction(double x, int * e) {
 }
 
 /* Float corpus values are stored as exactly widened doubles. */
+static double modf_fraction(double x) {return gmath_modf(x, NULL);}
+static double modf_integral(double x) {double whole;(void)gmath_modf(x,&whole);return whole;}
+static double modff_fraction(double x) {return (double)gmath_modff((float)x,NULL);}
+static double modff_integral(double x) {float whole;(void)gmath_modff((float)x,&whole);return (double)whole;}
+
 static double nextafterf_widened(double x, double y) {
   return (double)gmath_nextafterf((float)x, (float)y);
 }
@@ -192,6 +197,10 @@ static const struct {
   {"cos", "cos", K_D_D, 1, NULL, gmath_cos, NULL, NULL},
   {"tan", "tan", K_D_D, 1, NULL, gmath_tan, NULL, NULL},
   {"atan2", "atan2", K_DD_D, 1, NULL, NULL, gmath_atan2, NULL},
+  {"modf_fraction", "modf_fraction", K_D_D, 0, NULL, modf_fraction, NULL, NULL},
+  {"modf_integral", "modf_integral", K_D_D, 0, NULL, modf_integral, NULL, NULL},
+  {"modff_fraction", "modff_fraction", K_D_D, 0, NULL, modff_fraction, NULL, NULL},
+  {"modff_integral", "modff_integral", K_D_D, 0, NULL, modff_integral, NULL, NULL},
   {"nextafter", "nextafter", K_DD_D, 0, NULL, NULL, gmath_nextafter, NULL},
   {"nextafterf", "nextafterf", K_DD_D, 0, NULL, NULL, nextafterf_widened, NULL},
   {"scalbnf", "scalbnf", K_DN_D, 0, NULL, NULL, NULL, scalbnf_widened},

@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -1679,3 +1679,38 @@ $(ASAN_FLAGS_STAMP): force-flags
 	@mkdir -p $(@D)
 	@printf '%s\n' '$(CC) $(CXX) $(ASAN_CFLAGS) $(ASAN_CXXFLAGS) $(ASAN_LDFLAGS) $(INCLUDE) $(ASAN_SELF_LIBRARY) $(DEP_LIBS) $(TESTFLAGS)' > $@.new
 	@cmp -s $@.new $@ 2>/dev/null && rm -f $@.new || mv -f $@.new $@
+
+# Exact integral/fractional split; default checks do not require an oracle image.
+FRACTION_SPLIT_PROBE := $(APP_DIR)/tools/probe-fraction-split$(EXE_EXTENSION)
+$(FRACTION_SPLIT_PROBE): tools/probe-fraction-split.c tests/fraction_split_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: check-fraction-split check-planted-fraction-split oracle-fraction-split
+check-fraction-split: $(FRACTION_SPLIT_PROBE)
+	@python3 tools/check-fraction-split.py $(CORPUS_DIR)
+	@python3 tools/check-split-controls.py $(FRACTION_SPLIT_PROBE) --corpus $(CORPUS_DIR)
+check-planted-fraction-split: $(OBJ_DIR)/tests/test_fraction_split.o $(LIBOBJECTS) $(FRACTION_SPLIT_PROBE)
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' PLANT_CXX='$(CXX)' \
+	 PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_fraction_split.o' PLANT_WORK='$(BUILD_DIR)/planted-fraction-split' \
+	 python3 tools/check-planted-fraction-split.py
+oracle-fraction-split:
+	@$(ORACLE) fraction_split --out $(CORPUS_DIR) --seed 20261027 --count 2000
+FRACTION_SPLIT_BENCH := $(APP_DIR)/tools/bench-fraction-split$(EXE_EXTENSION)
+$(FRACTION_SPLIT_BENCH): tools/bench-fraction-split.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: bench-fraction-split
+bench-fraction-split: $(FRACTION_SPLIT_BENCH)
+	@$(FRACTION_SPLIT_BENCH)
+
+.PHONY: check-fraction-split-oracle
+check-fraction-split-oracle: $(FRACTION_SPLIT_PROBE)
+	@rc=0; seed=$$(python3 -c 'import secrets;print(secrets.randbits(63))'); \
+	 $(ORACLE) fresh-fraction_split --out $(BUILD_DIR)/oracle-fraction-split --seed $$seed --count 2000 || rc=$$?; \
+	 if [ $$rc -eq 0 ]; then \
+	   $(ORACLE) fraction_split --out $(BUILD_DIR)/split-committed --seed 20261027 --count 2000 && \
+	   for f in modf-special.corpus modff-special.corpus modf_fraction.corpus modf_integral.corpus modff_fraction.corpus modff_integral.corpus fraction_split-special.hash; do \
+	     cmp tests/corpus/$$f $(BUILD_DIR)/split-committed/$$f || exit 1; \
+	   done && python3 tools/check-split-controls.py $(FRACTION_SPLIT_PROBE) --fresh $(BUILD_DIR)/oracle-fraction-split --seed $$seed --count 2000; \
+	 elif [ $$rc -eq 3 ]; then echo 'split oracle: SKIPPED optional pinned regeneration/fresh'; else exit $$rc; fi

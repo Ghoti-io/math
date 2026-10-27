@@ -79,6 +79,8 @@
 #define gmath_fmaxf GHOTIIO_MATH(gmath_fmaxf)
 #define gmath_fmin GHOTIIO_MATH(gmath_fmin)
 #define gmath_fminf GHOTIIO_MATH(gmath_fminf)
+#define gmath_modf GHOTIIO_MATH(gmath_modf)
+#define gmath_modff GHOTIIO_MATH(gmath_modff)
 #define gmath_fmod GHOTIIO_MATH(gmath_fmod)
 #define gmath_fmodf GHOTIIO_MATH(gmath_fmodf)
 #define gmath_frexp GHOTIIO_MATH(gmath_frexp)

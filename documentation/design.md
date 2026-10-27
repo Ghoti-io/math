@@ -1942,3 +1942,79 @@ for the optional nearest exhaustive scan. `make bench-adjacent` retains its
 separately labeled host-libm baseline. Compiler/binutils baseline construction
 and timings here were run on the native GNU/Linux builds; Windows remains
 unvalidated. Actual numerical, state and timing scope is in `libm-progress.md`.
+
+### Exact integral/fractional splitting
+
+`gmath_modf` and `gmath_modff` implement the signed split in WG14 N1570
+7.12.6.12/F.10.3.12. Both outputs retain the input sign, including zero.
+Infinity stores itself and returns signed zero. NaNs produce the canonical
+quiet NaN in both outputs; only signaling NaNs add invalid. All finite splits
+are exact in every rounding mode and add no exceptions. errno, rounding mode
+and incoming flags survive. A NULL integral pointer omits that output with the
+same return/state behavior, an extension consistent with the decomposition
+interfaces. An output object may also be the caller's input object, since the
+input is passed by value.
+
+Raw dispatch handles magnitudes below one, integral binades, infinities and
+NaNs. For the remaining finite binades, clearing the low `p-e` significand bits
+produces truncation `I`, where `p=52` for Double or `23` for Float and
+`0<=e<p`. The shift is therefore in `1..p`, below the integer word width.
+When those bits are zero, return the explicit input-signed zero. Otherwise,
+`1<=|I|<=|x|<|I|+1<=2|I|`: Sterbenz subtraction `x-I` is exact in every mode.
+Its nonzero magnitude is at least `2^-p` and less than one, so the arithmetic
+has normal operands/result and raises no underflow or inexact. Subnormal inputs
+never enter arithmetic. The implementation derives these steps directly from
+the binary representation; it does not call other library rounding functions
+or change the floating environment.
+
+The independent generator decodes exact `Fraction` inputs, truncates toward
+zero and subtracts rationally, then cross-checks both outputs with pinned MPFR
+truncation/subtraction at precision 1200 and a wide exponent range. Each exact
+output is checked for representability. Special-value bits and signaling flags
+come from the explicit contract. Fixed controls include signed zero, negative
+integers, subnormals, mixed fractions, infinity and signaling NaNs. Committed
+references cover every binade, edge significands, mask endpoints, signed
+specials and seeded raw inputs. The generic numeric probe additionally hashes
+both outputs separately; Float signaling inputs are excluded from its widened
+sets because narrowing a double could quiet them before the public call.
+The standalone raw probe retains those inputs.
+
+Seven mandatory complete-file SHA256 checks and LF checkout attributes protect
+all raw/widened references and generated raw/state hashes even without the
+optional oracle image. Publication reuses the exception-rollback set publisher:
+individual replacements are atomic, but the set is not crash-atomic; interrupted
+mixed generations fail checksums. Fresh validation verifies requested metadata,
+counts, directory provenance and generated result/state hashes; an empty-directory
+counterfactual uses a disposable directory and leaves caller evidence untouched.
+Native negative controls cover both input widths, byte-counted embedded-NUL
+rejection, checksum corruption, output accounting and directory selection.
+
+`tests/fraction_split_probe.h` is shared by the unit tests and standalone C17
+probe. Every row runs with four rounding modes, omitted/present output and two
+errno seeds. A deterministic subset and all nonfinite rows request every one
+of the 32 incoming flag subsets. Actual incoming flags are captured; some
+hardware merges related flags, so this is not a claim of 32 distinct hardware
+states. Raw/state hashes encode results and call order; flags, errno and mode
+are separately asserted on every call. They are not hashes of hardware flag
+encodings. Source/state mutation controls require the affected width's test
+to fail and the other width's test to remain passing after successful builds.
+
+The raw probe can be reproduced independently of external suite runners:
+
+```sh
+# Supply a target compiler and a runner wrapper (for example, an emulator
+# configured with its target sysroot). Run from the math checkout after make
+# has generated its public version header. Use the appropriate generated path.
+"$TARGET_CC" -std=c17 -O2 -ffp-contract=off -DGMATH_BUILD \
+  -Iinclude -Ibuild/linux/release/generated \
+  tools/probe-fraction-split.c src/elementary/fraction_split.c -lm \
+  -o build/probe-fraction-split-target
+"$TARGET_RUNNER" build/probe-fraction-split-target > build/split-target.actual
+sed 's/ from .*//' build/split-target.actual > build/split-target.normalized
+cmp tests/corpus/fraction_split-special.hash build/split-target.normalized
+```
+
+Use SSE arithmetic flags on i686, and repeat at O0 and O2. The portable build
+switches do not change this new module. These math-local probes were executed
+separately; external suite runners and consumers remain unmigrated. Emulated
+results do not substitute for physical hardware, Windows or application timing.
