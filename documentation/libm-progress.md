@@ -164,13 +164,105 @@ The deterministic contracts in the public headers remain authoritative.
    gap (`lround`) are now provided; consumer migration remains deferred.
    Recheck usage before choosing further project-used APIs. Continue broader
    float/double coverage, including remaining basic decomposition and
-   rounding/remainder families. Investigate measured adjacent Float overhead
-   before another broad family if a safe meaningful gain is available. Keep accuracy, exception behavior and performance separate.
+   rounding/remainder families. Adjacent Float overhead is now reduced by the
+   verified direction optimization; exact modf/modff is a candidate next family.
+   Keep accuracy, exception behavior and performance separate.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
 
+## Adjacent direction optimization
+
+This performance phase adds no API: classic real-function name coverage remains
+59/171, with 55 Float/Double or 112 including long-double entries missing.
+Twenty-one cohesive phases now supply 39 added APIs, three optimizations and
+certificate maintenance. Consumers remain unmigrated.
+
+Replace two signed-order key constructions with a branchless sign/magnitude
+predicate and explicit-width magnitude masks. NaN/equality/zero behavior,
+result bits, all exception classes and caller-state contracts are unchanged.
+Same-sign larger magnitude moves outward; all other ordered cases move inward.
+The no-wrap step `(x-1)+(outward<<1)` is valid after the existing dispatch.
+Independent investigation/review verifies width and bounds. A simple branched
+prototype did not improve common Float inputs and was not admitted; the
+branchless form did. Existing tables and all other runtime modules are unchanged.
+
+Full final GCC14.2/GCC16.2 default gates, 206 tests in 27 binaries on each of
+GCC14/GCC16/Clang (Clang unit-only) and four focused ASan/UBSan tests pass.
+All 36 direction/special/state plants and existing reference/loader/SHA/output/
+oracle controls pass. New accounting/context/boundary/cancellation calibration
+has 13 controls; optional native fixtures prove valid/wrong/aliased references
+in all three tools (nine cases per compiler). Independent blind review and
+follow-ups are resolved, including a compiler-identity bug: the invoked driver
+name must be included even when clang/clang++ resolve to one executable.
+An initial full-gate attempt rejected an unrecorded Make macro-flag variable;
+inlining the constant definitions restored the stamp gate before final passing
+full runs. No numerical failure or waived gate is hidden by that correction.
+
+The actual prior public functions come from
+`6d469e66690c0ce879e0b48a5768d5f477965c85`, separately compiled with each
+current library compiler invocation/flags and only public symbols renamed.
+Source/helper bytes are checked against Git. Object, library-argument and
+compiler-driver/context digests accompany the declared revision in retained
+results. Metadata binds supplied artifact/build bytes, not arbitrary source
+provenance. Forced optional-tool relinking and an older-object/sidecar switch
+control prevent stale configuration reuse; absent configuration and aliased
+function pointers fail explicitly. A deliberately wrong native reference is
+recognized as a result mismatch, and raw diagnostics identify current/prior.
+
+Confirmed final native GCC14 scans match all 4,294,967,296 raw binary32 source
+patterns toward both infinities: 8,589,934,592 paired result comparisons over 32
+disjoint step-one intervals. Metadata accounts for every interval and result.
+Case analysis reduces other ordered destinations to inward/outward selection;
+finite-sign/magnitude, zero/equality and NaN-target cases remain separately
+covered. The fast scan adds explicit boundary neighborhoods and seven target
+classes under four modes: 1,836,688 evaluations, with overlap between strata
+permitted. Result-only scans do not prove independent accuracy or exhaustive
+exception/mode behavior. The raw hooks separately check current and actual
+prior against pinned targets over 143,236 nearest records and 632,064 selected
+all-mode/flag-subset/errno records per compiler (two physical calls per logical
+record). These retain the existing normalized hashes; actual incoming flags,
+errno and mode are asserted separately.
+
+All 63 function hashes, all five adjacent-reference payload SHA256 values and
+legacy aggregate `f5fa269eb60ee34f` over 292,711 results remain unchanged.
+Six emulated targets match all 63 numeric sets default/portable and 24 O0/O2
+raw profiles, including the unchanged adjacent raw/state hashes/counts. The
+i686 O0 caller retains no fldl/flds argument loads. These are emulated probes,
+not physical-host/full cross-target GoogleTest results. Windows, exhaustive
+pair-space and exhaustive per-call flag/mode behavior remain unrun.
+
+Two same-processor paired runs per compiler use 401 alternating pairs of 4,096
+identical typed inputs across clean/UF-IX and zero/nonzero errno states.
+Integer timestamps, untimed exact-bit/alias guards, baseline identities,
+absolute medians and paired ratio p10/median/p90 are retained. Both compilers
+ran on the same x86-64 host (GCC16 inside its build image); separate actual-prior
+objects preserve each compiler's context. Median current/prior and current/libm
+ratios across the two runs and entry states are:
+
+| Input range | GCC14 Double/prior | GCC14 Float/prior | GCC16 Double/prior | GCC16 Float/prior |
+| --- | ---: | ---: | ---: | ---: |
+| Common normal | 0.343–0.356 | 0.513–0.575 | 0.435–0.499 | 0.403–0.445 |
+| Equality | 1.000–1.001 | 0.993–0.999 | 0.998–1.005 | 0.953–0.999 |
+| Subnormal inputs | 0.534–0.615 | 0.542–0.613 | 0.707–0.791 | 0.442–0.474 |
+| Normal boundary | 0.447–0.606 | 0.498–0.538 | 0.554–0.589 | 0.601–0.609 |
+| Overflow/inward | 0.493–0.519 | 0.552–0.587 | 0.570–0.596 | 0.561–0.577 |
+
+Common current/libm medians are 0.358–0.372 Double and 0.674–0.741 Float on
+GCC14, 0.317–0.332 Double and 0.530–0.566 Float on GCC16. Common current/prior
+absolute medians span 1.577–1.843/4.395–4.950 ns Double and 1.882–3.344/
+3.511–6.191 ns Float on GCC14, 3.818–4.266/8.576–9.428 ns Double and 2.577–4.874/
+5.882–11.089 ns Float on GCC16. Absolute times vary substantially between runs,
+so do not compare compiler speeds from these samples. Call/loop/checksum/
+timestamp overhead and amortized first-exception costs are included. Equality
+is approximately unchanged against prior. Range-specific gains address the
+measured common Float overhead; no overall library/application/cross-platform
+speed win is claimed. Host errno semantics differ where previously specified.
+
 ## Adjacent-value validation
+
+This records the API-addition phase; the direction optimization above supersedes
+its earlier timing figures.
 
 The two APIs bring classic real-function name coverage to 59 of 171: 30 Double,
 29 Float and no long-double entries. Missing 27 Double + 28 Float = 55 float/double

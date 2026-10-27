@@ -1779,15 +1779,19 @@ implementation source was read or copied.
 NaNs are classified before equality, examining both signaling bits. Equality
 returns the destination's exact bits, including opposing zeros, without new
 flags. Unequal zero starts at the signed minimum subnormal toward the target.
-For nonzero ordered x, let S be its sign mask and a its unsigned magnitude.
-The key is S+a for positive encodings and S-a for negative ones. Both zero keys
-are S; every non-NaN magnitude is smaller than S, so these operations fit the
-unsigned word. Keys order all finite values and infinities numerically.
-Increment x's raw encoding when the upward-direction Boolean differs from
-x's sign Boolean; otherwise decrement it. This traverses one representable
-value. Infinity always moves inward unless equality already returned it;
-nonzero inputs never decrement an unsigned zero. Binary32 words are widened
-to `uint64_t` for this shared helper and narrowed only as integer bits.
+For nonzero ordered x, let S be the sign mask and a its unsigned magnitude.
+Actual callers supply either a full binary64 word or a zero-extended binary32
+word. The explicit magnitude mask S-1 is equivalent to the earlier ~S mask for
+these callers and exposes the narrower binary32 width to the optimizer.
+Same-sign operands move away from zero exactly when |x|<|y|; opposing signs
+always move toward zero. Thus `outward = same_sign & (ax < ay)` is 0/1, and
+`x = (x-1) + (outward<<1)` performs the adjacent raw step without a direction
+branch. Zero/equality/NaN dispatch has already returned: x is nonzero, and an
+outward step requires ax<ay<=infinity. Both intermediate and final arithmetic
+fit without unsigned wrap. Infinity only moves inward; incrementing the largest
+finite value reaches the same-sign infinity. This is equivalent to the original
+signed-order keys while eliminating two key constructions. The existing
+post-step result class and exception helper calls are unchanged.
 
 Finite-to-infinity steps require OF/IX. Any unequal result below minimum normal,
 including zero, requires UF/IX, even when the adjacent value is represented
@@ -1838,3 +1842,103 @@ Reproduce using `make oracle-adjacent`, `make check-adjacent-oracle`,
 calibrated with a recording engine; this is a routing control, separate from
 pinned numerical evidence. Validation and performance limits follow in
 `libm-progress.md`.
+
+### Adjacent-value compatibility and performance evidence
+
+The direction optimization keeps every result and caller-state contract from
+`6d469e66690c0ce879e0b48a5768d5f477965c85`. Independent case analysis covers
+same-sign magnitudes, opposing signs, signed-zero targets and infinity; an
+independent review also checked the mask-width and no-wrap bounds. The actual
+prior public functions are separately compiled from that own-project revision
+with the exact current library compiler invocation and flags. Only the two
+public object symbols are renamed. Neither LTO nor a current-function wrapper
+stands in for the prior implementation.
+
+Optional actual-prior tools require `ADJACENT_REFERENCE_OBJECT` and its JSON
+sidecar (by default the object path plus `.json`). `tools/adjacent_baseline.py`
+checks the object digest, current library-argument digest and compiler driver
+bytes/invocation digest, then emits an identity header. Tool results record the
+caller-declared revision and those identities; this does not authenticate an
+arbitrary object's source claim. The supplied source/helper are independently
+checked against Git when constructing the controlled baseline. Including the
+invoked driver name matters: clang and clang++ can be the same executable but
+choose different behavior. The targets force relinking, including when an
+alternate object and sidecar are older than a cached executable. Missing
+configuration cannot silently reuse a cached comparison. Direct alias guards
+reject comparing a function with itself.
+
+The native comparison tool scans raw Float words against actual prior results.
+Its fast mode combines the stride sample, explicit boundary neighborhoods,
+seven target classes and four modes; overlapping strata are counted as
+evaluations. Exhaustive mode partitions all 2^32 source patterns into 32 disjoint
+step-one intervals and compares both infinity directions under nearest. This
+is 8,589,934,592 paired results. Case analysis reduces other ordered targets to
+the same inward/outward operation; separate finite-direction, equality, zero
+and NaN-target controls remain necessary. A result-only scan is neither an
+independent reference-accuracy proof nor exhaustive exception/mode testing.
+The raw reference hook separately invokes both implementations from the same
+requested mode/flags/errno state and checks each against the independent
+committed targets. Logical record/hash counts remain unchanged; hook builds
+make two physical calls per record.
+
+The controller requires exact baseline/interval/step/target/mode/count metadata,
+finite positive timeouts and bounded parallel jobs. It handles failures in
+completion order and terminates/reaps only its tracked children. Cancellation
+calibration uses ready/failure/release/completion markers instead of a short
+elapsed-time performance threshold; a generous timeout only guards a hang.
+Default calibration needs no baseline object or Git. Optional native controls
+compile each tool against a real, deliberately wrong and directly aliased
+reference, distinguishing real mismatches from accounting controls.
+
+For a GNU/Linux reproduction, start in the math checkout, choose the same Make
+settings as the current library build through `MATH_MAKE_ARGS`, then construct
+the baseline without reading external implementation source:
+
+```python
+import json, os, shlex, subprocess, sys
+from pathlib import Path
+sys.path.insert(0, 'tools')
+import adjacent_baseline as identity
+settings = shlex.split(os.environ.get('MATH_MAKE_ARGS', ''))
+revision = '6d469e66690c0ce879e0b48a5768d5f477965c85'
+out = Path('build/adjacent-prior').resolve()
+out.mkdir(parents=True, exist_ok=True)
+for name in ('adjacent.c', 'elem_common.h'):
+    blob = subprocess.check_output(
+        ['git', 'show', revision + ':src/elementary/' + name])
+    (out / name).write_bytes(blob)
+def value(expression):
+    return subprocess.check_output(['make', '-s'] + settings + [
+        '--eval', '.PHONY: print-prior-value',
+        '--eval', 'print-prior-value:; @echo ' + expression,
+        'print-prior-value'], text=True).strip()
+cc, flags = value('$(CC)'), value('$(LIB_CFLAGS) $(INCLUDE)')
+obj = out / 'adjacent.o'
+subprocess.run(shlex.split(cc) + shlex.split(flags) + [
+    '-c', str(out / 'adjacent.c'), '-o', str(obj)], check=True)
+rename = []
+for line in subprocess.check_output(
+        ['nm', '-g', '--defined-only', str(obj)], text=True).splitlines():
+    symbol = line.split()[-1]
+    for suffix in ('gmath_nextafter', 'gmath_nextafterf'):
+        if symbol.endswith(suffix):
+            rename += ['--redefine-sym', symbol +
+                       '=gmath_adjacent_prior_' + suffix[6:]]
+if len(rename) != 4:
+    raise RuntimeError('unexpected baseline symbol layout')
+subprocess.run(['objcopy'] + rename + [str(obj)], check=True)
+metadata = dict(revision=revision, object_sha256=identity.digest_file(obj),
+                flags_sha256=identity.flags_digest(flags),
+                compiler_sha256=identity.compiler_digest(cc))
+Path(str(obj) + '.json').write_text(json.dumps(metadata) + '\n')
+```
+
+With those same Make settings, pass
+`ADJACENT_REFERENCE_OBJECT=build/adjacent-prior/adjacent.o` to
+`make check-adjacent-compat`, `make check-adjacent-native-controls` or
+`make bench-adjacent-prior`. Use the built `compare-adjacent` with
+`tools/check-adjacent-compat.py --baseline-metadata ... --exhaustive --jobs 32`
+for the optional nearest exhaustive scan. `make bench-adjacent` retains its
+separately labeled host-libm baseline. Compiler/binutils baseline construction
+and timings here were run on the native GNU/Linux builds; Windows remains
+unvalidated. Actual numerical, state and timing scope is in `libm-progress.md`.

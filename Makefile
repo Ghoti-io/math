@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -612,6 +612,44 @@ check-hypotf-special: $(HYPOTF_SPECIAL_PROBE) tests/corpus/hypotf-special.hash
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(HYPOTF_SPECIAL_PROBE) > $(BUILD_DIR)/hypotf-special.actual && \
 	 cmp tests/corpus/hypotf-special.hash $(BUILD_DIR)/hypotf-special.actual && \
 	 cat $(BUILD_DIR)/hypotf-special.actual
+
+# Actual-prior tools are explicit: ordinary source builds need no Git history.
+ADJACENT_REFERENCE_OBJECT ?=
+ADJACENT_REFERENCE_METADATA ?= $(if $(strip $(ADJACENT_REFERENCE_OBJECT)),$(ADJACENT_REFERENCE_OBJECT).json)
+.PHONY: adjacent-reference-force
+adjacent-reference-force:
+ADJACENT_COMPARE := $(APP_DIR)/tools/compare-adjacent$(EXE_EXTENSION)
+ADJACENT_REFERENCE_PROBE := $(APP_DIR)/tools/probe-adjacent-prior$(EXE_EXTENSION)
+ADJACENT_REFERENCE_BENCH := $(APP_DIR)/tools/bench-adjacent-prior$(EXE_EXTENSION)
+$(ADJACENT_COMPARE): tools/compare-adjacent.c $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(FLAGS_STAMP) adjacent-reference-force $(ADJACENT_REFERENCE_METADATA) tools/adjacent_baseline.py
+	@test -n "$(ADJACENT_REFERENCE_OBJECT)" || { echo 'compare-adjacent requires ADJACENT_REFERENCE_OBJECT from an actual prior build' >&2; exit 1; }
+	@mkdir -p $(@D)
+	@python3 tools/adjacent_baseline.py "$(ADJACENT_REFERENCE_OBJECT)" "$(ADJACENT_REFERENCE_METADATA)" --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_NEXTAFTER_REFERENCE=gmath_adjacent_prior_nextafter -DGMATH_NEXTAFTERF_REFERENCE=gmath_adjacent_prior_nextafterf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+$(ADJACENT_REFERENCE_PROBE): tools/probe-adjacent.c tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(FLAGS_STAMP) adjacent-reference-force $(ADJACENT_REFERENCE_METADATA) tools/adjacent_baseline.py
+	@test -n "$(ADJACENT_REFERENCE_OBJECT)" || { echo 'probe-adjacent-prior requires ADJACENT_REFERENCE_OBJECT' >&2; exit 1; }
+	@mkdir -p $(@D)
+	@python3 tools/adjacent_baseline.py "$(ADJACENT_REFERENCE_OBJECT)" "$(ADJACENT_REFERENCE_METADATA)" --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_NEXTAFTER_REFERENCE=gmath_adjacent_prior_nextafter -DGMATH_NEXTAFTERF_REFERENCE=gmath_adjacent_prior_nextafterf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+$(ADJACENT_REFERENCE_BENCH): tools/bench-adjacent.c $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(FLAGS_STAMP) adjacent-reference-force $(ADJACENT_REFERENCE_METADATA) tools/adjacent_baseline.py
+	@test -n "$(ADJACENT_REFERENCE_OBJECT)" || { echo 'bench-adjacent-prior requires ADJACENT_REFERENCE_OBJECT' >&2; exit 1; }
+	@mkdir -p $(@D)
+	@python3 tools/adjacent_baseline.py "$(ADJACENT_REFERENCE_OBJECT)" "$(ADJACENT_REFERENCE_METADATA)" --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_NEXTAFTER_BASELINE=gmath_adjacent_prior_nextafter -DGMATH_NEXTAFTERF_BASELINE=gmath_adjacent_prior_nextafterf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+.PHONY: check-adjacent-compat-driver check-adjacent-compat bench-adjacent-prior check-adjacent-native-controls
+check-adjacent-compat-driver:
+	@python3 tools/check-adjacent-compat.py --calibrate
+check-adjacent-native-controls: $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(ADJACENT_REFERENCE_METADATA)
+	@test -n "$(ADJACENT_REFERENCE_OBJECT)" || { echo 'native controls require ADJACENT_REFERENCE_OBJECT' >&2; exit 1; }
+	@NATIVE_CC='$(CC)' NATIVE_CFLAGS='$(CFLAGS) $(INCLUDE)' NATIVE_LIB_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 NATIVE_LDFLAGS='$(LDFLAGS)' NATIVE_LIBRARY='$(APP_DIR)/$(STATIC_TARGET)' \
+	 NATIVE_REFERENCE='$(ADJACENT_REFERENCE_OBJECT)' NATIVE_METADATA='$(ADJACENT_REFERENCE_METADATA)' \
+	 NATIVE_WORK='$(BUILD_DIR)/adjacent-native-controls' python3 tools/check-adjacent-native-controls.py
+check-adjacent-compat: $(ADJACENT_COMPARE) $(ADJACENT_REFERENCE_PROBE)
+	@python3 tools/check-adjacent-compat.py $(ADJACENT_COMPARE) --baseline-metadata "$(ADJACENT_REFERENCE_METADATA)"
+	@$(ADJACENT_REFERENCE_PROBE) > $(BUILD_DIR)/adjacent-prior.actual && python3 tools/check-adjacent-output.py $(BUILD_DIR)/adjacent-prior.actual
+bench-adjacent-prior: $(ADJACENT_REFERENCE_BENCH)
+	@$(ADJACENT_REFERENCE_BENCH)
 
 ADJACENT_PROBE := $(APP_DIR)/tools/probe-adjacent$(EXE_EXTENSION)
 $(ADJACENT_PROBE): tools/probe-adjacent.c tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)

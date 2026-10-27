@@ -67,7 +67,7 @@ double Value(uint64_t bits, const Format & format) {
 }
 // Direction uses exact host comparisons only after raw NaNs are removed.
 // Adjacency is certified by unsigned magnitude distance and destination bounds,
-// independently of the runtime's signed ordering keys. Fraction/MPFR generation
+// independently of the runtime's sign/magnitude step selection. Fraction/MPFR generation
 // independently constructs the exact target, including subnormal spacing.
 void Validate(const Entry & e, const Format & f) {
   if (f.single &&

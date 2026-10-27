@@ -12,6 +12,28 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#if defined(GMATH_NEXTAFTER_BASELINE) != defined(GMATH_NEXTAFTERF_BASELINE)
+#error "Both adjacent baseline functions must be configured together"
+#endif
+#ifdef GMATH_NEXTAFTER_BASELINE
+#ifndef GMATH_ADJACENT_BASELINE_IDENTITY
+#error "Declared baseline identity is required"
+#endif
+extern double GMATH_NEXTAFTER_BASELINE(double, double);
+extern float GMATH_NEXTAFTERF_BASELINE(float, float);
+#define ADJACENT_BASELINE_DOUBLE GMATH_NEXTAFTER_BASELINE
+#define ADJACENT_BASELINE_FLOAT GMATH_NEXTAFTERF_BASELINE
+#define ADJACENT_BASELINE_DESCRIPTION                                          \
+  "configured separately compiled baseline (declared identity below)"
+#define ADJACENT_BASELINE_LABEL "prior"
+#define ADJACENT_BASELINE_PRESERVES_ERRNO 1
+#else
+#define ADJACENT_BASELINE_DOUBLE nextafter
+#define ADJACENT_BASELINE_FLOAT nextafterf
+#define ADJACENT_BASELINE_DESCRIPTION "host libm"
+#define ADJACENT_BASELINE_LABEL "host"
+#define ADJACENT_BASELINE_PRESERVES_ERRNO 0
+#endif
 #define N 4096
 #define PAIRS 401
 static uint64_t x[N], y[N];
@@ -47,8 +69,8 @@ static uint64_t fbits(float value) {
 static double (*volatile double_fn)(double, double);
 static float (*volatile float_fn)(float, float);
 static double measure(int single, int host, int seeded) {
-  double_fn = host ? nextafter : gmath_nextafter;
-  float_fn = host ? nextafterf : gmath_nextafterf;
+  double_fn = host ? ADJACENT_BASELINE_DOUBLE : gmath_nextafter;
+  float_fn = host ? ADJACENT_BASELINE_FLOAT : gmath_nextafterf;
   if (feclearexcept(FE_ALL_EXCEPT) ||
       (seeded && feraiseexcept(FE_UNDERFLOW | FE_INEXACT))) {
     exit(2);
@@ -77,7 +99,7 @@ static double measure(int single, int host, int seeded) {
   }
   int error = errno, flags = fetestexcept(FE_ALL_EXCEPT), mode = fegetround();
   if ((flags & incoming) != incoming || mode != FE_TONEAREST ||
-      (!host && error != error_seed)) {
+      ((!host || ADJACENT_BASELINE_PRESERVES_ERRNO) && error != error_seed)) {
     exit(2);
   }
   sink = sum;
@@ -87,16 +109,20 @@ static double measure(int single, int host, int seeded) {
 }
 static void verify(int single) {
   double (*volatile own_d)(double, double) = gmath_nextafter;
-  double (*volatile host_d)(double, double) = nextafter;
+  double (*volatile host_d)(double, double) = ADJACENT_BASELINE_DOUBLE;
   float (*volatile own_f)(float, float) = gmath_nextafterf;
-  float (*volatile host_f)(float, float) = nextafterf;
+  float (*volatile host_f)(float, float) = ADJACENT_BASELINE_FLOAT;
+  if (own_d == host_d || own_f == host_f) {
+    fputs("adjacent benchmark baseline aliases current function\n", stderr);
+    exit(2);
+  }
   for (int i = 0; i < N; ++i) {
     uint64_t a = single ? fbits(own_f(fvalue(x[i]), fvalue(y[i])))
                         : dbits(own_d(dvalue(x[i]), dvalue(y[i])));
     uint64_t b = single ? fbits(host_f(fvalue(x[i]), fvalue(y[i])))
                         : dbits(host_d(dvalue(x[i]), dvalue(y[i])));
     if (a != b) {
-      fputs("adjacent benchmark host-bit guard failed\n", stderr);
+      fputs("adjacent benchmark baseline-bit guard failed\n", stderr);
       exit(2);
     }
   }
@@ -112,8 +138,12 @@ int main(void) {
   const char * names[] = {"common normal", "equality", "subnormal steps",
                           "normal boundary", "overflow/inward"};
   puts("401 alternating pairs of 4096 identical inputs; median ns/call and "
-       "paired gmath/libm p10/median/p90; "
+       "paired gmath/baseline p10/median/p90; "
        "indirect-call/loop/checksum/timestamp overhead included");
+  puts("baseline: " ADJACENT_BASELINE_DESCRIPTION);
+#ifdef GMATH_NEXTAFTER_BASELINE
+  fputs(GMATH_ADJACENT_BASELINE_IDENTITY, stdout);
+#endif
   for (int single = 0; single < 2; ++single) {
     unsigned m = single ? 23u : 52u, bias = single ? 127u : 1023u;
     uint64_t sign = UINT64_C(1) << (single ? 31u : 63u), minimum = UINT64_C(1)
@@ -167,7 +197,8 @@ int main(void) {
         qsort(own, PAIRS, sizeof(double), compare);
         qsort(host, PAIRS, sizeof(double), compare);
         qsort(ratio, PAIRS, sizeof(double), compare);
-        printf("%-10s %-18s %s gmath %.3f host %.3f ratio %.3f %.3f %.3f\n",
+        printf("%-10s %-18s %s gmath %.3f " ADJACENT_BASELINE_LABEL
+               " %.3f ratio %.3f %.3f %.3f\n",
                single ? "nextafterf" : "nextafter", names[range],
                seeded ? "UF/IX" : "clean", own[PAIRS / 2], host[PAIRS / 2],
                ratio[PAIRS / 10], ratio[PAIRS / 2], ratio[9 * PAIRS / 10]);

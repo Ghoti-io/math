@@ -33,16 +33,12 @@ GMATH_STATIC_ASSERT(sizeof(float) == sizeof(uint32_t) && FLT_RADIX == 2 &&
                         FLT_MAX_EXP == 128,
                     "Float adjacency requires IEEE binary32");
 
-/* Nonnegative key order folds the two zero encodings together. Every magnitude
- * is below sign, so both key operations and the eventual single step fit. */
-static inline uint64_t adjacent_key(uint64_t raw, uint64_t sign) {
-  uint64_t magnitude = raw & ~sign;
-  return (raw & sign) ? sign - magnitude : sign + magnitude;
-}
 static inline uint64_t adjacent_bits(uint64_t x, uint64_t y, uint64_t sign,
                                      uint64_t infinity, uint64_t quiet,
                                      uint64_t minimum_normal) {
-  uint64_t ax = x & ~sign, ay = y & ~sign;
+  /* Actual callers have no bits above sign. This explicit width mask also
+   * lets binary32 use ordinary 32-bit magnitude operations. */
+  uint64_t ax = x & (sign - 1), ay = y & (sign - 1);
   if (ax > infinity || ay > infinity) {
     if ((ax > infinity && !(x & quiet)) || (ay > infinity && !(y & quiet))) {
       (void)gmath_invalid();
@@ -56,14 +52,15 @@ static inline uint64_t adjacent_bits(uint64_t x, uint64_t y, uint64_t sign,
     (void)gmath_underflow(0);
     return (y & sign) | UINT64_C(1);
   }
-  int upward = adjacent_key(x, sign) < adjacent_key(y, sign);
-  int negative = (x & sign) != 0;
-  if (upward != negative) {
-    ++x;
-  } else {
-    --x;
-  }
-  uint64_t result_magnitude = x & ~sign;
+  /* Opposite signs point inward. Same signs point outward only when the
+   * destination magnitude is larger. Evaluate both integer Booleans without
+   * unpredictable direction branches. After dispatch x is nonzero; outward
+   * is 0/1 and can increment only a finite magnitude, so neither operation
+   * below wraps. */
+  uint64_t outward = (uint64_t)(((x ^ y) & sign) == 0);
+  outward &= (uint64_t)(ax < ay);
+  x = (x - UINT64_C(1)) + (outward << 1);
+  uint64_t result_magnitude = x & (sign - 1);
   if (result_magnitude == infinity && ax < infinity) {
     (void)gmath_overflow(0);
   } else if (result_magnitude < minimum_normal) {

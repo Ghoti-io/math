@@ -12,6 +12,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(GMATH_NEXTAFTER_REFERENCE) != defined(GMATH_NEXTAFTERF_REFERENCE)
+#error "Both adjacent reference functions must be configured together"
+#endif
+#ifdef GMATH_NEXTAFTER_REFERENCE
+#ifndef GMATH_ADJACENT_BASELINE_IDENTITY
+#error "Declared baseline identity is required"
+#endif
+extern double GMATH_NEXTAFTER_REFERENCE(double, double);
+extern float GMATH_NEXTAFTERF_REFERENCE(float, float);
+#endif
 /* Count input bytes explicitly: C string functions alone hide embedded NULs. */
 static int read_line(FILE * input, char * line, size_t capacity) {
   size_t size = 0;
@@ -85,8 +95,11 @@ static int parse(const char * line, uint64_t words[4]) {
   }
   return *p == '\0' || (*p == '\n' && p[1] == '\0');
 }
-static int invoke(const uint64_t w[4], int single, int mode, int seed,
-                  int error_seed, uint64_t * hash) {
+static int invoke_impl(const uint64_t w[4], int single, int mode, int seed,
+                       int error_seed, uint64_t * hash, int reference) {
+#ifndef GMATH_NEXTAFTER_REFERENCE
+  (void)reference;
+#endif
   if (fesetround(mode) || feclearexcept(FE_ALL_EXCEPT) || feraiseexcept(seed)) {
     return 1;
   }
@@ -99,6 +112,11 @@ static int invoke(const uint64_t w[4], int single, int mode, int seed,
     memcpy(&x, &bx, 4);
     memcpy(&y, &by, 4);
     float (*volatile fn)(float, float) = gmath_nextafterf;
+#ifdef GMATH_NEXTAFTER_REFERENCE
+    if (reference) {
+      fn = GMATH_NEXTAFTERF_REFERENCE;
+    }
+#endif
     float result = fn(x, y);
     memcpy(&bits, &result, 4);
     output = bits;
@@ -107,6 +125,11 @@ static int invoke(const uint64_t w[4], int single, int mode, int seed,
     memcpy(&x, &w[0], 8);
     memcpy(&y, &w[1], 8);
     double (*volatile fn)(double, double) = gmath_nextafter;
+#ifdef GMATH_NEXTAFTER_REFERENCE
+    if (reference) {
+      fn = GMATH_NEXTAFTER_REFERENCE;
+    }
+#endif
     double result = fn(x, y);
     memcpy(&output, &result, 8);
   }
@@ -115,9 +138,10 @@ static int invoke(const uint64_t w[4], int single, int mode, int seed,
   if (output != w[2] || flags != (incoming | native_flags(w[3])) ||
       error != error_seed || rounding != mode) {
     fprintf(stderr,
-            "adjacent%d x%016" PRIx64 " y%016" PRIx64 " result%016" PRIx64
+            "adjacent%d %s x%016" PRIx64 " y%016" PRIx64 " result%016" PRIx64
             " expected%016" PRIx64 " flags%x required%x errno%d mode%x\n",
-            single ? 32 : 64, w[0], w[1], output, w[2], (unsigned)flags,
+            single ? 32 : 64, reference ? "prior" : "current", w[0], w[1],
+            output, w[2], (unsigned)flags,
             (unsigned)(incoming | native_flags(w[3])), error,
             (unsigned)rounding);
     return 1;
@@ -126,6 +150,16 @@ static int invoke(const uint64_t w[4], int single, int mode, int seed,
     *hash = gmath_fnv_u64(gmath_fnv_u64(*hash, output), w[3]);
   }
   return 0;
+}
+static int invoke(const uint64_t w[4], int single, int mode, int seed,
+                  int error_seed, uint64_t * hash) {
+  int result = invoke_impl(w, single, mode, seed, error_seed, hash, 0);
+#ifdef GMATH_NEXTAFTER_REFERENCE
+  if (!result) {
+    result = invoke_impl(w, single, mode, seed, error_seed, NULL, 1);
+  }
+#endif
+  return result;
 }
 typedef struct {
   uint64_t x, y;
@@ -188,6 +222,19 @@ int main(int argc, char ** argv) {
   if (argc > 2) {
     return 2;
   }
+#ifdef GMATH_NEXTAFTER_REFERENCE
+  double (*volatile current_d)(double, double) = gmath_nextafter;
+  double (*volatile prior_d)(double, double) = GMATH_NEXTAFTER_REFERENCE;
+  float (*volatile current_f)(float, float) = gmath_nextafterf;
+  float (*volatile prior_f)(float, float) = GMATH_NEXTAFTERF_REFERENCE;
+  if (current_d == prior_d || current_f == prior_f) {
+    fputs("adjacent raw reference aliases current function\n", stderr);
+    return 2;
+  }
+#endif
+#ifdef GMATH_NEXTAFTER_REFERENCE
+  fputs(GMATH_ADJACENT_BASELINE_IDENTITY, stderr);
+#endif
   const char * directory = argc == 2 ? argv[1] : "tests/corpus";
   fenv_t saved;
   int saved_errno = errno;
