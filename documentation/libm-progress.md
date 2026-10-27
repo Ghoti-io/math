@@ -16,15 +16,22 @@ The deterministic contracts in the public headers remain authoritative.
   MPFR/mpmath reference values, exact binary-power cases and a dedicated float
   table/series path. The public numerical contract is one ulp, with nearest
   rounding assumed and canonical special-value handling.
+- Binary exponential: `gmath_exp2`, with exact integer powers including
+  subnormals, direct base-two table reduction, a one-ulp numerical target,
+  and explicit finite overflow/inexact-underflow behavior. GCC and Clang each
+  pass all 108 unit tests; full GCC gates, pinned regeneration/fresh oracles,
+  ASan/UBSan and independent review pass. A 111,631-input sample measures
+  maximum error 0.505040 ulp normal and 0.749648 ulp subnormal. Common small
+  inputs remain slower than host libm; wide ranges and exact integer powers
+  are faster on the measured host (see design notes).
 
 ## Upcoming project-used gaps
 
-1. Binary exponential support (`exp2`).
-2. Cube root (`cbrt`).
-3. Float rounding, square root and trig operations used by WebAssembly, model,
+1. Cube root (`cbrt`).
+2. Float rounding, square root and trig operations used by WebAssembly, model,
    and CJelly. Simple wrappers require proof that narrowing remains exact or
    correctly rounded; float elementary accuracy is a separate target.
-4. Broader real-function coverage: inverse trig, hyperbolic functions,
+3. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
 
@@ -34,12 +41,10 @@ Base logarithms now retain the precision reserve in `log_dd` with generated
 split reciprocals. Their ordinary scalar-call paths remain slower than host
 libm; direct base-specific tables remain a later optimization opportunity.
 
-For exp2, a dedicated reduction by exact multiples of 1/128 can reuse the
-existing exponential table and reconstruction polynomial. Converting only the
-small residual with split ln(2) avoids introducing large-argument error through
-`exp(x * rounded_ln2)`. Exact powers of two and the -1075/-1074/-1022/1024
-boundaries need explicit handling and exception tests. Float log2 verification
-must use binary32 rounding and ulp spacing, not a binary64 corpus tolerance.
+Exp2 now uses exact reduction by multiples of 1/128 and the existing table and
+reconstruction polynomial, with explicit -1075/-1074/-1022/1024 boundary tests.
+Future float elementary operations must use binary32 rounding and ulp spacing
+in their reference data, not a binary64 corpus tolerance.
 
 ## Verification and remaining limits
 

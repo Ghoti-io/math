@@ -65,6 +65,13 @@ the float path uses an exact table product and a short series in double.
 Zeros raise divide-by-zero and return -infinity; negative values raise invalid;
 NaNs use the canonical policy. Other positive finite values may raise inexact.
 
+`gmath_exp2` computes 2^x with exact reduction by multiples of 1/128 and the
+existing exponential table. All integer exponents from -1074 through 1023
+return exact binary powers without exceptions. Normal and subnormal results
+have a one-ulp contract under round-to-nearest; finite overflow and inexact
+underflow raise the corresponding IEEE exceptions. Signed zeros both return
+1, infinities return infinity or zero without exceptions, and NaNs are canonical.
+
 And exact conversion between decimal and `double` (`ghoti.io/math/decimal.h`):
 * `gmath_decimal_parse` reads the decimal grammar CSS, SVG and `strtod` share.
 * `gmath_decimal_to_double` takes digits and a power of ten.
@@ -138,6 +145,12 @@ check skips loudly and the committed corpus still runs;
 `make oracle-fit-logbase oracle-logbase corpus-hash-update`, passing the build's
 `PREFIX`. `make check-planted-logbase` checks implementation defects, the oracle
 self-check, wrong hashes and omitted probe entries.
+
+Binary exponential references use the same pinned tools: `make oracle-exp2
+corpus-hash-update` regenerates the committed sample. `make check-exp2-oracle`
+runs that sample, reproduces it and checks fresh inputs when the image is
+available; `make check-planted-exp2` proves implementation, oracle and hash
+defects are rejected. Both respect `GHOTI_ORACLE_REQUIRED=1` for missing images.
 
 ## Building
 

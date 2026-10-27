@@ -77,6 +77,9 @@ GMATH_STATIC_ASSERT(sizeof(float) == sizeof(uint32_t) && FLT_RADIX == 2 &&
  * integer to double conversion is needed. */
 #define GMATH_EXP_MAGIC 0x1.8p52
 
+GMATH_STATIC_ASSERT(GMATH_EXP_TABLE_BITS == 7,
+                    "exp2 reduction uses an exact 1/128 grid");
+
 /* Below this magnitude exp x is 1 + x, which rounds to 1. */
 #define GMATH_EXP_TINY 0x1p-54
 
@@ -86,6 +89,16 @@ GMATH_STATIC_ASSERT(sizeof(float) == sizeof(uint32_t) && FLT_RADIX == 2 &&
 /* Beyond these the result is infinity or zero, whatever the rounding. */
 #define GMATH_EXP_CERTAIN_OVER 710.0
 #define GMATH_EXP_CERTAIN_UNDER -746.0
+
+/* Shared reconstruction, with the original exp expression order intact. */
+static inline double exp_reconstruct(double r, unsigned j) {
+  const double * c = gmath_exp_poly;
+  double r2 = r * r;
+  double p = r + r2 * ((c[0] + c[1] * r) + (c[2] + c[3] * r) * r2);
+  double th = gmath_exp_tab[2 * j];
+  double tl = gmath_exp_tab[2 * j + 1];
+  return th + (tl + th * p);
+}
 
 /*
  * exp(xh + xl) = y * 2^k, with y in about [0.99, 2.01] and k = n div 128
@@ -113,12 +126,7 @@ static inline double exp_core(double xh, double xl, int has_lo, int * kout) {
   double r = (a - nd * GMATH_EXP_L2) + xl;
   unsigned j = (unsigned)n & ((1u << GMATH_EXP_TABLE_BITS) - 1u);
   *kout = n >> GMATH_EXP_TABLE_BITS;
-  const double * c = gmath_exp_poly;
-  double r2 = r * r;
-  double p = r + r2 * ((c[0] + c[1] * r) + (c[2] + c[3] * r) * r2);
-  double th = gmath_exp_tab[2 * j];
-  double tl = gmath_exp_tab[2 * j + 1];
-  return th + (tl + th * p);
+  return exp_reconstruct(r, j);
 }
 
 /* y * 2^k for the k exp_core can return when |x| is up to 746: 2^k is not a
@@ -167,6 +175,67 @@ double gmath_exp(double x) {
   int k;
   double y = exp_core(x, 0.0, 0, &k);
   return y * gmath_double((uint64_t)(k + 1023) << 52);
+}
+
+/* Exact base-two reduction: 128*x and n/128 are exact in the active range,
+ * and x - n/128 is exact by Sterbenz (or subtraction of zero). Only the small
+ * remainder is converted to natural units, avoiding a rounded x*ln2 over a
+ * range of more than two thousand binary exponents. */
+double gmath_exp2(double x) {
+  uint64_t xb = gmath_bits(x);
+  uint64_t ax = xb & GMATH_ABS_MASK;
+  if (ax <= gmath_bits(0x1p-54)) {
+    return 1.0 + x;
+  }
+  /* Common signed inputs need one magnitude test, not unpredictable sign
+   * branches. Only large magnitudes need the special-value/range ladder. */
+  if (ax >= gmath_bits(1024.0)) {
+    if (ax > GMATH_INF_BITS) {
+      return gmath_nan_of(x);
+    }
+    if (ax == GMATH_INF_BITS) {
+      return (xb & GMATH_SIGN_BIT) ? 0.0 : x;
+    }
+    if ((xb & GMATH_SIGN_BIT) == 0) {
+      return gmath_overflow(0);
+    }
+    if (ax >= gmath_bits(1075.0)) {
+      return gmath_underflow(0);
+    }
+  }
+  double t = x * 128.0 + GMATH_EXP_MAGIC;
+  int32_t n = (int32_t)(uint32_t)(gmath_bits(t) & 0xffffffffu);
+  double nd = t - GMATH_EXP_MAGIC;
+  double d = x - nd * 0x1p-7;
+  unsigned j = (unsigned)n & ((1u << GMATH_EXP_TABLE_BITS) - 1u);
+  int k = n >> GMATH_EXP_TABLE_BITS;
+  if (j == 0 && d == 0.0) {
+    /* Exactly representable integer powers must not acquire inexact or
+     * underflow through a polynomial or subnormal scaling operation. */
+    if (k >= -1022) {
+      return gmath_double((uint64_t)(k + 1023) << 52);
+    }
+    return gmath_double(1ull << (unsigned)(k + 1074));
+  }
+  double r = d * GMATH_LN2_HI + d * GMATH_LN2_LO;
+  double y = exp_reconstruct(r, j);
+  uint64_t yb = gmath_bits(y);
+  int exponent = (int)(yb >> 52) + k;
+  if (exponent > 0) {
+    /* The upper classification and input spacing imply exponent <= 2046,
+     * even when k==1024: there y<1. Normal power-of-two scaling is exact. */
+    return gmath_double(yb + ((uint64_t)(int64_t)k << 52));
+  }
+  /* Scale exactly into the normal range before the final subnormal rounding.
+   * The volatile operand keeps the tiny product on this branch under compilers
+   * that otherwise speculate floating arithmetic without observing its flags.
+   * For noninteger binary-rational x, 2^x is inexact: explicitly raise underflow
+   * even if the rounded intermediate happens to scale without losing bits. */
+  uint64_t scaled_bits = yb + ((uint64_t)(int64_t)(k + 1000) << 52);
+  volatile double scaled = gmath_double(scaled_bits);
+  double result = scaled * 0x1p-1000;
+  (void)gmath_underflow(0);
+  return result;
 }
 
 /* ------------------------------------------------------------------------- */

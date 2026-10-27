@@ -130,6 +130,7 @@ static const struct {
   {"log2", "log2", K_D_D, 0, NULL, gmath_log2, NULL, NULL},
   {"log10", "log10", K_D_D, 0, NULL, gmath_log10, NULL, NULL},
   {"log2f", "log2f", K_D_D, 0, NULL, log2f_widened, NULL, NULL},
+  {"exp2", "exp2", K_D_D, 0, NULL, gmath_exp2, NULL, NULL},
 };
 #define NFNS ((int)(sizeof fns / sizeof fns[0]))
 

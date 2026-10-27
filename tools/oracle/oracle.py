@@ -26,6 +26,9 @@ gmath_exp, gmath_log, gmath_pow and gmath_hypot.
                                            write log2/log10/log2f reference corpora
     oracle.py fresh-logbase --out DIR --seed N
                                            write a fresh base-logarithm sample
+    oracle.py exp2 --out DIR --seed N --count N
+                                           write binary exponential references
+    oracle.py fresh-exp2 --out DIR --seed N  write a fresh binary exponential sample
 
 The reference runs in the pinned image named by containers/IMAGES, never on
 the host.  It does not fail open: a missing engine, a missing image or a
@@ -89,7 +92,7 @@ def check_pin():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "fit-explog", "fit-logbase", "fit-atan2", "fit-hypot", "corpus", "fresh", "logbase", "fresh-logbase"))
+    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "fit-explog", "fit-logbase", "fit-atan2", "fit-hypot", "corpus", "fresh", "logbase", "fresh-logbase", "exp2", "fresh-exp2"))
     ap.add_argument("--out")
     ap.add_argument("--seed", type=int)
     ap.add_argument("--count", type=int, default=3000)
@@ -97,7 +100,7 @@ def main():
     try:
         ref, prov = check_pin()
     except Unavailable as e:
-        if a.cmd in ("fresh", "fresh-logbase") and not REQUIRED:
+        if a.cmd in ("fresh", "fresh-logbase", "fresh-exp2") and not REQUIRED:
             sys.stderr.write("oracle: SKIPPED the fresh sample: %s\n" % e)
             sys.stderr.write("oracle: the committed corpus was still checked; "
                              "GHOTI_ORACLE_REQUIRED=1 makes this a failure\n")
@@ -127,10 +130,11 @@ def main():
     if not out.startswith(ROOT + os.sep):
         sys.stderr.write("oracle.py: --out must be inside %s\n" % ROOT)
         return 2
-    if a.cmd in ("logbase", "fresh-logbase"):
-        argv = ["python", "tools/oracle/gen_corpus_logbase.py", "--out", out,
+    if a.cmd in ("logbase", "fresh-logbase", "exp2", "fresh-exp2"):
+        family = "exp2" if a.cmd in ("exp2", "fresh-exp2") else "logbase"
+        argv = ["python", "tools/oracle/gen_corpus_" + family + ".py", "--out", out,
                 "--seed", str(a.seed), "--count", str(a.count)]
-        if a.cmd == "fresh-logbase":
+        if a.cmd.startswith("fresh-"):
             argv.append("--fresh")
         return engine_run(ref, argv).returncode
     size = "committed" if a.cmd == "corpus" else "fresh"

@@ -118,6 +118,23 @@ GMATH_API double gmath_tan(double x);
 GMATH_API double gmath_exp(double x);
 
 /**
+ * @brief Two raised to @p x, within 1 ulp under round-to-nearest.
+ *
+ * Every integer exponent from -1074 through 1023 returns its exact binary
+ * power without exceptions. Both zeros return 1; +infinity returns infinity,
+ * and -infinity returns +0, without exceptions. NaNs are canonicalized, with
+ * invalid raised for signaling NaNs. Finite x>=1024 overflows with overflow
+ * and inexact; x<=-1075 rounds to +0 with underflow and inexact. Other inexact
+ * subnormal results raise underflow and inexact. errno, the rounding mode and
+ * incoming exceptions are preserved. Like the other elementary kernels, the
+ * numerical contract assumes the default IEEE round-to-nearest environment.
+ *
+ * @param x The exponent.
+ * @return 2^@p x.
+ */
+GMATH_API double gmath_exp2(double x);
+
+/**
  * @brief The natural logarithm of @p x.
  *
  * Within 1 ulp of the true value for every positive finite @p x, subnormals

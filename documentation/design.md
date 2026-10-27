@@ -479,6 +479,69 @@ Binary powers are faster, and subnormal float log2 is much faster in this
 measurement. Dedicated base tables/kernels remain a performance opportunity;
 dependency coverage here must not be presented as a general speed win.
 
+## Binary exponential
+
+`gmath_exp2` reduces directly in base two: `n = round(128*x)`,
+`d = x - n/128`, `k = floor(n/128)` and `j = n mod 128`. Both power-of-two
+scalings and the subtraction are exact in the active range; for tiny values
+whose n is zero, subtraction of zero is exact. The small residual d is
+converted by split ln(2), then passed to the existing exp polynomial/table.
+The reconstruction arithmetic is factored into `exp_reconstruct` without
+changing the original exp/pow expression order or any existing result hash.
+
+The exact binary reduction avoids amplifying a rounded ln(2) error over a
+range spanning more than two thousand exponents. Its converted residual
+stays within the existing fitted polynomial interval. The final table addition
+dominates the normal rounding error; subnormal scaling adds a second rounding,
+with an approximately 0.75-ulp budget. The public contract remains one ulp.
+The tests use 0.52 normal and 0.76 subnormal regression margins.
+
+Integer inputs are recognized from j=0 and d=0 and return packed exponent bits,
+including subnormal powers. Tiny `|x|<=2^-54` returns `1+x`, which rounds to 1,
+avoiding tiny residual products and spurious underflow. A magnitude test keeps
+ordinary signed inputs away from the special-value ladder. Finite x>=1024
+overflows; finite x<=-1075 rounds to zero. Input spacing near the upper limit
+ensures every representable x<1024 has a finite result, even when k=1024.
+
+Normal scaling is exact exponent-bit adjustment. For a subnormal result the
+intermediate is first scaled exactly into the normal range, then multiplied
+by 2^-1000. A guarded volatile operand keeps that tiny product on its actual
+branch under optimizers that do not observe floating exceptions. Noninteger
+binary-rational x has an inexact 2^x, so underflow/inexact is raised explicitly
+even if the rounded intermediate happens to scale exactly. Integer powers
+return before this branch and retain their no-exception contract. errno,
+incoming exceptions and the rounding mode are preserved; accuracy assumes
+the default IEEE round-to-nearest environment.
+
+The independent MPFR600/mpmath640 corpus covers integer neighbors, table and
+half-table grids, tiny/overflow/normal-subnormal limits, subnormal midpoints,
+and multiple random input distributions. The larger run is reproducible:
+
+```sh
+python3 tools/oracle/oracle.py exp2 --out build/linux/exp2-soak --seed 1793069507 --count 100000
+GMATH_EXP2_CORPUS_DIR=build/linux/exp2-soak build/linux/release/apps/testExp2 --gtest_brief=1
+```
+
+Across 111,631 inputs it measured normal error at most 0.505040 ulp at
+`0x1.1b65c88ac143ap+3` and subnormal error at most 0.749648 ulp at
+`-0x1.ff4e1f1239d69p+9`. These samples are not a proof of correct rounding.
+
+On the same Core 7 150U/GCC14.2/glibc2.41 host, `-O2`, one core pinned and
+best of 200 repeats, common [-10,10] scalar calls take about 2.7ns versus
+1.7ns for libm. Wide [-1000,1000] inputs take 2.7ns versus 3.5ns, tiny inputs
+1.5ns versus 1.7ns, and exact integer exponents 1.7ns versus 4.4ns. Boundary
+and subnormal-result cases are approximately tied. These measurements include
+indirect-call/loop overhead and do not establish an overall application win.
+
+The timing configuration above can be reproduced from the math directory
+(use the same installed dependency prefix as the regular build):
+
+```sh
+make CC=cc CXX=g++ PREFIX="$DEPENDENCY_PREFIX" build/linux/release/apps/tools/bench-exp2
+cc --version
+taskset -c 0 build/linux/release/apps/tools/bench-exp2 200
+```
+
 ## Speed
 
 `make bench` (`tools/bench-trig.c`, `tools/bench-elementary.c`): 4,096 arguments per
