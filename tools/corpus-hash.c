@@ -91,6 +91,10 @@ static double exp2f_widened(double x) {
   return (double)gmath_exp2f((float)x);
 }
 
+static double log10f_widened(double x) {
+  return (double)gmath_log10f((float)x);
+}
+
 static double logf_widened(double x) {
   return (double)gmath_logf((float)x);
 }
@@ -190,6 +194,7 @@ static const struct {
   {"exp2f", "exp2f", K_D_D, 0, NULL, exp2f_widened, NULL, NULL},
   {"expf", "expf", K_D_D, 0, NULL, expf_widened, NULL, NULL},
   {"logf", "logf", K_D_D, 0, NULL, logf_widened, NULL, NULL},
+  {"log10f", "log10f", K_D_D, 0, NULL, log10f_widened, NULL, NULL},
   {"cbrt", "cbrt", K_D_D, 0, NULL, gmath_cbrt, NULL, NULL},
   {"floorf", "floorf", K_D_D, 0, NULL, floorf_widened, NULL, NULL},
   {"ceilf", "ceilf", K_D_D, 0, NULL, ceilf_widened, NULL, NULL},

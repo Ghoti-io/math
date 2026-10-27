@@ -25,6 +25,18 @@ The deterministic contracts in the public headers remain authoritative.
   inputs remain slower than host libm; wide ranges and exact integer powers
   are faster on the measured host (see design notes).
 
+- Binary32 base-ten logarithm: `gmath_log10f`, reusing the unchanged natural
+  float kernel with one double base conversion. Exact representable decimal
+  powers 10^0 through 10^10 return integers without new flags in every mode;
+  all other positive finite inputs require inexact and give normal outputs.
+  The float nearest 10^11 remains inexact despite rounding to integer 11.
+  Committed/larger directed populations contain 19,888/310,331 rows, with
+  conservative measured maxima 0.49999504/0.49999852 ULP. Independent bound
+  below 0.500168 ULP leaves reserve under the one-ULP contract. Ordinary
+  timing remains about 1.10–1.27 times host libm; near-one inputs are faster,
+  subnormal arguments near parity and exact-power timing varies. No overall
+  performance win is claimed.
+
 - Binary32 natural logarithm: `gmath_logf`, with exact float reduction and a
   dedicated five-term series using the existing logarithm table. One returns
   positive zero without flags; all other positive finite arguments require
@@ -100,7 +112,7 @@ The deterministic contracts in the public headers remain authoritative.
 ## Upcoming project-used gaps
 
 1. Remaining float elementary operations used by WebAssembly, model and
-   CJelly, including `log10f`, `hypotf` and `atan2f`. Further float-trig tuning
+   CJelly, including `hypotf` and `atan2f`. Further float-trig tuning
    remains useful, especially small-path overhead and the residual wide-range
    libm gap. Float accuracy and exception handling remain separate targets.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
@@ -119,6 +131,23 @@ Future float elementary operations must use binary32 rounding and ulp spacing
 in their reference data, not a binary64 corpus tolerance.
 
 ## Verification and remaining limits
+
+The log10f phase passes full default GCC14.2/GCC16.2 gates, 176 unit tests
+on GCC14/GCC16/Clang and ten focused ASan/UBSan tests. Independent numerical
+and blind reviews with follow-up are resolved. All 24 implementation/state
+plants, 32 loader fixtures, four oracle faults, reference/raw/output hash
+corruptions, omitted entry and actual former directory typo are detected.
+The ordinary pinned-oracle gate now checks the source-linked numerical budget
+and requested fresh metadata/population/path; staged coefficient/evaluation
+drift and stale fresh metadata are rejected. Host pinned checks execute;
+optional nested oracles/budget are explicitly skipped in the GCC16 image.
+All 50 function result sets and the unchanged legacy aggregate agree on six
+emulated targets; raw default/portable probes pass at -O0/-O2. The new raw
+hash covers 778 nearest records, with 21,784 all-mode/incoming-state calls.
+Four stratified fresh samples each supply 120 distinct inverse-midpoint
+candidates and pass accuracy checks; committed data stays byte-identical.
+These results do not claim all-input correct rounding, directed numerical
+accuracy, physical-target coverage or an overall performance win.
 
 The logf phase passes full default GCC14.2/GCC16.2 gates and 166 unit tests
 on GCC14/GCC16/Clang, plus nine focused ASan/UBSan tests,
@@ -170,7 +199,7 @@ raw-bit NaN/zero/infinity tests, all four rounding modes, errno/exception-state
 checks, mutation checks and supplemental result hashes. Existing hashes remain
 unchanged. Build/test validation and independent reviews accompany each commit.
 
-Math-only QEMU checks now match all 49 committed function hashes on i686,
+Math-only QEMU checks now match all 50 committed function hashes on i686,
 AArch64, s390x, PowerPC64, PowerPC32 and SPARC64 Linux, with both default and
 forced-portable square root. Raw binary32 special-value/exception probes also
 pass on those emulated targets at both `-O0` and `-O2`. These are probe executions, not physical-host or full GoogleTest

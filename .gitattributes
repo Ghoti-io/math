@@ -5,3 +5,5 @@ tests/corpus/expf.corpus text eol=lf
 tests/corpus/expf-special.hash text eol=lf
 tests/corpus/logf.corpus text eol=lf
 tests/corpus/logf-special.hash text eol=lf
+tests/corpus/log10f.corpus text eol=lf
+tests/corpus/log10f-special.hash text eol=lf

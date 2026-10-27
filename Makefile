@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -384,6 +384,7 @@ $(APP_DIR)/examples/%$(EXE_EXTENSION): examples/%.c $(APP_DIR)/$(STATIC_TARGET) 
 .PHONY: check-planted-exp2f check-exp2f-oracle oracle-exp2f
 .PHONY: check-planted-expf check-expf-oracle oracle-expf
 .PHONY: check-planted-logf check-logf-oracle oracle-logf
+.PHONY: check-planted-log10f check-log10f-oracle oracle-log10f
 .PHONY: check-planted-cbrt check-cbrt-oracle oracle-cbrt oracle-fit-cbrt
 .PHONY: check-planted-floattrig check-floattrig-oracle oracle-floattrig check-floattrig-special
 .PHONY: check-planted-floatbasic check-floatbasic-oracle oracle-floatbasic check-floatbasic-special
@@ -578,6 +579,22 @@ check-logf-special: $(LOGF_SPECIAL_PROBE) tests/corpus/logf-special.hash
 	 cmp tests/corpus/logf-special.hash $(BUILD_DIR)/logf-special.actual && \
 	 cat $(BUILD_DIR)/logf-special.actual
 
+BENCH_PROBE_LOG10F := $(APP_DIR)/tools/bench-log10f$(EXE_EXTENSION)
+LOG10F_SPECIAL_PROBE := $(APP_DIR)/tools/probe-log10f-special$(EXE_EXTENSION)
+$(BENCH_PROBE_LOG10F): tools/bench-log10f.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+
+$(LOG10F_SPECIAL_PROBE): tools/probe-log10f-special.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+
+.PHONY: check-log10f-special
+check-log10f-special: $(LOG10F_SPECIAL_PROBE) tests/corpus/log10f-special.hash
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(LOG10F_SPECIAL_PROBE) > $(BUILD_DIR)/log10f-special.actual && \
+	 cmp tests/corpus/log10f-special.hash $(BUILD_DIR)/log10f-special.actual && \
+	 cat $(BUILD_DIR)/log10f-special.actual
+
 FLOATTRIG_WIDE_PROBE := $(APP_DIR)/tools/probe-floattrig-wide$(EXE_EXTENSION)
 $(FLOATTRIG_WIDE_PROBE): tools/probe-floattrig-wide.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP) | $(APP_DIR)/$(TARGET) $(LIBVER_GEN)
 	@mkdir -p $(@D)
@@ -648,7 +665,7 @@ corpus-hash-update: $(HASH_PROBE) ## Rewrite tests/corpus/trig.hash from this bu
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(HASH_PROBE) $(CORPUS_DIR) | awk 'BEGIN{print "# FNV-1a 64 over the little-endian bytes of every result, sin cos tan atan2 exp log pow hypot sqrt floor ceil trunc round rint fabs copysign scalbn frexp ilogb, in corpus order."; print "# `hash` and `count` are over all nineteen; each `fn` line is one function alone; sqrt_portable, sqrt_hardware and ldexp are variants, outside the total, that must equal sqrt and scalbn; decimal_parse (bits, flags, bytes consumed) and decimal_shortest (sign, digits, exponent) are outside the total too."; print "# Written by `make corpus-hash-update`; checked by check-corpus-hash, testTrig, testElementary and the cross-target scripts."} $$1=="math.trig.hash"{print "hash " $$2} $$1=="math.trig.count"{print "count " $$2} $$1 ~ /^math\.[a-z0-9_]+\.hash$$/ && $$1!="math.trig.hash"{split($$1,a,"."); h[a[2]]=$$2; o[++n]=a[2]} $$1 ~ /^math\.[a-z0-9_]+\.count$$/ && $$1!="math.trig.count"{split($$1,a,"."); c[a[2]]=$$2} END{for(i=1;i<=n;i++) print "fn " o[i] " " h[o[i]] " " c[o[i]]}' > $(CORPUS_DIR)/trig.hash
 	@cat $(CORPUS_DIR)/trig.hash
 
-check-planted: check-planted-exact check-planted-decimal check-planted-remainder check-planted-extrema check-planted-logbase check-planted-exp2 check-planted-exp2f check-planted-expf check-planted-logf check-planted-cbrt check-planted-floatbasic check-planted-floattrig $(OBJ_DIR)/tests/test_trig.o $(OBJ_DIR)/tests/test_elementary.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect fails its tests and the control passes
+check-planted: check-planted-exact check-planted-decimal check-planted-remainder check-planted-extrema check-planted-logbase check-planted-exp2 check-planted-exp2f check-planted-expf check-planted-logf check-planted-log10f check-planted-cbrt check-planted-floatbasic check-planted-floattrig $(OBJ_DIR)/tests/test_trig.o $(OBJ_DIR)/tests/test_elementary.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect fails its tests and the control passes
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_trig.o' PLANT_PROBE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
@@ -735,6 +752,13 @@ check-planted-logf: $(OBJ_DIR)/tests/test_logf.o $(LIBOBJECTS) $(HASH_PROBE) ## 
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-logf' \
 	 python3 tools/check-planted-logf.py
 
+check-planted-log10f: $(OBJ_DIR)/tests/test_log10f.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove log10f implementation, oracle and hash defects fail
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_log10f.o' PLANT_PROBE='$(HASH_PROBE)' \
+	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-log10f' \
+	 python3 tools/check-planted-log10f.py
+
 oracle-exp2: ## Regenerate committed binary exponential references in the pinned image
 	@$(ORACLE) exp2 --out $(CORPUS_DIR) --seed 20261026 --count 3000
 
@@ -812,6 +836,28 @@ check-logf-oracle: $(APP_DIR)/testLogf$(EXE_EXTENSION) ## Check committed and fr
 	   || { printf 'check-logf-oracle: FAIL with seed %s\n' "$$seed" >&2; exit 1; }; \
 	 elif [ $$rc -eq 3 ]; then \
 	   printf 'check-logf-oracle: SKIPPED fresh reference and committed regeneration; committed corpus still checked\n'; \
+	 else exit $$rc; fi
+
+oracle-log10f: ## Regenerate committed binary32 base-ten-logarithm references in the pinned image
+	@$(ORACLE) log10f --out $(CORPUS_DIR) --seed 20261027 --count 3000
+
+check-log10f-oracle: $(APP_DIR)/testLog10f$(EXE_EXTENSION) ## Check committed and fresh log10f references (skip fresh loudly without the pinned image)
+	@python3 tools/check-log10f-reference.py
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(APP_DIR)/testLog10f$(EXE_EXTENSION) --gtest_brief=1
+	@mkdir -p $(BUILD_DIR); \
+	 seed=$${GMATH_ORACLE_SEED:-$$(date +%s)}; rc=0; \
+	 printf 'check-log10f-oracle: fresh seed %s\n' "$$seed"; \
+	 $(ORACLE) fresh-log10f --out $(BUILD_DIR)/oracle-log10f --seed $$seed --count 3000 || rc=$$?; \
+	 if [ $$rc -eq 0 ]; then \
+	   $(ORACLE) budget-log10f && \
+	   $(ORACLE) log10f --out $(BUILD_DIR)/log10f-committed --seed 20261027 --count 3000 && \
+	   cmp tests/corpus/log10f.corpus $(BUILD_DIR)/log10f-committed/log10f.corpus && \
+	   LD_LIBRARY_PATH="$(TEST_LD_PATH)" python3 tools/check-planted-log10f.py --verify-fresh \
+	     "$(abspath $(APP_DIR)/testLog10f$(EXE_EXTENSION))" "$(abspath $(BUILD_DIR)/oracle-log10f)" \
+	     "$$seed" 3000 "$(abspath $(BUILD_DIR)/log10f-fresh-selection)" \
+	   || { printf 'check-log10f-oracle: FAIL with seed %s\n' "$$seed" >&2; exit 1; }; \
+	 elif [ $$rc -eq 3 ]; then \
+	   printf 'check-log10f-oracle: SKIPPED fresh reference, committed regeneration and pinned budget; committed corpus still checked\n'; \
 	 else exit $$rc; fi
 
 check-planted-floattrig: $(OBJ_DIR)/tests/test_floattrig.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove floattrig implementation, oracle and hash defects fail

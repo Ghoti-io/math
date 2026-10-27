@@ -86,6 +86,7 @@
 #define gmath_log GHOTIIO_MATH(gmath_log)
 #define gmath_logf GHOTIIO_MATH(gmath_logf)
 #define gmath_log10 GHOTIIO_MATH(gmath_log10)
+#define gmath_log10f GHOTIIO_MATH(gmath_log10f)
 #define gmath_log2 GHOTIIO_MATH(gmath_log2)
 #define gmath_log2f GHOTIIO_MATH(gmath_log2f)
 #define gmath_pow GHOTIIO_MATH(gmath_pow)

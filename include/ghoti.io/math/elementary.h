@@ -287,6 +287,22 @@ GMATH_API double gmath_log2(double x);
 GMATH_API double gmath_log10(double x);
 
 /**
+ * @brief Binary32 base-ten logarithm, within 1 float ulp under nearest rounding.
+ *
+ * Raw NaNs, signed zeros, negative arguments and positive infinity follow
+ * ::gmath_logf. Exactly representable decimal powers 10^n, n=0..10, return
+ * the exact integer n without new exceptions in every mode; n=0 gives +0.
+ * All other positive finite arguments give nonzero normal results with
+ * inexact only. errno, mode and incoming flags are preserved. Numerical
+ * accuracy assumes nearest rounding; full libm errno and directed-rounding
+ * compatibility are not promised.
+ *
+ * @param x The argument.
+ * @return log10(x) as a float.
+ */
+GMATH_API float gmath_log10f(float x);
+
+/**
  * @brief The binary32 base-two logarithm, within 1 binary32 ulp.
  *
  * The special values and default rounding-mode assumption follow ::gmath_log2.

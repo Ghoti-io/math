@@ -702,6 +702,54 @@ float gmath_logf(float x) {
   return (float)logf_positive((double)x);
 }
 
+/* Positive finite binary32 base-ten logarithms reuse the natural Float
+ * kernel; one binary64 multiply retains ample reserve before narrowing. */
+float gmath_log10f(float x) {
+  uint32_t l10f_word;
+  memcpy(&l10f_word, &x, sizeof l10f_word);
+  uint32_t l10f_abs = l10f_word & 0x7fffffffu;
+  if (l10f_abs > 0x7f800000u) {
+    if ((l10f_abs & 0x00400000u) == 0) {
+      (void)gmath_invalid();
+    }
+    return logf_value(0x7fc00000u);
+  }
+  if (l10f_abs == 0) {
+    uint32_t l10f_negative_infinity = 0xff800000u;
+    (void)gmath_div_by_zero(GMATH_SIGN_BIT);
+    return logf_value(l10f_negative_infinity);
+  }
+  if (l10f_word & 0x80000000u) {
+    (void)gmath_invalid();
+    return logf_value(0x7fc00000u);
+  }
+  if (l10f_abs == 0x7f800000u) {
+    return x;
+  }
+  if (l10f_word == 0x3f800000u) {
+    return 0.0f; /* Explicit +0 in every mode. */
+  }
+  /* These are all the exactly representable decimal powers in binary32:
+   * 5^10 has 24 bits, while 5^11 has 26. Classify before any arithmetic
+   * so their exact logarithms do not spuriously raise inexact. */
+  if (l10f_word >= 0x41200000u && l10f_word <= 0x501502f9u) {
+    switch (l10f_word) {
+      case 0x41200000u: return 1.0f;
+      case 0x42c80000u: return 2.0f;
+      case 0x447a0000u: return 3.0f;
+      case 0x461c4000u: return 4.0f;
+      case 0x47c35000u: return 5.0f;
+      case 0x49742400u: return 6.0f;
+      case 0x4b189680u: return 7.0f;
+      case 0x4cbebc20u: return 8.0f;
+      case 0x4e6e6b28u: return 9.0f;
+      case 0x501502f9u: return 10.0f;
+      default: break;
+    }
+  }
+  return (float)(logf_positive((double)x) * GMATH_LOG10_INV_HI);
+}
+
 /* ------------------------------------------------------------------------- */
 /* pow                                                                        */
 /* ------------------------------------------------------------------------- */

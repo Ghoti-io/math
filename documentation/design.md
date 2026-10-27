@@ -542,6 +542,89 @@ cc --version
 taskset -c 0 build/linux/release/apps/tools/bench-exp2 200
 ```
 
+## Binary32 base-ten logarithm
+
+`gmath_log10f` reuses the unchanged natural float kernel and multiplies its
+double result by the existing nearest double reciprocal of ln(10), before one
+float narrowing. Raw NaN/domain/zero/infinity handling follows logf. Exactly
+representable decimal powers 10^n, n=0..10, return the exact float integer n
+without new exceptions in every mode; input one returns explicit positive
+zero. All other positive finite inputs return nonzero normal values and require
+inexact only. errno, mode and incoming flags are preserved; directed numerical
+accuracy and full libm errno compatibility are outside this contract.
+
+These eleven inputs are the complete set of exact finite float logarithms.
+If dyadic x has rational log10(x)=p/q in lowest terms, x^q=10^p. Comparing
+5-adic valuations forces q=1 and p>=0. Hence x must be a nonnegative integer
+power of ten. Its exact binary32 representation requires 5^n to fit in 24
+significant bits: 5^10=9765625 fits, whereas 5^11=48828125 needs 26 bits.
+Raw integer dispatch occurs before floating arithmetic and returns 0..10
+exactly, avoiding spurious inexact. The float nearest 10^11, raw 0x51ba43b7,
+is actually 99999997952; its result rounds to 11 but its true logarithm is
+inexact, so it still requires IX. Neighbors of all exact powers also require IX.
+
+The inherited natural-log relative bound E is below 1.000862e-11.
+Directed MPFR600 checking bounds the stored reciprocal's relative error by
+u=2^-53. One double multiplication gives total relative error at most
+(1+E)*(1+u)^2-1, and final float rounding gives a conservative bound below
+0.500168 ULP (approximately 0.500167920492), retaining the one-ULP contract
+and 0.51 regression cap. Inexact for nonswitch inputs follows from the
+unchanged natural kernel. All intermediate values are zero or normal doubles;
+nonzero float results range roughly from -44.86 to 38.54 and stay normal.
+`tools/oracle/check_log10f_budget.py` reproduces the constant/budget and exact
+power checks separately from the direct reference generator.
+
+Independent references use direct directed MPFR log10 and mpmath, rational
+binary32 target/error rounding and full closed error cells. Exact decimal
+powers are independently certified with zero reference error. Inverse-output
+midpoint candidates use bounded directed powers of ten and finite-input
+interval checks. Atomic permission-preserving publication, complete-payload
+SHA256 and LF attributes protect committed references; fresh selection proves
+both the actual requested path and reported population. The committed sample
+has 19,888 rows; seed 1793108500/count 100000 gives 310,331. Conservative
+closed-error-cell maxima are 0.49999504 ULP at 0x401e7ffe and 0.49999852 ULP
+at 0x3f0c3f2b respectively. Fresh inverse-midpoint sampling spans 30 useful
+output binades (-24..5) with both signs and separated mantissa strata.
+Four seeds each supply 120 distinct finite inverse candidates, 60 on either
+side of one, and pass the direct-reference accuracy check. Committed generation
+keeps its original random stream and remains byte-identical.
+
+The pinned-oracle gate runs the budget checker, which explicitly validates the
+modeled helper coefficients/evaluation order, table geometry and final base
+conversion before certifying its bound. Staged coefficient and order drift
+are rejected. This narrow applicability guard is not formal C verification.
+The same fresh metadata/population/path checker serves the ordinary oracle
+gate and mutation runner; stale seed/count/fresh flags and equal-size fallback
+are rejected. Without the optional image, budget/fresh regeneration skips are
+explicit while committed payload and numerical/state checks still run.
+
+```sh
+python3 tools/oracle/oracle.py budget-log10f
+python3 tools/oracle/oracle.py log10f --out build/linux/log10f-soak --seed 1793108500 --count 100000
+GMATH_LOG10F_CORPUS_DIR=build/linux/log10f-soak build/linux/release/apps/testLog10f --gtest_brief=1
+```
+
+The raw hash 9f54f46c0e8df029 covers 778 nearest/no-incoming result and
+normalized-flag records; 21,784 calls separately assert errno, mode, incoming
+flags, exact decimal results and ordinary result classes over all modes.
+
+Paired scalar timing on x86-64 Linux/GCC14.2/glibc2.41 uses nearest/default
+fenv, affinity to logical CPU0, 4,096 identical
+inputs and 200 alternating pairs with integer checksums. Median gmath/libm
+ratios across two samples are about 1.10 common, 1.21–1.27 wide, 0.70 near
+one, 0.93–1.00 subnormal arguments, 1.03–1.50 exact decimal powers and
+1.18–1.24 near rounded 10^11. Ordinary calls remain slower; exact-power timing
+varies substantially. These measurements establish no overall speed advantage.
+
+The release executable uses C17, -O2, strict aliasing, -ffp-contract=off and
+-fno-math-errno, with indirect float calls and an integer checksum. Reproduce
+with a dependency prefix appropriate to the local installation:
+
+```sh
+make CC=cc CXX=g++ PREFIX="$DEPENDENCY_PREFIX" build/linux/release/apps/tools/bench-log10f
+taskset -c 0 build/linux/release/apps/tools/bench-log10f 200
+```
+
 ## Binary32 natural logarithm
 
 `gmath_logf` uses the existing 128-row logarithm table with a dedicated

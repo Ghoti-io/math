@@ -35,6 +35,7 @@
 #undef gmath_logf
 #undef gmath_log2
 #undef gmath_log10
+#undef gmath_log10f
 #undef gmath_log2f
 #undef gmath_pow
 #undef gmath_atan2
@@ -48,6 +49,7 @@
 #define gmath_logf test_copy_of_gmath_logf
 #define gmath_log2 test_copy_of_gmath_log2
 #define gmath_log10 test_copy_of_gmath_log10
+#define gmath_log10f test_copy_of_gmath_log10f
 #define gmath_log2f test_copy_of_gmath_log2f
 #define gmath_pow test_copy_of_gmath_pow
 #define gmath_atan2 test_copy_of_gmath_atan2
