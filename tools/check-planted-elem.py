@@ -94,7 +94,7 @@ from pathlib import Path
 SRC = Path("src/elementary")
 CORPUS = Path("tests/corpus")
 ORACLE_TEST = "Elementary.CorpusIsWithinOneUlp"
-SOURCES = ("elem_common.h", "explog.c", "explog_tables.h", "atan2.c", "atan2_table.h", "hypot.c", "hypot_table.h", "sqrt_impl.h")
+SOURCES = ("elem_common.h", "explog.c", "explog_tables.h", "logbase_constants.h", "atan2.c", "atan2_table.h", "hypot.c", "hypot_table.h", "sqrt_impl.h")
 OBJECTS = ("explog", "atan2", "hypot")
 TABLE_TEST = "tests/unit/test_elementary_tables.cpp"
 
@@ -284,7 +284,7 @@ def main():
                 return None
         return d
 
-    DEPENDS = {"explog": ("explog.c", "explog_tables.h", "elem_common.h"),
+    DEPENDS = {"explog": ("explog.c", "explog_tables.h", "logbase_constants.h", "elem_common.h"),
                "atan2": ("atan2.c", "atan2_table.h", "elem_common.h"),
                "hypot": ("hypot.c", "hypot_table.h", "sqrt_impl.h", "elem_common.h")}
 
@@ -582,6 +582,7 @@ def main():
     TT("table/exp poly c3 off by 2^-6 (the table test sees it)", [coef_patch(ET, "gmath_exp_poly", 3, "rel", rel(6))], "ExpPolynomialOverTheReducedRange")
     TT("table/log poly P5 off by 2^-4", [coef_patch(ET, "gmath_log_poly", 5, "rel", rel(4))], "LogPolynomialsOverTheirRange")
     TT("table/log dd poly R3 off by 2^-4", [coef_patch(ET, "gmath_log_dd_poly", 3, "rel", rel(4))], "LogPolynomialsOverTheirRange")
+    TT("table/log2f Taylor quadratic wrong", [(E, "double p = z + (z * z) * (-0.5 + z *", "double p = z + (z * z) * (-0.25 + z *")], "Log2FloatKernelHasSubUlpReserve")
     TT("table/atan2 poly P5 off by 2^-4", [coef_patch(AT, "gmath_atan2_poly", 5, "rel", rel(4))], "Atan2DirectPolynomialOverItsRange")
     TT("table/L1 not 30 bits", [define_patch(ET, "GMATH_EXP_L1", "0x1.62e42fe800001p-8")], "ConstantsAreTheirDefinitions")
     TT("table/ln2 low part dropped", [define_patch(ET, "GMATH_LN2_LO", "0x0p+0")], "ConstantsAreTheirDefinitions")

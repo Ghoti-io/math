@@ -401,6 +401,84 @@ best of 200 repeats, all four numeric extrema calls measure about 2 ns including
 indirect call/loop overhead, approximately matching host libm. These are scalar
 call measurements, not application throughput or compiler-inlined comparisons.
 
+## Binary and decimal logarithms
+
+`gmath_log2` and `gmath_log10` normalize the existing `log_dd` result without
+rounding its sum, multiply the high part by the high reciprocal with Dekker's
+exact residual, retain all low/cross terms, and round at the last addition.
+`tools/oracle/fit_logbase.py` generates 1/ln(2) and 1/ln(10) as double-double
+constants at 240 bits and checks them independently with MPFR to better than
+2^-105 relative. Existing log, exp and pow expression ordering and constants
+are unchanged.
+
+The shared logarithm arithmetic body is factored into `log_dd_parts`, with
+the original natural-log wrapper retaining its original normalization sequence.
+New base-log callers normalize subnormals by integer bits, producing exactly
+the same bits as multiplying by 2^52 and an exponent adjustment of -52. This
+also avoids a Clang optimization that speculated that floating multiplication
+on huge normal inputs and raised a spurious overflow. GCC and Clang are both
+checked for value and exception behavior.
+
+The precision reserve comes from the documented approximately 2^-67 relative
+accuracy of `log_dd`; after normalization the low-product roundoffs are about
+2^-106 of the result. This gives substantial margin beyond the final half-ulp
+rounding, while the public target remains one ulp and requires round-to-nearest.
+Positive binary powers are detected before logarithm arithmetic and return
+their exact exponent, including all subnormal powers, without inexact.
+
+The first float version reused the full double kernel and was over five times
+host log2f on common inputs. The final path uses the same table but takes
+advantage of binary32's 24 significant bits: the product of m and the table's
+26-bit multiplier fits exactly in double, and subtraction of 1 is exact. A
+five-term log1p Taylor series has remainder bounded by
+`|z|^6 / (6 * (1 - |z|))` for `|z|` below about 0.008. The rows touching 1 have
+zero table logarithm, preserving relative accuracy near the singular zero
+result. Other rows are separated from 1. The integer exponent is added in base
+two, then the result is narrowed once to binary32. Correct rounding of every
+float result is not a promise; the one-ulp target has substantial reserve.
+
+A conservative combined binary32 budget uses `u = 2^-53`, `|z| < 0.008`,
+`|table_log| < 0.36` and integer exponents of magnitude below 150. Product and
+subtraction forming z are exact. Away from the two rows touching one, the
+result's magnitude is at least 2^-8, so its float ulp is at least 2^-31.
+The Taylor remainder times 1/ln(2), plus the deliberately generous roundoff
+allowance `64*u*(150 + 0.36 + 0.008)`, is below 0.003 of that smallest ulp.
+For the rows touching one with exponent zero, there is no table cancellation:
+`|log(1+z)| >= |z|/(1+|z|)`, giving under 0.0001 float ulp from truncation and
+roundoff. Nonzero exponents in those rows have results bounded away from zero.
+Thus a conservative pre-round allowance of 0.01 ulp leaves room for the final
+nearest float rounding within the 0.51 regression target. An independent
+double-double atanh-series test checks every table row before float narrowing;
+its measured pre-round maximum is about 0.000059 float ulp.
+
+The MPFR600/mpmath640 oracle rounds rationals directly to the target precision
+and stores signed error in target-format ulps. It tests binary powers and
+neighbors, all table boundaries, values near 1, decimal powers, subnormals and
+seeded random values. A separate seed with over 322,000 reference inputs across
+the three functions measured maxima of approximately 0.5 ulp. Tests enforce a
+0.51-ulp regression margin in addition to the public one-ulp contract.
+
+That larger sample is reproducible from the math directory (same build prefix
+as the library):
+
+```sh
+python3 tools/oracle/oracle.py logbase --out build/linux/logbase-soak --seed 1793066501 --count 100000
+GMATH_LOGBASE_CORPUS_DIR=build/linux/logbase-soak build/linux/release/apps/testLogbase --gtest_brief=1
+```
+
+It contains 109,900 inputs for each double function and 102,462 float inputs.
+Maxima were 0.499999 ulp for log2 at `0x1.a2957c16ec1fbp-794`, 0.499998 for
+log10 at `0x1.03baa165b08ebp+434`, and 0.499996 for log2f at
+`0x1.e13a74p+50`. The sample and results are numerical evidence, not a proof
+of correct rounding for all inputs.
+
+Scalar-call timing on the Core 7 150U, GCC 14.2/glibc 2.41, `-O2`, one CPU
+pinned and best of 200 repeats remains mixed: common log2 is about 3.3 times
+libm and log10 about 1.7--1.8 times; native log2f is about 1.6--1.8 times.
+Binary powers are faster, and subnormal float log2 is much faster in this
+measurement. Dedicated base tables/kernels remain a performance opportunity;
+dependency coverage here must not be presented as a general speed win.
+
 ## Speed
 
 `make bench` (`tools/bench-trig.c`, `tools/bench-elementary.c`): 4,096 arguments per

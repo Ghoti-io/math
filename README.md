@@ -54,8 +54,16 @@ values, with negative zero preferred for minimum and positive zero for maximum.
 A single quiet NaN returns the other number; two quiet NaNs return the canonical
 NaN; a signaling NaN in either argument raises invalid and returns the canonical
 NaN. These functions preserve `errno` and the rounding mode. Other float
-elementary functions are not yet provided. The ongoing scope and verification
+elementary functions beyond `gmath_log2f` are not yet provided. The ongoing scope and verification
 limits are recorded in `documentation/libm-progress.md`.
+
+`gmath_log2`, `gmath_log10` and `gmath_log2f` add binary/decimal logarithms,
+with a one-ulp contract in their result format under round-to-nearest. Binary
+powers have exact `log2`/`log2f` results without inexact. The binary64 paths
+retain the existing high-precision logarithm and split reciprocal products;
+the float path uses an exact table product and a short series in double.
+Zeros raise divide-by-zero and return -infinity; negative values raise invalid;
+NaNs use the canonical policy. Other positive finite values may raise inexact.
 
 And exact conversion between decimal and `double` (`ghoti.io/math/decimal.h`):
 * `gmath_decimal_parse` reads the decimal grammar CSS, SVG and `strtod` share.
@@ -120,6 +128,16 @@ regenerate those committed files, run:
 python3 tools/oracle/gen_corpus_extrema.py --out tests/corpus --seed 20261026 --count 3000
 make corpus-hash-update
 ```
+
+Base-logarithm references use the pinned MPFR image, cross-checked against
+mpmath, with direct binary32 rounding for float results. `make
+check-logbase-oracle` checks a fresh sample and regenerates the reciprocal
+constants for comparison when the image is available. Without it, the fresh
+check skips loudly and the committed corpus still runs;
+`GHOTI_ORACLE_REQUIRED=1` makes the missing image a failure. Regenerate with
+`make oracle-fit-logbase oracle-logbase corpus-hash-update`, passing the build's
+`PREFIX`. `make check-planted-logbase` checks implementation defects, the oracle
+self-check, wrong hashes and omitted probe entries.
 
 ## Building
 

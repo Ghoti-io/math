@@ -83,6 +83,10 @@ static double fmaxf_widened(double x, double y) {
   return (double)gmath_fmaxf((float)x, (float)y);
 }
 
+static double log2f_widened(double x) {
+  return (double)gmath_log2f((float)x);
+}
+
 static const struct {
   const char * name; /* the reported name */
   const char * file; /* the corpus read */
@@ -123,6 +127,9 @@ static const struct {
   {"fmax", "fmax", K_DD_D, 0, NULL, NULL, gmath_fmax, NULL},
   {"fminf", "fminf", K_DD_D, 0, NULL, NULL, fminf_widened, NULL},
   {"fmaxf", "fmaxf", K_DD_D, 0, NULL, NULL, fmaxf_widened, NULL},
+  {"log2", "log2", K_D_D, 0, NULL, gmath_log2, NULL, NULL},
+  {"log10", "log10", K_D_D, 0, NULL, gmath_log10, NULL, NULL},
+  {"log2f", "log2f", K_D_D, 0, NULL, log2f_widened, NULL, NULL},
 };
 #define NFNS ((int)(sizeof fns / sizeof fns[0]))
 

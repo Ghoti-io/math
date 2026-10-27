@@ -133,6 +133,49 @@ GMATH_API double gmath_exp(double x);
 GMATH_API double gmath_log(double x);
 
 /**
+ * @brief The base-two logarithm of @p x, within 1 ulp of the true value.
+ *
+ * Round to nearest is assumed, as for the other elementary kernels. Positive
+ * binary powers, including subnormals, return their exact integer exponent
+ * without inexact. Both zeros give -infinity and raise divide-by-zero;
+ * negative values give the canonical NaN and raise invalid; +infinity is
+ * returned unchanged. NaNs are canonicalized, with invalid for signaling NaNs.
+ * errno and incoming exceptions are preserved.
+ *
+ * @param x The argument.
+ * @return log2(@p x).
+ */
+GMATH_API double gmath_log2(double x);
+
+/**
+ * @brief The base-ten logarithm of @p x, within 1 ulp of the true value.
+ *
+ * The special values and default rounding-mode assumption follow ::gmath_log2.
+ * log10(1) is exact +0 without exceptions. Other positive finite inputs may
+ * raise inexact, including when their rounded result is an integer. errno and
+ * incoming exceptions are preserved.
+ *
+ * @param x The argument.
+ * @return log10(@p x).
+ */
+GMATH_API double gmath_log10(double x);
+
+/**
+ * @brief The binary32 base-two logarithm, within 1 binary32 ulp.
+ *
+ * The special values and default rounding-mode assumption follow ::gmath_log2.
+ * Every positive binary32 power of two returns its exact exponent without
+ * inexact. Any returned NaN has bits 0x7fc00000. Positive finite inputs widen
+ * exactly to a short polynomial evaluated in binary64, using the logarithm
+ * table's exact multiplier product; the final narrowing has a one-ulp float
+ * error budget. Correct rounding of every float input is not promised.
+ *
+ * @param x The argument.
+ * @return The binary32 logarithm of @p x.
+ */
+GMATH_API float gmath_log2f(float x);
+
+/**
  * @brief @p x raised to the power @p y.
  *
  * Within 1 ulp of the true value whenever the result is finite or rounds to

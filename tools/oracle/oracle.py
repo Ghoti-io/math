@@ -15,12 +15,17 @@ gmath_exp, gmath_log, gmath_pow and gmath_hypot.
     oracle.py fit                           print src/elementary/trig_tables.h
     oracle.py fit-kernel                    print src/elementary/trig_kernel_table.h
     oracle.py fit-explog                    print src/elementary/explog_tables.h
+    oracle.py fit-logbase                   print split inverse-ln(2)/ln(10) constants
     oracle.py fit-atan2                     print src/elementary/atan2_table.h
     oracle.py fit-hypot                     print src/elementary/hypot_table.h
     oracle.py corpus --out DIR --seed N     write the committed-size corpus (sin, cos, tan, atan2, exp, log, pow, hypot,
                                     and sqrt, floor, ceil, trunc, round, rint, fabs, copysign, scalbn, frexp, ilogb,
                                     and decimal_parse, decimal_shortest)
     oracle.py fresh  --out DIR --seed N     write a small sample drawn now
+    oracle.py logbase --out DIR --seed N --count N
+                                           write log2/log10/log2f reference corpora
+    oracle.py fresh-logbase --out DIR --seed N
+                                           write a fresh base-logarithm sample
 
 The reference runs in the pinned image named by containers/IMAGES, never on
 the host.  It does not fail open: a missing engine, a missing image or a
@@ -84,14 +89,15 @@ def check_pin():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "fit-explog", "fit-atan2", "fit-hypot", "corpus", "fresh"))
+    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "fit-explog", "fit-logbase", "fit-atan2", "fit-hypot", "corpus", "fresh", "logbase", "fresh-logbase"))
     ap.add_argument("--out")
     ap.add_argument("--seed", type=int)
+    ap.add_argument("--count", type=int, default=3000)
     a = ap.parse_args()
     try:
         ref, prov = check_pin()
     except Unavailable as e:
-        if a.cmd == "fresh" and not REQUIRED:
+        if a.cmd in ("fresh", "fresh-logbase") and not REQUIRED:
             sys.stderr.write("oracle: SKIPPED the fresh sample: %s\n" % e)
             sys.stderr.write("oracle: the committed corpus was still checked; "
                              "GHOTI_ORACLE_REQUIRED=1 makes this a failure\n")
@@ -107,6 +113,8 @@ def main():
         return engine_run(ref, ["python", "tools/oracle/fit_kernel.py"]).returncode
     if a.cmd == "fit-explog":
         return engine_run(ref, ["python", "tools/oracle/fit_explog.py"]).returncode
+    if a.cmd == "fit-logbase":
+        return engine_run(ref, ["python", "tools/oracle/fit_logbase.py"]).returncode
     if a.cmd == "fit-atan2":
         return engine_run(ref, ["python", "tools/oracle/fit_atan2.py"]).returncode
     if a.cmd == "fit-hypot":
@@ -119,6 +127,12 @@ def main():
     if not out.startswith(ROOT + os.sep):
         sys.stderr.write("oracle.py: --out must be inside %s\n" % ROOT)
         return 2
+    if a.cmd in ("logbase", "fresh-logbase"):
+        argv = ["python", "tools/oracle/gen_corpus_logbase.py", "--out", out,
+                "--seed", str(a.seed), "--count", str(a.count)]
+        if a.cmd == "fresh-logbase":
+            argv.append("--fresh")
+        return engine_run(ref, argv).returncode
     size = "committed" if a.cmd == "corpus" else "fresh"
     for script in ("gen_corpus.py", "gen_corpus_elem.py", "gen_corpus_exact.py", "gen_corpus_decimal.py"):
         rc = engine_run(ref, ["python", "tools/oracle/" + script, "--out", out,
@@ -128,4 +142,5 @@ def main():
     return 0
 
 
-sys.exit(main())
+if __name__ == "__main__":
+    sys.exit(main())

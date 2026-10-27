@@ -12,10 +12,14 @@ The deterministic contracts in the public headers remain authoritative.
   and `gmath_fmaxf`. Numeric results preserve input bits; minimum orders -0
   below +0. One quiet NaN yields the other number; signaling NaNs yield the
   canonical NaN and raise invalid.
+- Base logarithms: `gmath_log2`, `gmath_log10`, `gmath_log2f`, with independent
+  MPFR/mpmath reference values, exact binary-power cases and a dedicated float
+  table/series path. The public numerical contract is one ulp, with nearest
+  rounding assumed and canonical special-value handling.
 
 ## Upcoming project-used gaps
 
-1. Binary logarithm/exponential support (`log2`, `log2f`, `exp2`) and `log10`.
+1. Binary exponential support (`exp2`).
 2. Cube root (`cbrt`).
 3. Float rounding, square root and trig operations used by WebAssembly, model,
    and CJelly. Simple wrappers require proof that narrowing remains exact or
@@ -26,10 +30,9 @@ The deterministic contracts in the public headers remain authoritative.
 
 ## Notes for the next numerical phase
 
-The current `src/elementary/explog.c` has precision reserve in `log_dd`.
-Base conversion should retain that double-double result and a split reciprocal
-of ln(2) or ln(10), rather than multiplying the already rounded public log.
-A one-ulp target still requires a new error budget and MPFR reference evidence.
+Base logarithms now retain the precision reserve in `log_dd` with generated
+split reciprocals. Their ordinary scalar-call paths remain slower than host
+libm; direct base-specific tables remain a later optimization opportunity.
 
 For exp2, a dedicated reduction by exact multiples of 1/128 can reuse the
 existing exponential table and reconstruction polynomial. Converting only the
@@ -51,7 +54,8 @@ remains pending; host verification must not be represented as cross-platform
 execution evidence. Integrating that gate requires permission to edit suite.
 
 Scalar call benchmarks compare against host libm on identical input ranges.
-Extrema are approximately tied on the measured host. Remainder is faster in
+Extrema are approximately tied on the measured host. Base logarithms have
+mixed performance as described above. Remainder is faster in
 some float/subnormal cases and slower in some double ranges; there is no claim
 of an overall libm performance win. Compiler-inlined, shared-library, vector,
 and application workloads still need separate measurements.

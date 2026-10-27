@@ -30,11 +30,17 @@
 
 #undef gmath_exp
 #undef gmath_log
+#undef gmath_log2
+#undef gmath_log10
+#undef gmath_log2f
 #undef gmath_pow
 #undef gmath_atan2
 #undef gmath_hypot
 #define gmath_exp test_copy_of_gmath_exp
 #define gmath_log test_copy_of_gmath_log
+#define gmath_log2 test_copy_of_gmath_log2
+#define gmath_log10 test_copy_of_gmath_log10
+#define gmath_log2f test_copy_of_gmath_log2f
 #define gmath_pow test_copy_of_gmath_pow
 #define gmath_atan2 test_copy_of_gmath_atan2
 #define gmath_hypot test_copy_of_gmath_hypot
@@ -261,6 +267,47 @@ TEST(ElementaryTables, LogPolynomialsOverTheirRange) {
       std::log2(worst_dd));
   EXPECT_LT(worst, 0x1p-58);
   EXPECT_LT(worst_dd, 0x1p-66);
+}
+
+TEST(ElementaryTables, Log2FloatKernelHasSubUlpReserve) {
+  double worst = 0.0;
+  for (unsigned j = 0; j < 128; ++j) {
+    double lo = gmath_double(GMATH_LOG_OFF + (static_cast<uint64_t>(j) << 45));
+    double hi = gmath_double(GMATH_LOG_OFF + (static_cast<uint64_t>(j + 1) << 45));
+    const double * row = gmath_log_rows[j];
+    EXPECT_LT(std::fabs(lo * row[0] - 1.0), 0.008);
+    EXPECT_LT(std::fabs(hi * row[0] - 1.0), 0.008);
+    EXPECT_LT(std::fabs(row[1]) + std::fabs(row[2]), 0.36);
+    bool one = row[0] == 1.0;
+    if (!one) {
+      EXPECT_TRUE(hi <= 1.0 - 0x1p-8 || lo >= 1.0 + 0x1p-7);
+    }
+    for (int i = 0; i <= 32; ++i) {
+      float m = static_cast<float>(lo + (hi - lo) * (i / 32.0));
+      if (static_cast<double>(m) >= hi) {
+        m = std::nextafter(static_cast<float>(hi), 0.0f);
+      }
+      DD lm = Div(LogSeries(DD{static_cast<double>(m), 0.0}), kLn2);
+      for (int scale : {-125, -10, 0, 10, 127}) {
+        double x = std::ldexp(static_cast<double>(m), scale);
+        ASSERT_EQ(x, static_cast<double>(static_cast<float>(x)));
+        DD reference = Add(DD{static_cast<double>(scale), 0.0}, lm);
+        double got = log2f_positive(x);
+        if (reference.hi == 0.0) {
+          EXPECT_EQ(got, 0.0);
+          continue;
+        }
+        int exponent;
+        std::frexp(reference.hi, &exponent);
+        double unit = std::ldexp(1.0, exponent - 24);
+        DD difference = Sub(DD{got, 0.0}, reference);
+        double error = std::fabs(difference.hi + difference.lo) / unit;
+        worst = std::fmax(worst, error);
+        EXPECT_LT(error, 0.01) << "row " << j << " scale " << scale;
+      }
+    }
+  }
+  std::printf("  float log2: pre-round error below %.6g binary32 ulp over every row\n", worst);
 }
 
 TEST(ElementaryTables, Atan2RowsAreTheTaylorSeriesOfArctangent) {

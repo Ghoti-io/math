@@ -99,7 +99,6 @@ float FloatOf(uint32_t u) {
 }
 
 const uint64_t kQNaN = 0x7ff8000000000000ull;
-const uint64_t kSign = 0x8000000000000000ull;
 const double kInf = std::numeric_limits<double>::infinity();
 const double kNaN = std::numeric_limits<double>::quiet_NaN();
 
