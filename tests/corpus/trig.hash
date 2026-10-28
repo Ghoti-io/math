@@ -81,3 +81,5 @@ fn remquo 0c911b03aac2ba92 100316
 fn remquof c0e9b42076c7567c 27049
 fn remquo_quotient c83d811fbc46c08e 100316
 fn remquof_quotient c20a236a8b4a2bb5 27049
+fn nearbyint 181c93ddf14441bf 33997
+fn nearbyintf c75989a801b50444 6990

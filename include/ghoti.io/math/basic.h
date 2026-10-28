@@ -30,7 +30,8 @@
  * Each has one correct answer (the square root is correctly rounded), so each
  * is exact, not within an error: the result is the same on every target, at
  * every optimization level and in every rounding mode that matters to the
- * result (none of them reads the rounding mode; `gmath_rint` is half to even).
+ * result. The nearby functions read the current standard rounding mode;
+ * `gmath_rint` remains deterministic half to even.
  * Every NaN returned is the same quiet NaN (all bits fixed), so results hash
  * identically on every target; the sign of a NaN argument is not preserved.
  * There is no `fma`: fusing is forbidden (AD-17).  See elementary.h for the
@@ -254,6 +255,31 @@ GMATH_API long long gmath_llroundf(float x);
  * @return rint(@p x).
  */
 GMATH_API double gmath_rint(double x);
+
+/**
+ * @brief Round to an integral floating value using the current rounding mode.
+ *
+ * Exact under FE_TONEAREST (ties to even), FE_DOWNWARD, FE_UPWARD and
+ * FE_TOWARDZERO. Unlike ::gmath_rint, this function observes the current mode.
+ * Signed zeros/infinities survive. NaNs canonicalize; only signaling inputs
+ * add invalid. All other inputs add no flags, including inexact. errno, mode
+ * and incoming flags are preserved. Standard C fenv controls must be coherent and nontrapping;
+ * instruction-specific overrides are outside this contract. The native x86
+ * reader observes SSE rounding; SPARC trap-type status is not promised.
+ * Unsupported rounding-mode query results and
+ * full libm errno/long-double semantics are not promised.
+ * Ports without a native reader (and GMATH_NEARBY_FENV_QUERY builds) require
+ * the platform fenv runtime, which may itself require libm.
+ * @param x The binary64 argument.
+ * @return The rounded integral value, preserving the sign of a zero result.
+ */
+GMATH_API double gmath_nearbyint(double x);
+/** @brief Binary32 counterpart of ::gmath_nearbyint with the same contract.
+ * @param x The binary32 argument.
+ * @return The rounded integral value, preserving the sign of a zero result.
+ */
+GMATH_API float gmath_nearbyintf(float x);
+
 
 /**
  * @brief The magnitude of @p x.  A NaN gives the library's NaN.

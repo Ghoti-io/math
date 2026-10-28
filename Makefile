@@ -216,6 +216,8 @@ CFLAGS += -DGMATH_STATIC
 CXXFLAGS += -DGMATH_STATIC
 endif
 LIB_CFLAGS := $(CFLAGS) -fvisibility=hidden -DGMATH_BUILD $(EXTRA_CFLAGS)
+# C++ callers must see the library query backend selected through C flags.
+override CXXFLAGS += $(filter -DGMATH_NEARBY_FENV_QUERY%,$(LIB_CFLAGS))
 LDFLAGS := -L /usr/lib -lstdc++ -lm $(EXTRA_LDFLAGS)
 ifdef PREFIX
 LDFLAGS += -Wl,-rpath,$(LIB_INSTALL_PATH)/$(SUITE)
@@ -257,7 +259,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -509,7 +511,7 @@ GTEST_FLAGS := $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --li
 $(HASH_PROBE): tools/corpus-hash.c tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) \
 		$(FLAGS_STAMP) | $(APP_DIR)/$(TARGET) $(LIBVER_GEN)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
 
 BENCH_PROBE := $(APP_DIR)/tools/bench-trig$(EXE_EXTENSION)
 BENCH_PROBE_ELEM := $(APP_DIR)/tools/bench-elementary$(EXE_EXTENSION)
@@ -2016,3 +2018,60 @@ check-ieee-remainder-prior-controls: $(APP_DIR)/$(STATIC_TARGET) $(IEEE_REMAINDE
 	 NATIVE_LDFLAGS='$(LDFLAGS)' NATIVE_LIBRARY='$(APP_DIR)/$(STATIC_TARGET)' NATIVE_REFERENCE='$(IEEE_REMAINDER_REFERENCE_OBJECT)' \
 	 NATIVE_NM='$(NM)' NATIVE_OBJCOPY='$(OBJCOPY)' NATIVE_METADATA='$(IEEE_REMAINDER_REFERENCE_METADATA)' NATIVE_CORPUS='$(CORPUS_DIR)' NATIVE_WORK='$(BUILD_DIR)/ieee-remainder-prior-controls' \
 	 python3 tools/check-ieee-remainder-prior-controls.py
+
+NEARBY_PROBE := $(APP_DIR)/tools/probe-nearby$(EXE_EXTENSION)
+$(NEARBY_PROBE): tools/probe-nearby.c tests/nearby_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: check-nearby oracle-nearby
+check-nearby: $(NEARBY_PROBE)
+	@python3 tools/check-nearby.py --probe $(NEARBY_PROBE)
+oracle-nearby:
+	@$(ORACLE) nearby --out $(CORPUS_DIR) --seed 20261028 --count 2000
+.PHONY: check-planted-nearby
+check-planted-nearby: $(OBJ_DIR)/tests/test_nearby.o $(APP_DIR)/$(STATIC_TARGET)
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_nearby.o' \
+	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_LDFLAGS='$(LDFLAGS)' \
+	 PLANT_UNIT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' PLANT_WORK='$(BUILD_DIR)/planted-nearby' \
+	 python3 tools/check-planted-nearby.py
+.PHONY: check-nearby-controls check-nearby-oracle
+check-nearby-controls: $(NEARBY_PROBE) $(APP_DIR)/testNearby$(EXE_EXTENSION) $(HASH_PROBE)
+	@python3 tools/check-nearby-controls.py --probe $(NEARBY_PROBE)
+check-nearby-oracle: check-nearby $(NEARBY_PROBE) $(APP_DIR)/testNearby$(EXE_EXTENSION) $(HASH_PROBE)
+	@seed=$$(od -An -N4 -tu4 /dev/urandom | tr -d ' '); rc=0; \
+	 $(ORACLE) fresh-nearby --out $(BUILD_DIR)/oracle-nearby --seed $$seed --count 2000 || rc=$$?; \
+	 if [ $$rc -eq 3 ]; then echo 'nearby pinned fresh: SKIPPED optional engine'; \
+	 elif [ $$rc -ne 0 ]; then exit $$rc; \
+	 else $(ORACLE) nearby --out $(BUILD_DIR)/nearby-committed --seed 20261028 --count 2000 && \
+	   for f in nearbyint-special.corpus nearbyintf-special.corpus nearbyint.corpus nearbyintf.corpus nearby-special.hash; do \
+	     cmp $(CORPUS_DIR)/$$f $(BUILD_DIR)/nearby-committed/$$f || exit 1; \
+	   done && python3 tools/check-nearby-controls.py --probe $(NEARBY_PROBE) --unit $(APP_DIR)/testNearby$(EXE_EXTENSION) \
+	     --numeric-probe $(HASH_PROBE) --fresh $(BUILD_DIR)/oracle-nearby --seed $$seed --count 2000; \
+	 fi
+.PHONY: check-nearby-oracle-controls
+check-nearby-oracle-controls:
+	@python3 tools/check-nearby-oracle.py --work $(BUILD_DIR)/nearby-oracle-controls
+NEARBY_BENCH := $(APP_DIR)/tools/bench-nearby$(EXE_EXTENSION)
+$(NEARBY_BENCH): tools/bench-nearby.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: bench-nearby
+bench-nearby: $(NEARBY_BENCH)
+	@$(NEARBY_BENCH)
+NEARBY_LINK_PROBE := $(APP_DIR)/tools/probe-nearby-link$(EXE_EXTENSION)
+$(NEARBY_LINK_PROBE): tools/probe-nearby-link.c src/elementary/nearby_mode.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(LIB_CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET)
+.PHONY: check-nearby-link
+check-nearby-link: $(NEARBY_LINK_PROBE)
+NEARBY_PLATFORM_PROBE := $(APP_DIR)/tools/probe-nearby-platform$(EXE_EXTENSION)
+$(NEARBY_PLATFORM_PROBE): tools/probe-nearby-link.c src/elementary/nearby_mode.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(LIB_CFLAGS) $(INCLUDE) -DGMATH_NEARBY_LINK_ALLOW_FENV -o $@ $< $(APP_DIR)/$(STATIC_TARGET) -lm
+check-nearby-link: $(NEARBY_PLATFORM_PROBE)
+	@$(NEARBY_LINK_PROBE)
+	@$(NEARBY_PLATFORM_PROBE)
+.PHONY: check-nearby-mode-plants
+check-nearby-mode-plants:
+	@MODE_CC='$(CC)' MODE_FLAGS='$(LIB_CFLAGS) $(INCLUDE)' MODE_WORK='$(BUILD_DIR)/nearby-mode-plants' python3 tools/check-nearby-mode-plants.py

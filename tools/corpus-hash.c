@@ -72,6 +72,8 @@ static double frexp_fraction(double x, int * e) {
   return gmath_frexp(x, e);
 }
 
+static double nearbyintf_widened(double x){return (double)gmath_nearbyintf((float)x);}
+
 /* Float corpus values are stored as exactly widened doubles. */
 static double logbf_widened(double x) {return (double)gmath_logbf((float)x);}
 
@@ -250,6 +252,8 @@ static const struct {
   {"sqrt_hardware", "sqrt", K_D_D, 0, "sqrt", gmath_sqrt_hardware, NULL, NULL},
   {"ldexp", "scalbn", K_DN_D, 0, "scalbn", NULL, NULL, gmath_ldexp},
   /* Supplemental functions preserve the legacy aggregate hash. */
+  {"nearbyint", "nearbyint", K_D_D, 0, NULL, gmath_nearbyint, NULL, NULL},
+  {"nearbyintf", "nearbyintf", K_D_D, 0, NULL, nearbyintf_widened, NULL, NULL},
   {"remainder", "remainder", K_DD_D, 0, NULL, NULL, gmath_remainder, NULL},
   {"remainderf", "remainderf", K_DD_D, 0, NULL, NULL, ieee_remainderf_widened, NULL},
   {"remquo", "remainder", K_DD_D, 0, NULL, NULL, ieee_remquo_value, NULL},

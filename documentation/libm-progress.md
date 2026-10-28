@@ -4,10 +4,53 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 29 verified phases add 50 APIs, six performance optimizations
-and certificate maintenance. Classic real-function name coverage is 70/171;
-44 Float/Double additions remain, or 101 including long double. The phase
+Current snapshot: 30 verified phases add 52 APIs, six performance optimizations
+and certificate maintenance. Classic real-function name coverage is 72/171;
+42 Float/Double additions remain, or 99 including long double. The phase
 sections below retain historical counts and measurements.
+
+## Current-mode nearby integer rounding
+
+Added `gmath_nearbyint`/`gmath_nearbyintf`: exact four-mode integral bits, signed
+zeros and no new inexact; only signaling NaNs add invalid. Caller errno/mode/
+incoming C flags are preserved. Old deterministic rint and every old runtime
+module remain unchanged. Native six-target readers avoid libm; explicit/other
+query ports use real platform fenv and may require its runtime. Coherent
+nontrapping standard C controls are assumed; SPARC trap-type status and manually
+inconsistent instruction modes are outside the guarantee.
+
+Full GCC14.2/GCC16.2 gates return zero, 237 main tests/33 binaries each. Clang
+passes the same counts unit-only; four ASan/UBSan tests pass. Independent proof,
+blind reviews and follow-ups resolved findings. All 78 old result sets and legacy
+`f5fa269eb60ee34f`/292711 remain unchanged; nearby adds sets79/80, hashes
+`181c93ddf14441bf`/33997 and `c75989a801b50444`/6990. Exact Fraction and pinned
+MPFR four-mode targets agree; five complete SHA/LF gates and byte-identical
+regeneration protect references. Raw 34102/7042 rows drive 548632 separately
+asserted state calls per profile; raw result/order hashes are in the detailed
+report. Six emulated targets match 80 sets default/portable and 24 raw native/query
+O0/O2 profiles; six real direction faults detect. These are probes, not physical
+hosts/full cross-target GoogleTest. Three fresh and larger 72102/45041-row
+samples pass both native compilers, including complete population, C++ path and
+80-set overlays. Larger cross-target, Windows/RISC-V runtime, soft-float numerical
+execution, exhaustive input/environment space and application timing are unrun.
+No new Valgrind run or passing claim; earlier failed partial scopes and force-only
+IX witness gaps remain unchanged.
+
+All initial failed full/controller attempts remain recorded as failures. Public
+aliases and legacy test-probe closures were fixed; an intermediate old atan link
+passed unchanged replay, with precise cause unestablished. Optimized PPC64 can
+inline the actual standard query, so cross dependency accounting now binds actual
+backend selection rather than demanding an external query symbol. Final complete
+runs pass. A late overview-only header correction was followed by GCC14 unit
+rebuild/rerun and included in the complete GCC16 run.
+
+Two final paired runs/compiler retain 576 cases with eight warmups, 401 alternating
+pairs of 4096 inputs and integer timestamps. Ordinary own/host medians span 2.616–3.975
+Double/3.046–4.087 Float GCC14 and 2.251–3.985/2.240–3.317 GCC16; most ranges also
+trail. No overall/application/platform speed win. Every case's absolute ns/call
+and paired p10/median/p90 envelope, proof, contracts, failure history and
+reproduction are in [nearby-integer.md](nearby-integer.md). Broader standard
+coverage is intentional; consumers remain unmigrated.
 
 ## Rejected wide-remainder investigation
 
@@ -214,15 +257,21 @@ validation limits and complete timing envelopes are retained in
 
 ## Next work
 
-Investigate broader basic real coverage, beginning with `nearbyint`/`nearbyintf`:
-review current-rounding-mode semantics, no-new-inexact behavior, signed zeros,
-NaNs and caller-state preservation before selecting an implementation. Do not
-alias the existing deterministic nearest/even `rint` behavior without checking
-those contracts. A scoped read-only candidate scan of 4,693 project source/header
-files found only independent test references, comments and CSS strings for the
-scanned missing families; no new production need is assumed. Keep those host
-references independent and consumer migration deferred. Broader inverse trig,
-hyperbolic, `log1p`/`expm1`, integer conversions and special functions remain.
+Investigate current-mode integer-return rounding: `lrint`/`lrintf` and
+`llrint`/`llrintf` if practical. Define native destination widths, exact rounded
+range checks, invalid sentinels, inexact and caller-state contracts before
+implementation; do not alias the existing deterministic nearest/even rint.
+The new nearby pair supplies a reviewed rounding-control reader, but its
+floating-result/no-inexact contract differs from integer conversion.
+
+Nearby timing also exposes a concrete performance gap. Any later optimization
+must preserve current-mode bits and exact state contracts, compare actual prior
+functions, and retain honest host measurements. No unproven fast path is admitted
+here. A prior scoped read-only scan of 4,693 source/header files found no new
+production use for the scanned missing families. Recheck current project usage
+before selecting broader work; keep independent host test references and defer
+consumer migration. Inverse trig, hyperbolic, `log1p`/`expm1`, long-double,
+complex and special functions remain broader gaps.
 
 ## Initial remainder division optimization
 
