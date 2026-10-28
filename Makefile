@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -1925,3 +1925,56 @@ $(CBRTF_BOUNDARY_PROBE): tools/probe-cbrtf-boundaries.c tests/cbrtf_probe.h src/
 .PHONY: check-cbrtf-boundaries
 check-cbrtf-boundaries: $(CBRTF_BOUNDARY_PROBE)
 	@$(CBRTF_BOUNDARY_PROBE)
+
+# Exact IEEE remainder and signed seven-bit quotient fragments.
+IEEE_REMAINDER_PROBE := $(APP_DIR)/tools/probe-ieee-remainder$(EXE_EXTENSION)
+$(IEEE_REMAINDER_PROBE): tools/probe-ieee-remainder.c tests/ieee_remainder_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: check-ieee-remainder check-planted-ieee-remainder
+check-ieee-remainder: $(IEEE_REMAINDER_PROBE) $(APP_DIR)/testIeee_remainder$(EXE_EXTENSION) $(HASH_PROBE)
+	@python3 tools/check-ieee-remainder.py --probe $(IEEE_REMAINDER_PROBE) --corpus $(CORPUS_DIR) --unit $(APP_DIR)/testIeee_remainder$(EXE_EXTENSION) --controls
+	@python3 tools/check-ieee-remainder-numeric.py --probe $(HASH_PROBE) --corpus $(CORPUS_DIR) --controls
+check-planted-ieee-remainder: $(APP_DIR)/$(STATIC_TARGET) $(OBJ_DIR)/tests/test_ieee_remainder.o $(IEEE_REMAINDER_PROBE)
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_RAW_LDFLAGS='$(LDFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_ieee_remainder.o' \
+	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_WORK='$(BUILD_DIR)/planted-ieee-remainder' \
+	 python3 tools/check-planted-ieee-remainder.py
+.PHONY: check-ieee-remainder-reference-controls
+check-ieee-remainder-reference-controls:
+	@python3 tools/check-ieee-remainder-reference-controls.py
+.PHONY: oracle-ieee-remainder check-ieee-remainder-oracle
+oracle-ieee-remainder:
+	@$(ORACLE) ieee_remainder --out $(CORPUS_DIR) --seed 20261028 --count 1000
+check-ieee-remainder-oracle: $(IEEE_REMAINDER_PROBE) $(APP_DIR)/testIeee_remainder$(EXE_EXTENSION) $(HASH_PROBE)
+	@rc=0; seed=$${GMATH_ORACLE_SEED:-$$(python3 -c 'import secrets;print(secrets.randbits(63))')}; \
+	 echo "IEEE remainder fresh seed $$seed count 1000"; \
+	 $(ORACLE) fresh-ieee_remainder --out $(BUILD_DIR)/oracle-ieee-remainder --seed $$seed --count 1000 || rc=$$?; \
+	 if [ $$rc -eq 0 ]; then \
+	   $(ORACLE) ieee_remainder --out $(BUILD_DIR)/ieee-remainder-committed --seed 20261028 --count 1000 && \
+	   for f in remainder-special.corpus remainderf-special.corpus remainder.corpus remainderf.corpus remainder_quotient.corpus remainderf_quotient.corpus ieee_remainder-special.hash; do \
+	     cmp tests/corpus/$$f $(BUILD_DIR)/ieee-remainder-committed/$$f || exit 1; \
+	   done && python3 tools/check-ieee-remainder.py --fresh --seed $$seed --count 1000 --probe $(IEEE_REMAINDER_PROBE) --corpus $(BUILD_DIR)/oracle-ieee-remainder --unit $(APP_DIR)/testIeee_remainder$(EXE_EXTENSION) && python3 tools/check-ieee-remainder-numeric.py --probe $(HASH_PROBE) --corpus $(BUILD_DIR)/oracle-ieee-remainder; \
+	 elif [ $$rc -eq 3 ]; then echo 'IEEE remainder oracle: SKIPPED optional pinned generation'; else exit $$rc; fi
+	@python3 tools/check-ieee-remainder-oracle.py --work $(BUILD_DIR)/ieee-remainder-oracle-controls --probe $(IEEE_REMAINDER_PROBE)
+IEEE_REMAINDER_BENCH := $(APP_DIR)/tools/bench-ieee-remainder$(EXE_EXTENSION)
+$(IEEE_REMAINDER_BENCH): tools/bench-ieee-remainder.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: bench-ieee-remainder
+bench-ieee-remainder: $(IEEE_REMAINDER_BENCH)
+	@$(IEEE_REMAINDER_BENCH)
+IEEE_REMAINDER_PORTABLE_PROBE := $(APP_DIR)/tools/probe-ieee-remainder-portable$(EXE_EXTENSION)
+$(IEEE_REMAINDER_PORTABLE_PROBE): tools/probe-ieee-remainder.c tests/ieee_remainder_probe.h tests/corpus_hash.h src/elementary/ieee_remainder.c src/elementary/elem_common.h Makefile $(FLAGS_STAMP) | $(LIBVER_GEN)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -DGMATH_BUILD -DGMATH_IEEE_REMAINDER_PORTABLE_BITS -o $@ tools/probe-ieee-remainder.c src/elementary/ieee_remainder.c $(LDFLAGS) -lm
+.PHONY: check-ieee-remainder-portable check-planted-ieee-remainder-portable
+check-ieee-remainder-portable: $(IEEE_REMAINDER_PORTABLE_PROBE) check-planted-ieee-remainder-portable
+	@python3 tools/check-ieee-remainder.py --probe $(IEEE_REMAINDER_PORTABLE_PROBE) --corpus $(CORPUS_DIR)
+check-planted-ieee-remainder-portable: $(APP_DIR)/$(STATIC_TARGET) $(OBJ_DIR)/tests/test_ieee_remainder.o
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE) -DGMATH_IEEE_REMAINDER_PORTABLE_BITS' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_RAW_LDFLAGS='$(LDFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_ieee_remainder.o' \
+	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_WORK='$(BUILD_DIR)/planted-ieee-remainder-portable' PLANT_EXPECT_PORTABLE='1' \
+	 python3 tools/check-planted-ieee-remainder.py

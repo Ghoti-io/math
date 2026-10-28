@@ -5,6 +5,12 @@ Deterministic elementary functions that give the same bits on every host. It is 
 
 ## What is implemented
 
+`gmath_remainder`, `gmath_remainderf`, `gmath_remquo` and `gmath_remquof`
+supply exact nearest-quotient remainders, including subnormals, in every mode.
+Quotient ties go to even; remquo also provides seven signed quotient bits.
+Valid calls add no flags. NaNs/domain errors, optional NULL quotient output
+and preserved caller state have explicit contracts in `basic.h`.
+
 `gmath_cbrtf(float)` supplies the Float cube root with a guarded cubic seed
 and unchanged own Double fallback: one Float ULP under nearest, canonical raw
 NaNs, exact signed

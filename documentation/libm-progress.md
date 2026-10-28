@@ -4,12 +4,19 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 27 verified phases add 46 APIs, five performance optimizations
-and certificate maintenance. Classic real-function name coverage is 66/171;
-48 Float/Double additions remain, or 105 including long double. The phase
+Current snapshot: 28 verified phases add 50 APIs, five performance optimizations
+and certificate maintenance. Classic real-function name coverage is 70/171;
+44 Float/Double additions remain, or 101 including long double. The phase
 sections below retain historical counts and measurements.
 
 ## Completed capabilities
+
+- Exact nearest-quotient remainder and seven signed quotient bits:
+  `gmath_remainder`, `gmath_remainderf`, `gmath_remquo`, `gmath_remquof`.
+  Quotient ties go to even; exact remainder bits, including signed zero and
+  subnormals, are mode independent. Valid calls add no flags. Both operands
+  participate in signaling-NaN dispatch; caller state is preserved. NULL
+  omits the quotient output as a project extension. Consumers remain unmigrated.
 
 - Binary32 cube root: `gmath_cbrtf`, using a guarded cubic seed and unchanged
   Double fallback with
@@ -199,16 +206,264 @@ sections below retain historical counts and measurements.
    rounding/remainder families. Adjacent Float overhead is now reduced by the
    verified direction optimization; exact modf/modff is now supplied.
    Exact `logb`/`logbf` and native-long `scalbln`/`scalblnf` are now supplied.
-   `cbrtf` now has a verified result-preserving seed optimization. Next
-   investigate exact IEEE remainder/quotient families (`remainder`/`remquo`
-   and Float forms), after reviewing contracts. A scoped read-only 4,821-file
-   source/header audit found four lexical matches, all comments and no direct
-   calls; these would advance broader coverage rather than a confirmed
-   current production need.
+   `cbrtf` now has a verified result-preserving seed optimization. Exact
+   IEEE remainder/quotient families (`remainder`/`remquo` and Float forms)
+   are now supplied. A scoped read-only 4,821-file source/header audit found
+   four lexical matches, all comments and no direct calls; this intentionally
+   advances broader standard coverage. Investigate any remaining measured
+   remainder cost before selecting another basic capability from a fresh audit.
+   A possible first experiment replaces the normalized initial divide/modulus
+   with a compare/subtract (quotient can only be zero or one); this is not
+   implemented or measured and does not address repeated wide-gap divisions.
    Keep accuracy, exception behavior and performance separate.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
+
+## Exact IEEE remainder and quotient validation
+
+This phase adds four APIs without changing any prior runtime module or table.
+Integer positional reduction selects the full quotient's nearest/even parity,
+retains signed magnitude modulo128 for remquo, and packs an exact signed
+remainder. Signed zero follows x. Valid calls add no flags, even for subnormal
+outputs. NaNs precede numeric domain errors: canonicalize either NaN, invalid
+only if either signals; otherwise infinite x or zero y requires invalid only.
+Finite x/infinite y returns x. Quotient output is zero for specials/domain and
+zero dividends; NULL omits it as a documented extension. errno, mode and incoming
+flags are preserved. Full errno/long-double parity is not promised.
+
+Independent derivation and blind review closed ten findings in test coverage,
+reference independence, allocation bounds, exception-safe unit cleanup,
+portable reproducibility and benchmark accounting. No runtime defect was found.
+The positional proof covers finite exponent gaps up to 2097/276 and bounded
+11/40-bit chunks; tests do not enumerate every input pair or environment.
+No other libm implementation source was read or copied. Standard positional
+arithmetic is not claimed novel; MPFR supplies output oracles only.
+
+Both final full GCC14.2/GCC16.2 `make test` invocations return zero with recorded
+child status: 232 main tests in 32 binaries each. Clang passes 232/32 unit-only;
+eight focused ASan/UBSan tests pass. The new numeric-overlay/omission gate landed
+after GCC14 full began; current affected checks were explicitly rerun there,
+and the later GCC16 full includes it. Runtime source remained frozen. Initial
+build-only failures (target spelling, GTest macro bracing/main and strict C
+indentation) were fixed before passing runs; none count as successful gates.
+
+Committed references contain 100316 Double and 31008 Float raw pairs. Arbitrary
+size Fraction division independently chooses the nearest/even quotient and
+exact residual; direct pinned MPFR remainder/remquo must agree at 53/24-bit
+precision. Every signed exponent binade is represented (2098/277 exponent
+values), with odd unequal significands that keep residuals nonzero through
+chunk seams 10/11/12, 39/40/41 and maximum normal gaps. This is domain stratification,
+not exhaustive raw inputs. Fixed known targets, independent observed-row
+coverage and independently decoded integer Float widening protect shared-helper
+mistakes. All signaling payload single bits/maxima in both operands/signs are
+covered. Float generic corpora exclude 3959 signaling-operand pairs, retaining
+27049 rows and 211 quiet-only NaN pairs; Double generic keeps 100316 canonicalized
+rows, including 205 quiet-only NaN pairs. Exception probes always use raw inputs.
+
+All seven payloads have mandatory complete-file SHA256/LF protection; pinned
+regeneration is byte-identical. All 72 previous function sets and legacy
+`f5fa269eb60ee34f` over 292711 results remain unchanged. New sets (78 total):
+
+| Set | Hash | Rows |
+| --- | --- | ---: |
+| remainder / remquo | 0c911b03aac2ba92 | 100316 each |
+| remainderf / remquof | c0e9b42076c7567c | 27049 each |
+| remquo_quotient | c83d811fbc46c08e | 100316 |
+| remquof_quotient | c20a236a8b4a2bb5 | 27049 |
+
+Raw result/quotient hashes are `de2cafdcc5da3465` / `d982af8aeb4c9bfb`.
+Three API paths per pair (remainder, remquo/output, remquo/NULL) give 393972 nearest
+calls. Selected pairs make 807504 separate all-mode/state calls, with ordered
+hashes `84af9b980627e8f5` / `9f841414af40b535`. Flags, errno and mode are asserted
+inline, not encoded as hardware-state digests. Requested incoming subsets can
+merge on hardware. Six emulated targets agree on all 78 numerical sets default/
+portable and 24 raw O0/O2 default/forced-integer-loop profiles. Each raw profile
+checks those 393972+807504 calls. Final i686 O0 caller has no fldl/flds argument
+loads. These are emulated probes, not physical-host/full cross-target GoogleTest.
+Windows, exhaustive pairs/states and application timing remain unrun.
+
+Three fresh samples contain 99429/30121, 100313/31005 and 100725/31417 Double/Float
+raw pairs. Larger data contains 149316/80008 pairs, checking 687972 nearest and
+1335048 selected-state calls natively; generic Float keeps 75871 rows. All four
+pass complete seed/count/population/certificate/widening/raw/unit-directory
+checks and actual 78-set numerical overlay. No larger cross-target run is
+claimed. The actual former-family unit-directory typo is rejected with an
+equal-sized valid fallback, as well as the disposable empty-directory control.
+Caller evidence is never renamed.
+
+Twenty-two shared actual runtime/state plants detect in both formats and C17/
+C++; two format-local plants leave the other format passing. These run with
+both native compilers and actual forced-loop normalization. A separate real
+loop-bound defect detects on the fallback and passes as inactive/equivalent
+under the intrinsic. Seven checksum and seven oversize-before-open controls,
+42 loader negatives, rational/quotient/flag and widened-output corruptions,
+complete output/count/order/path/status controls and all six hash omissions/
+corruptions detect. Eight actual generator numerical/pin faults and eight
+actual shared-answer/coverage faults reject before publication; ignored seed/
+count faults publish privately and then fail complete-population checks.
+An actual disabled-certificate counterfactual fails at its intended layer.
+Positive existing/absent publication precedes 14 rollback controls; the reused
+seven-file publisher rolls back exceptions, not process crashes. Both real
+wrapper commands have recording-engine dispatch/omission/absence controls even
+when optional numerical engines skip. Those are accounting evidence only.
+Host pinned numerical controls execute; optional nested engines skip explicitly
+inside the GCC16 image and required absence fails before publication.
+
+Valgrind 3.24 invokes all eight focused tests: five pass, three fenv assertions
+fail, suite exit 1. Both corpus probes stop on their first zero/zero invalid
+case; correct canonical NaN bits are returned but invalid is missing under
+instrumentation. Zero memory errors/leaks are reported, with partial memory
+coverage because of early exits. A separate no-gmath volatile 0/0 reproducer
+returns the same NaN bits natively/instrumented, with native IV versus no flags
+under Valgrind. This directly establishes missing invalid instrumentation;
+attribution of every discrepancy remains an inference. Assertions were not
+weakened. This is a failed Valgrind run, not a passing suite. Earlier cbrtf and
+scaling instrumenter limits and expf/exp2f/atanf/cbrtf force-only IX witness gaps
+remain unchanged.
+
+Reproduce the ordinary checks with `make check-ieee-remainder`,
+`make check-ieee-remainder-portable`, `make check-planted-ieee-remainder`,
+`make check-ieee-remainder-reference-controls` and
+`make check-ieee-remainder-oracle`. The last runs pinned byte comparison and
+fresh checks when the oracle is available. `tools/probe-ieee-remainder.c`
+and `tests/ieee_remainder_probe.h` also provide a standalone C17 raw probe;
+link the new module with the public/generated include directories and `-lm`
+for test fenv only. `GMATH_IEEE_REMAINDER_PORTABLE_BITS` selects loop
+normalization. The production library has no libm dependency. Suite runners
+and all consumers remain unchanged.
+
+Two predeclared final runs per native compiler produce 384 case records: eight
+ranges, six API paths and two incoming states. Each case uses eight paired
+warmups and 401 alternating pairs of 4096 identical values, integer timestamps,
+untimed exact own/host remainder-bit checks and own state/errno/mode guards.
+Host remquo quotient checks use only the three guaranteed low bits/sign;
+independent references check this library's seven. NULL-output own remquo paths
+compare with host remainder, never standard remquo with NULL. NaN payloads,
+new host flags, exceptional errno and unspecified host NaN quotients may differ.
+All guards pass. Fixed logical affinity does not establish CPU isolation or
+controlled governor; exact compiler/flags, static archive, binary/source and
+runtime-libm hashes are retained with the private measurement evidence.
+
+Tables show minimum–maximum envelopes across both final runs and both entry
+states (four observations per cell). ns columns are amortized median ns/call;
+p10/median/p90 are paired own/host ratio quantiles. NULL rows use host remainder
+as labelled in the tool. Call/loop/checksum/timestamp overhead and first-exception
+amortization are included. No overall/application/platform speed win is claimed.
+Several ranges remain slower; these measurements establish no cross-host result.
+Ordinary median own/host ratios are 0.789–0.818 for Double remainder and
+0.810–0.845 for Float remainder; quotient-output forms are 0.647–0.673 Double
+and 0.666–0.734 Float. These ranges are faster on this measured host. Double
+wide-gap remainder is 1.098–1.121 times host, while remquo is 4.074–4.162 times
+host. NaN/domain quotient-output paths also trail in some cases. This measured
+wide-gap cost remains a concrete performance gap.
+`make bench-ieee-remainder` builds and runs the public paired benchmark.
+
+### GCC14 paired measurements
+
+| API / range | Own median ns | Host median ns | Ratio p10 | Ratio median | Ratio p90 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| remainder / normal | 10.310–12.316 | 12.616–15.089 | 0.790–0.808 | 0.814–0.818 | 0.832–0.914 |
+| remquo / normal | 11.325–13.432 | 16.844–20.703 | 0.611–0.649 | 0.647–0.673 | 0.673–0.692 |
+| remquo_null / normal | 10.656–12.610 | 13.321–15.394 | 0.792–0.807 | 0.799–0.821 | 0.809–0.862 |
+| remainder / half-ties | 6.255–6.928 | 24.331–26.920 | 0.254–0.256 | 0.257 | 0.258–0.261 |
+| remquo / half-ties | 6.905–7.905 | 6.541–7.506 | 1.015–1.051 | 1.050–1.058 | 1.057–1.065 |
+| remquo_null / half-ties | 6.180–6.862 | 24.329–26.927 | 0.251 | 0.254–0.255 | 0.255–0.256 |
+| remainder / quotient-wrap | 5.482–6.306 | 6.547–7.464 | 0.812–0.836 | 0.837–0.838 | 0.844–0.846 |
+| remquo / quotient-wrap | 5.634–6.475 | 6.456–7.553 | 0.847–0.866 | 0.867–0.875 | 0.877–0.883 |
+| remquo_null / quotient-wrap | 5.394–6.119 | 6.547–7.294 | 0.810–0.835 | 0.820–0.836 | 0.841–0.843 |
+| remainder / subnormal | 17.242–18.593 | 187.228–202.190 | 0.091–0.092 | 0.092–0.093 | 0.093–0.095 |
+| remquo / subnormal | 18.742–20.670 | 69.187–76.991 | 0.259–0.261 | 0.267–0.271 | 0.281–0.283 |
+| remquo_null / subnormal | 17.013–18.376 | 187.223–198.829 | 0.088–0.091 | 0.090–0.092 | 0.092–0.095 |
+| remainder / wide-gap | 676.152–704.425 | 616.109–636.723 | 1.088–1.096 | 1.098–1.114 | 1.099–1.146 |
+| remquo / wide-gap | 676.016–716.856 | 165.551–171.898 | 4.023–4.050 | 4.080–4.162 | 4.094–4.322 |
+| remquo_null / wide-gap | 675.876–705.362 | 616.117–638.352 | 1.088–1.096 | 1.097–1.108 | 1.098–1.139 |
+| remainder / zero | 2.662–2.866 | 19.385–20.174 | 0.130–0.132 | 0.134–0.142 | 0.142–0.143 |
+| remquo / zero | 2.674–2.872 | 5.838–6.651 | 0.423–0.446 | 0.429–0.464 | 0.435–0.533 |
+| remquo_null / zero | 2.558–2.661 | 19.406–20.165 | 0.127 | 0.130–0.132 | 0.132–0.133 |
+| remainder / infinite-divisor | 2.815–2.870 | 19.443–20.232 | 0.132–0.141 | 0.142 | 0.142–0.152 |
+| remquo / infinite-divisor | 2.900–3.259 | 3.911–4.498 | 0.648–0.714 | 0.688–0.751 | 0.727–0.764 |
+| remquo_null / infinite-divisor | 2.759–2.811 | 19.445–20.211 | 0.131–0.132 | 0.140–0.142 | 0.142–0.152 |
+| remainder / NaN-domain | 2.740–3.004 | 78.527–80.112 | 0.033–0.037 | 0.036–0.037 | 0.038–0.040 |
+| remquo / NaN-domain | 2.905–3.770 | 1.828–2.442 | 1.484–1.575 | 1.493–1.582 | 1.583–1.591 |
+| remquo_null / NaN-domain | 2.602–2.610 | 78.530–80.069 | 0.032 | 0.033 | 0.034 |
+| remainderf / normal | 11.851–12.348 | 14.151–14.700 | 0.826–0.829 | 0.838–0.845 | 0.849–0.853 |
+| remquof / normal | 12.300–12.928 | 17.355–18.125 | 0.641–0.697 | 0.690–0.734 | 0.724–0.749 |
+| remquof_null / normal | 11.666–12.053 | 14.112–14.719 | 0.815–0.817 | 0.822–0.824 | 0.830–0.845 |
+| remainderf / half-ties | 6.647–6.779 | 25.729–26.473 | 0.252–0.256 | 0.256–0.258 | 0.259–0.262 |
+| remquof / half-ties | 7.379–7.713 | 7.040–7.446 | 1.015–1.044 | 1.028–1.048 | 1.037–1.053 |
+| remquof_null / half-ties | 6.565–6.717 | 25.819–26.505 | 0.251–0.253 | 0.254 | 0.256–0.259 |
+| remainderf / quotient-wrap | 5.722–5.996 | 6.895–7.292 | 0.811–0.812 | 0.815–0.837 | 0.840–0.846 |
+| remquof / quotient-wrap | 6.010–6.292 | 6.836–7.237 | 0.857–0.874 | 0.866–0.880 | 0.874–0.887 |
+| remquof_null / quotient-wrap | 5.726–5.963 | 6.975–7.354 | 0.810 | 0.811–0.836 | 0.836–0.839 |
+| remainderf / subnormal | 11.287–11.519 | 191.248–195.240 | 0.057–0.058 | 0.059 | 0.060–0.061 |
+| remquof / subnormal | 11.900–12.532 | 70.638–73.950 | 0.164–0.166 | 0.168–0.169 | 0.171–0.174 |
+| remquof_null / subnormal | 11.062–11.307 | 191.344–195.097 | 0.057 | 0.058–0.059 | 0.059–0.062 |
+| remainderf / wide-gap | 27.701–28.333 | 207.065–212.106 | 0.130–0.131 | 0.133–0.134 | 0.136–0.137 |
+| remquof / wide-gap | 29.131–30.405 | 111.060–116.424 | 0.256–0.258 | 0.260–0.262 | 0.265–0.267 |
+| remquof_null / wide-gap | 27.208–27.768 | 207.432–210.719 | 0.129–0.130 | 0.131–0.132 | 0.134–0.135 |
+| remainderf / zero | 2.869–3.007 | 19.808–20.205 | 0.132 | 0.142–0.147 | 0.152 |
+| remquof / zero | 2.737–2.800 | 6.620–7.245 | 0.376–0.398 | 0.393–0.426 | 0.401–0.432 |
+| remquof_null / zero | 2.717–2.806 | 19.796–20.182 | 0.131–0.132 | 0.133–0.142 | 0.142–0.143 |
+| remainderf / infinite-divisor | 3.009–3.072 | 20.405–20.824 | 0.138–0.147 | 0.147–0.148 | 0.149–0.157 |
+| remquof / infinite-divisor | 3.031–3.343 | 4.257–4.710 | 0.610–0.714 | 0.682–0.726 | 0.723–0.764 |
+| remquof_null / infinite-divisor | 2.865–3.011 | 20.410–20.794 | 0.128–0.137 | 0.138–0.147 | 0.148–0.149 |
+| remainderf / NaN-domain | 2.935–3.364 | 78.543–83.367 | 0.034–0.038 | 0.037–0.041 | 0.039–0.041 |
+| remquof / NaN-domain | 2.842–3.537 | 2.237–3.075 | 1.148–1.267 | 1.160–1.274 | 1.273–1.410 |
+| remquof_null / NaN-domain | 2.708–2.878 | 78.657–81.463 | 0.033 | 0.034–0.036 | 0.037 |
+
+### GCC16 paired measurements
+
+| API / range | Own median ns | Host median ns | Ratio p10 | Ratio median | Ratio p90 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| remainder / normal | 10.735–11.099 | 13.498–14.053 | 0.784–0.785 | 0.789–0.794 | 0.797–0.806 |
+| remquo / normal | 11.964–12.228 | 18.273–18.429 | 0.623–0.653 | 0.655–0.667 | 0.669–0.683 |
+| remquo_null / normal | 11.106–11.363 | 14.065–14.365 | 0.778–0.782 | 0.786–0.787 | 0.791–0.792 |
+| remainder / half-ties | 6.518–6.654 | 25.738–26.275 | 0.251–0.252 | 0.253 | 0.254–0.255 |
+| remquo / half-ties | 7.220–7.554 | 7.494–7.729 | 0.926–0.962 | 0.950–0.973 | 0.960–0.981 |
+| remquo_null / half-ties | 6.549–6.687 | 25.739–26.271 | 0.252–0.254 | 0.254 | 0.255–0.256 |
+| remainder / quotient-wrap | 5.863–5.995 | 6.976–7.130 | 0.814–0.838 | 0.839–0.841 | 0.871–0.878 |
+| remquo / quotient-wrap | 6.003–6.291 | 7.532–7.837 | 0.760–0.785 | 0.784–0.807 | 0.801–0.822 |
+| remquo_null / quotient-wrap | 5.782–5.979 | 6.976–7.130 | 0.788–0.833 | 0.838–0.839 | 0.849–0.867 |
+| remainder / subnormal | 17.756–17.863 | 194.701–196.446 | 0.089–0.090 | 0.091 | 0.093–0.094 |
+| remquo / subnormal | 20.395–20.661 | 75.189–77.156 | 0.256–0.261 | 0.266–0.270 | 0.279–0.281 |
+| remquo_null / subnormal | 17.707–17.929 | 194.749–197.592 | 0.089–0.090 | 0.090–0.091 | 0.092–0.093 |
+| remainder / wide-gap | 681.147–702.372 | 615.718–620.840 | 1.089–1.098 | 1.106–1.121 | 1.137–1.158 |
+| remquo / wide-gap | 679.597–696.875 | 166.938–167.499 | 3.985–4.043 | 4.074–4.146 | 4.204–4.276 |
+| remquo_null / wide-gap | 680.028–696.777 | 615.606–617.770 | 1.096–1.097 | 1.105–1.119 | 1.135–1.144 |
+| remainder / zero | 2.975–3.010 | 19.664–19.678 | 0.132–0.151 | 0.152–0.153 | 0.153–0.164 |
+| remquo / zero | 2.839–3.057 | 6.609–6.899 | 0.391–0.398 | 0.429–0.477 | 0.466–0.507 |
+| remquo_null / zero | 2.807–2.833 | 19.646–19.676 | 0.133–0.142 | 0.143 | 0.143–0.163 |
+| remainder / infinite-divisor | 3.009–3.017 | 19.739–19.750 | 0.146–0.150 | 0.152–0.153 | 0.153–0.173 |
+| remquo / infinite-divisor | 2.963–3.196 | 5.019–5.441 | 0.529–0.568 | 0.586–0.612 | 0.604–0.642 |
+| remquo_null / infinite-divisor | 2.865–3.054 | 19.710–19.754 | 0.140–0.142 | 0.143–0.145 | 0.153–0.164 |
+| remainder / NaN-domain | 2.805–3.061 | 78.368–78.375 | 0.035–0.036 | 0.036–0.038 | 0.041–0.042 |
+| remquo / NaN-domain | 2.865–3.142 | 2.460–2.884 | 1.028–1.111 | 1.091–1.214 | 1.138–1.291 |
+| remquo_null / NaN-domain | 2.805–2.939 | 78.362–78.377 | 0.034 | 0.036–0.038 | 0.040 |
+| remainderf / normal | 11.552–11.890 | 14.214–14.521 | 0.801–0.808 | 0.810–0.817 | 0.817–0.829 |
+| remquof / normal | 11.822–12.129 | 17.189–17.797 | 0.651–0.681 | 0.666–0.705 | 0.674–0.716 |
+| remquof_null / normal | 11.381–11.645 | 14.214–14.515 | 0.791–0.797 | 0.800–0.803 | 0.803–0.811 |
+| remainderf / half-ties | 6.524–6.536 | 25.930–25.934 | 0.249–0.251 | 0.252 | 0.252–0.254 |
+| remquof / half-ties | 7.221–7.235 | 7.496–7.694 | 0.936–0.960 | 0.940–0.964 | 0.952–0.972 |
+| remquof_null / half-ties | 6.544–6.556 | 25.929–25.937 | 0.246–0.250 | 0.252–0.253 | 0.253 |
+| remainderf / quotient-wrap | 5.907–6.093 | 6.829–6.976 | 0.814–0.835 | 0.858–0.883 | 0.883–0.902 |
+| remquof / quotient-wrap | 5.994–6.033 | 7.102–7.291 | 0.819–0.838 | 0.826–0.843 | 0.836–0.852 |
+| remquof_null / quotient-wrap | 5.723–5.936 | 6.829–6.977 | 0.809–0.837 | 0.833–0.839 | 0.860–0.870 |
+| remainderf / subnormal | 11.078–11.159 | 191.376–191.540 | 0.057 | 0.058 | 0.059 |
+| remquof / subnormal | 12.520–12.679 | 72.552–72.905 | 0.169–0.170 | 0.173 | 0.179–0.180 |
+| remquof_null / subnormal | 10.933–11.140 | 191.451–191.808 | 0.056 | 0.057–0.058 | 0.058–0.060 |
+| remainderf / wide-gap | 28.340–28.378 | 207.844–209.030 | 0.134 | 0.136–0.137 | 0.139–0.140 |
+| remquof / wide-gap | 29.601–29.657 | 113.880–114.290 | 0.256 | 0.259–0.260 | 0.265–0.267 |
+| remquof_null / wide-gap | 27.839–27.890 | 207.507–208.654 | 0.131–0.132 | 0.134 | 0.137 |
+| remainderf / zero | 3.006–3.274 | 19.813–19.825 | 0.131–0.152 | 0.151–0.162 | 0.153–0.182 |
+| remquof / zero | 2.686–3.054 | 6.969–7.220 | 0.366–0.376 | 0.386–0.431 | 0.440–0.453 |
+| remquof_null / zero | 2.759–3.014 | 19.753–19.813 | 0.131–0.141 | 0.142–0.148 | 0.142–0.162 |
+| remainderf / infinite-divisor | 2.898–3.139 | 20.362–20.438 | 0.127–0.147 | 0.146–0.152 | 0.148–0.167 |
+| remquof / infinite-divisor | 2.643–3.087 | 4.070–4.640 | 0.611–0.643 | 0.629–0.678 | 0.664–0.733 |
+| remquof_null / infinite-divisor | 2.750–3.208 | 20.045–20.419 | 0.128–0.140 | 0.137–0.157 | 0.157–0.158 |
+| remainderf / NaN-domain | 2.803–3.142 | 78.506–78.528 | 0.035–0.037 | 0.036–0.040 | 0.041–0.042 |
+| remquof / NaN-domain | 2.732–3.177 | 2.405–2.930 | 1.024–1.041 | 1.048–1.133 | 1.170–1.230 |
+| remquof_null / NaN-domain | 2.849–2.890 | 78.487–78.527 | 0.035 | 0.036–0.037 | 0.038–0.039 |
 
 ## Float cube-root seed optimization
 

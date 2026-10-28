@@ -454,6 +454,52 @@ GMATH_API double gmath_modf(double x, double * integral);
 GMATH_API float gmath_modff(float x, float * integral);
 
 /**
+ * @brief Exact x-n*y, where n is nearest to exact x/y with ties to even.
+ *
+ * Finite x and finite nonzero y give exact results in every mode, including
+ * subnormals, without new exceptions. An exact zero has x's sign; otherwise
+ * the remainder may have either sign and its magnitude is at most |y|/2.
+ * Finite x/infinite y returns x. Any NaN gives canonical NaN, invalid only
+ * if either operand signals; NaNs take precedence over other domain errors.
+ * Without NaNs, infinite x or zero y gives canonical NaN with invalid only.
+ * errno, rounding mode and incoming flags are preserved; full errno and
+ * long-double compatibility are not promised.
+ * @param x Dividend.
+ * @param y Divisor.
+ * @return Exact nearest-quotient remainder or canonical NaN.
+ */
+GMATH_API double gmath_remainder(double x,double y);
+/**
+ * @brief Binary32 counterpart of ::gmath_remainder, with the same contract.
+ * @param x Float dividend.
+ * @param y Float divisor.
+ * @return Exact Float remainder or canonical Float NaN.
+ */
+GMATH_API float gmath_remainderf(float x,float y);
+/**
+ * @brief Exact remainder plus seven low quotient bits.
+ *
+ * Returns ::gmath_remainder(x,y), and stores abs(n) modulo128, with the sign
+ * of x/y (zero if those bits vanish). This explicitly provides seven bits.
+ * A NaN result, zero dividend or infinite divisor stores0. NULL omits the
+ * quotient output without changing result/state (a standard-interface
+ * extension). Numeric values and exception policy are mode-independent.
+ * @param x Dividend.
+ * @param y Divisor.
+ * @param quo Receives the signed seven-bit fragment; may be NULL.
+ * @return Exact nearest-quotient remainder or canonical NaN.
+ */
+GMATH_API double gmath_remquo(double x,double y,int *quo);
+/**
+ * @brief Binary32 counterpart of ::gmath_remquo, with the same contract.
+ * @param x Float dividend.
+ * @param y Float divisor.
+ * @param quo Receives the signed seven-bit fragment; may be NULL.
+ * @return Exact Float remainder or canonical Float NaN.
+ */
+GMATH_API float gmath_remquof(float x,float y,int *quo);
+
+/**
  * @brief The exact remainder x - n*y, with n the quotient truncated to zero.
  *
  * For finite @p x and finite nonzero @p y the result has the sign of @p x

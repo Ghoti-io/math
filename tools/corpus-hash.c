@@ -75,6 +75,11 @@ static double frexp_fraction(double x, int * e) {
 /* Float corpus values are stored as exactly widened doubles. */
 static double logbf_widened(double x) {return (double)gmath_logbf((float)x);}
 
+static double ieee_remainderf_widened(double x,double y){return (double)gmath_remainderf((float)x,(float)y);}
+static double ieee_remquo_value(double x,double y){return gmath_remquo(x,y,NULL);}
+static double ieee_remquof_value(double x,double y){return (double)gmath_remquof((float)x,(float)y,NULL);}
+static double ieee_remquo_quotient(double x,double y){int q=0;(void)gmath_remquo(x,y,&q);return q?(double)q:0.0;}
+static double ieee_remquof_quotient(double x,double y){int q=0;(void)gmath_remquof((float)x,(float)y,&q);return q?(double)q:0.0;}
 static double modf_fraction(double x) {return gmath_modf(x, NULL);}
 static double modf_integral(double x) {double whole;(void)gmath_modf(x,&whole);return whole;}
 static double modff_fraction(double x) {return (double)gmath_modff((float)x,NULL);}
@@ -245,6 +250,12 @@ static const struct {
   {"sqrt_hardware", "sqrt", K_D_D, 0, "sqrt", gmath_sqrt_hardware, NULL, NULL},
   {"ldexp", "scalbn", K_DN_D, 0, "scalbn", NULL, NULL, gmath_ldexp},
   /* Supplemental functions preserve the legacy aggregate hash. */
+  {"remainder", "remainder", K_DD_D, 0, NULL, NULL, gmath_remainder, NULL},
+  {"remainderf", "remainderf", K_DD_D, 0, NULL, NULL, ieee_remainderf_widened, NULL},
+  {"remquo", "remainder", K_DD_D, 0, NULL, NULL, ieee_remquo_value, NULL},
+  {"remquof", "remainderf", K_DD_D, 0, NULL, NULL, ieee_remquof_value, NULL},
+  {"remquo_quotient", "remainder_quotient", K_DD_D, 0, NULL, NULL, ieee_remquo_quotient, NULL},
+  {"remquof_quotient", "remainderf_quotient", K_DD_D, 0, NULL, NULL, ieee_remquof_quotient, NULL},
   {"fmod", "fmod", K_DD_D, 0, NULL, NULL, gmath_fmod, NULL},
   {"fmodf", "fmodf", K_DD_D, 0, NULL, NULL, fmodf_widened, NULL},
   {"fmin", "fmin", K_DD_D, 0, NULL, NULL, gmath_fmin, NULL},

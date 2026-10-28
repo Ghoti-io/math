@@ -75,3 +75,9 @@ fn logbf bb32234cb185f773 6296
 fn scalbln 47ab6ee726681988 48194
 fn scalblnf ef95ceda283f36cc 17604
 fn cbrtf 9062b0d1bd1deb80 74650
+fn remainder 0c911b03aac2ba92 100316
+fn remainderf c0e9b42076c7567c 27049
+fn remquo 0c911b03aac2ba92 100316
+fn remquof c0e9b42076c7567c 27049
+fn remquo_quotient c83d811fbc46c08e 100316
+fn remquof_quotient c20a236a8b4a2bb5 27049

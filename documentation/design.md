@@ -2397,3 +2397,94 @@ The supplemental signed midpoint fixture `236e2a8e` independently certifies
 nearest `361d6f3e` by pinned references and exact cube inequalities; its sixteen
 mode/sign/entry-state calls are separate from corpus accounting. Optional hooks
 repeat them against the actual prior function.
+
+### Exact nearest-quotient remainder
+
+`gmath_remainder` and `gmath_remainderf` compute the exact value `x-n*y`,
+where `n` is nearest to the exact quotient, with even ties. `gmath_remquo`
+and `gmath_remquof` return the same value and optionally store the signed
+magnitude of `n` modulo 128. Seven quotient bits are an explicit library
+choice. A zero remainder keeps the dividend sign. These operations require
+no rounding even for subnormal results, and their bits do not depend on the
+rounding mode. The public contract preserves errno and incoming flags;
+valid calls add no flags. Canonical NaNs inspect both signaling operands;
+without NaNs, infinite dividend or zero divisor requires invalid only.
+The quotient is deterministically zero on NaN/domain results, zero dividends
+and infinite divisors. NULL omits the quotient output as a project extension.
+
+The mathematical operation follows [C11 draft sections 7.12.10.2–3 and
+F.10.7.2–3](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf).
+[WG14 N2790](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2790.htm)
+discusses the otherwise unspecified NaN quotient; this library chooses zero.
+Full errno and long-double compatibility remain outside this interface.
+No other math implementation source supplied the implementation.
+
+The new module leaves the old fmod implementation unchanged. Normalize
+nonzero magnitudes as `mx*2^(ex-p)` and `my*2^(ey-p)`, with `p=52` or 23.
+For nonnegative exponent gap, retain the exact division invariant
+`mx*2^processed = Q*my+r`, `0<=r<my`, while storing only `Q mod128`.
+An initial integer divide handles `mx`; each subsequent chunk appends `s`
+binary positions using integer quotient and modulus of `r<<s`. Choose
+`s<=63-p`: since `r<my<2^(p+1)`, the shifted numerator fits uint64.
+The quotient accumulator stays below `2^18` for Double or `2^47` for Float.
+Even if the residual becomes zero, remaining quotient zero bits must still
+be appended; seven or more erase the retained fragment. This is essential
+for exact large binary quotients, not only inexact divisions.
+
+Compare `2*r` with `my` after truncation. A greater residual, or equality
+with odd retained quotient, increments the fragment modulo128 and replaces
+`r` by `my-r`, reversing the remainder sign. Keeping seven bits preserves
+full quotient parity. For gap -1, compare `mx` with `my`: at or below equality,
+the nearest quotient is zero (including the even half tie). Above it, select
+one and encode the reversed residual `2*my-mx` at exponent `ex`. Gaps below
+-1 return x and quotient zero. Quotient sign always uses original operand
+signs, independently of remainder sign reversal.
+
+Every residual has at most `p+1` significant bits and lies on the original
+minimum-subnormal lattice. Integer normalization and packing therefore discard
+only zero bits; any subnormal right shift is at most `p`. No valid path uses
+floating arithmetic. Signaling/domain exceptions use the established invalid
+helper, then return raw canonical bits. The optional intrinsic normalization
+requires a matching 64-bit unsigned-long-long width; the forced loop has the
+same results. Finite exponent gaps are at most 2097/276, so chunk loops are
+bounded even for maximum finite divided by minimum subnormal.
+
+Independent references decode both inputs into arbitrary-size rational values,
+select the full nearest-even quotient, then form and certify the exact residual.
+The pinned generator separately calls MPFR remainder and remquo directly at
+precision 53/24 with a wide exponent range; finite values and seven quotient
+bits must agree. Raw signaling operands remain integer encodings; exception
+classes derive from the explicit contract. Generic Float corpora exclude
+signaling operands before widening. Mandatory complete-file SHA256 guards
+protect all seven payloads; fresh checks reconstruct the entire ordered input
+population, both generic result fields, exclusions and expected raw/state
+hashes. The reused staged publisher rolls back exceptions, not process crashes.
+
+The shared C17/C++ probe tests remainder, remquo with output, and remquo with
+NULL separately. Every row has three nearest calls; selected pairs request
+four modes, both errno seeds, mixed flags and all 32 incoming subsets. Actual
+incoming flags are captured because requests may merge. State flags/errno/mode
+are asserted inline; result/order hashes encode requested indices and outputs,
+not hardware-specific flag bits. Host remquo implementations need guarantee
+only three quotient bits; timing guards compare only those bits, while the
+independent references verify all seven supplied by this API. Benchmark
+checks do not replace exact numerical certificates.
+
+Final validation uses 100316 Double/31008 Float raw pairs and all 78 numerical
+sets, with all previous 72 sets and legacy aggregate unchanged. Native full
+GCC14.2/GCC16.2 gates, Clang unit-only, eight focused ASan/UBSan tests and six
+emulated-target numeric/raw default/portable profiles pass. Detailed accounting,
+negative controls, fresh/larger samples and absolute paired timing envelopes
+are retained in `libm-progress.md`. Valid arithmetic is exact without any new
+flags; nevertheless Valgrind 3.24 fails three of eight selected tests because
+invalid is absent in observed instrumentation. An independent volatile 0/0
+reproducer establishes that missing flag. Zero Memcheck errors with early
+corpus stops is partial memory coverage, not a passing Valgrind suite.
+
+The public benchmark separately times quotient-output and NULL-output remquo.
+The latter compares against host remainder, so no standard host API receives
+an invalid NULL pointer. Two final runs per compiler cover 384 case records;
+ordinary remainder and quotient-output ranges are faster on the measured host,
+but Double wide-gap remquo remains about 4.1 times host. Fixed logical affinity,
+static-call overhead and amortized initial exceptions limit generalization;
+no workload/platform speed win is inferred. Consumers remain unmigrated.
