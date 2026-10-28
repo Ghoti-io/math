@@ -76,6 +76,8 @@
 #define gmath_exp2f GHOTIIO_MATH(gmath_exp2f)
 #define gmath_fabs GHOTIIO_MATH(gmath_fabs)
 #define gmath_floor GHOTIIO_MATH(gmath_floor)
+#define gmath_fdim GHOTIIO_MATH(gmath_fdim)
+#define gmath_fdimf GHOTIIO_MATH(gmath_fdimf)
 #define gmath_fmax GHOTIIO_MATH(gmath_fmax)
 #define gmath_fmaxf GHOTIIO_MATH(gmath_fmaxf)
 #define gmath_fmin GHOTIIO_MATH(gmath_fmin)

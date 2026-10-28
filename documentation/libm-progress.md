@@ -1,5 +1,20 @@
 # Libm gap closure
 
+## Exact positive difference
+
+The new gmath_fdim/fdimf family has completed full GCC14/GCC16, Clang unit-only,
+seven focused sanitizer tests, six-target emulated numeric/raw probes and new
+independent fresh/larger reference checks. All 84 previous sets and the legacy
+aggregate are unchanged; two new sets bring generic verification to 86.
+The implementation and 29 frozen reference/control files stay unchanged.
+All 160 predeclared paired benchmark records are retained; ordinary paths trail
+host libm, with no overall/application/platform speed claim. Valgrind exits 1
+(two pass/five fenv failures); zero memory reports do not make the partial scope
+passing. Detailed proof, hashes, failure history, tables and unrun coverage are
+in [positive-difference.md](positive-difference.md). Final independent evidence
+review reconciles all 160 timing records, 80 table rows, hashes, statuses and
+frozen bytes; no implementation finding remains. This phase adds two APIs.
+
 ## Native current-integer conversion
 
 Admitted normal x86 inputs now use current-mode hardware conversions; all other
@@ -21,9 +36,9 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 32 verified phases add 56 APIs, seven performance optimizations
-and certificate maintenance. Classic real-function name coverage is 76/171;
-38 Float/Double additions remain, or 95 including long double. The phase
+Current snapshot: 33 verified phases add 58 APIs, seven performance optimizations
+and certificate maintenance. Classic real-function name coverage is 78/171;
+36 Float/Double additions remain, or 93 including long double. The phase
 sections below retain historical counts and measurements.
 
 ## Current-mode integer conversion

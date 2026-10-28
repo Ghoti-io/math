@@ -2558,3 +2558,17 @@ The proof, exact own-project baseline construction, validation scope and all
 about 4.5–9.6 times versus the separately compiled prior public implementation,
 but still trail host libm. Some fallback paths regress within an explicitly
 predeclared absolute allowance. No net workload or cross-platform win follows.
+
+## Positive difference
+
+The binary64/binary32 positive-difference pair uses raw dispatch and
+exact two-limb arithmetic, with a proved distant-operand shortcut and one
+nearest/even pack. See [positive-difference.md](positive-difference.md) for the
+explicit special/exception contract, corrected predecessor-seam bound and
+current evidence limits. Existing kernels and prior answer sets remain
+unchanged; performance is a measured new-API baseline, not an overall speed win.
+
+The positive-difference verification and all retained timing envelopes are in
+[positive-difference.md](positive-difference.md). Finite outputs are exact
+nearest/ties-even in every mode, with integer-derived flags and exact tiny
+differences. Existing runtime modules and earlier result sets remain unchanged.

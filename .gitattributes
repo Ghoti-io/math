@@ -70,3 +70,10 @@ tests/corpus/nearby* text eol=lf
 tests/corpus/currentint* text eol=lf
 tests/corpus/lrint*.corpus text eol=lf
 tests/corpus/llrint*.corpus text eol=lf
+
+# Complete positive-difference payload hashes require byte-stable LF checkouts.
+tests/corpus/fdim64-special.corpus text eol=lf
+tests/corpus/fdim32-special.corpus text eol=lf
+tests/corpus/fdim.corpus text eol=lf
+tests/corpus/fdimf.corpus text eol=lf
+tests/corpus/fdim-special.hash text eol=lf

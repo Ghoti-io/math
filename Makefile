@@ -259,7 +259,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-currentint-baseline-controls check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-positive-difference-bench-controls check-positive-difference-oracle-controls check-positive-difference check-positive-difference-harness check-positive-difference-controls check-planted-positive-difference check-positive-difference-oracle check-currentint-baseline-controls check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -2166,3 +2166,60 @@ CURRENTINT_BASELINE_DIR ?= $(BUILD_DIR)/currentint-baseline
 .PHONY: build-currentint-baseline
 build-currentint-baseline: $(FLAGS_STAMP) | $(LIBVER_GEN)
 	@python3 tools/build-currentint-baseline.py --out "$(CURRENTINT_BASELINE_DIR)" --cc='$(CC)' --flags='$(LIB_CFLAGS) $(INCLUDE)' --revision='$(CURRENTINT_REFERENCE_REVISION)' --nm='$(if $(strip $(NM)),$(NM),nm)' --objcopy='$(if $(strip $(OBJCOPY)),$(OBJCOPY),objcopy)'
+
+POSITIVE_DIFFERENCE_PROBE := $(APP_DIR)/tools/probe-positive-difference$(EXE_EXTENSION)
+$(POSITIVE_DIFFERENCE_PROBE): tools/probe-positive-difference.c tests/positive_difference_probe.h tests/fp_controls.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: check-positive-difference oracle-positive-difference check-positive-difference-oracle
+check-positive-difference: $(POSITIVE_DIFFERENCE_PROBE)
+	@python3 tools/check-positive-difference.py --probe $(POSITIVE_DIFFERENCE_PROBE)
+oracle-positive-difference:
+	@$(ORACLE) positive_difference --out $(CORPUS_DIR) --seed 20261028 --count 2000
+check-positive-difference-oracle: check-positive-difference $(APP_DIR)/testPositive_difference$(EXE_EXTENSION) $(HASH_PROBE)
+	@seed=$$(od -An -N4 -tu4 /dev/urandom | tr -d ' '); rc=0; \
+	 $(ORACLE) fresh-positive_difference --out $(BUILD_DIR)/oracle-positive-difference --seed $$seed --count 2000 || rc=$$?; \
+	 if [ $$rc -eq 3 ]; then echo 'positive difference fresh: SKIPPED optional engine'; \
+	 elif [ $$rc -ne 0 ]; then exit $$rc; \
+	 else $(ORACLE) positive_difference --out $(BUILD_DIR)/positive-difference-committed --seed 20261028 --count 2000 && \
+	   for f in fdim64-special.corpus fdim32-special.corpus fdim-special.hash fdim.corpus fdimf.corpus; do \
+	     cmp $(CORPUS_DIR)/$$f $(BUILD_DIR)/positive-difference-committed/$$f || exit 1; \
+	   done && python3 tools/check-positive-difference.py --probe $(POSITIVE_DIFFERENCE_PROBE) --unit $(APP_DIR)/testPositive_difference$(EXE_EXTENSION) \
+	     --numeric $(HASH_PROBE) --fresh --directory $(BUILD_DIR)/oracle-positive-difference --seed $$seed --count 2000; \
+	 fi
+.PHONY: check-planted-positive-difference
+check-planted-positive-difference: $(OBJ_DIR)/tests/test_positive_difference.o $(APP_DIR)/$(STATIC_TARGET)
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_positive_difference.o' \
+	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_LDFLAGS='$(LDFLAGS)' \
+	 PLANT_UNIT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' PLANT_WORK='$(BUILD_DIR)/planted-positive-difference' \
+	 python3 tools/check-planted-positive-difference.py
+.PHONY: check-positive-difference-controls
+check-positive-difference-controls: $(POSITIVE_DIFFERENCE_PROBE) $(HASH_PROBE)
+	@python3 tools/check-positive-difference-controls.py --probe $(POSITIVE_DIFFERENCE_PROBE) --numeric $(HASH_PROBE)
+.PHONY: check-positive-difference-harness
+check-positive-difference-harness: $(APP_DIR)/$(STATIC_TARGET)
+	@HARNESS_CC='$(CC)' HARNESS_CFLAGS='$(CFLAGS) $(INCLUDE)' \
+	 HARNESS_CXX='$(CXX)' HARNESS_CXXFLAGS='$(CXXFLAGS) $(INCLUDE)' \
+	 HARNESS_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' HARNESS_LDFLAGS='$(LDFLAGS)' \
+	 HARNESS_WORK='$(BUILD_DIR)/positive-difference-harness' python3 tools/check-positive-difference-harness.py
+
+.PHONY: check-positive-difference-oracle-controls
+check-positive-difference-oracle-controls:
+	@python3 tools/check-positive-difference-oracle.py --work $(BUILD_DIR)/positive-difference-oracle-controls
+POSITIVE_DIFFERENCE_BENCH := $(APP_DIR)/tools/bench-positive-difference$(EXE_EXTENSION)
+$(POSITIVE_DIFFERENCE_BENCH): tools/bench-positive-difference.c tests/fp_controls.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: bench-positive-difference
+POSITIVE_DIFFERENCE_BENCH_OUT ?= $(BUILD_DIR)/positive-difference-benchmark
+POSITIVE_DIFFERENCE_BENCH_RUNS ?= 1
+bench-positive-difference: $(POSITIVE_DIFFERENCE_BENCH)
+	@python3 tools/run-positive-difference-benchmark.py --binary $(POSITIVE_DIFFERENCE_BENCH) --archive $(APP_DIR)/$(STATIC_TARGET) \
+	 --cc='$(CC)' --flags='$(CFLAGS) $(INCLUDE)' --library-flags='$(LIB_CFLAGS) $(INCLUDE)' \
+	 --out '$(POSITIVE_DIFFERENCE_BENCH_OUT)' --runs '$(POSITIVE_DIFFERENCE_BENCH_RUNS)'
+.PHONY: check-positive-difference-bench-controls
+check-positive-difference-bench-controls: $(APP_DIR)/$(STATIC_TARGET)
+	@BENCH_CC='$(CC)' BENCH_CFLAGS='$(CFLAGS) $(INCLUDE)' BENCH_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' \
+	 BENCH_LDFLAGS='$(LDFLAGS)' BENCH_WORK='$(BUILD_DIR)/positive-difference-bench-controls' \
+	 python3 tools/check-positive-difference-bench.py --controls
