@@ -589,6 +589,38 @@ GMATH_API double gmath_fmod(double x, double y);
 GMATH_API float gmath_fmodf(float x, float y);
 
 /**
+ * @brief Nearest/ties-even positive difference, independent of rounding mode.
+ *
+ * Either NaN yields the canonical positive quiet NaN; invalid is raised only
+ * when either input signals. Otherwise x<=y returns +0, including every zero
+ * pair and equal infinities. An infinite ordered positive difference returns
+ * +infinity without overflow. Finite positive differences round once to
+ * nearest/ties-even in every standard mode. Exact results add no flags;
+ * inexact finite results add inexact, rounded overflow gives +infinity with
+ * overflow/inexact. A tiny positive finite difference is exact: no underflow
+ * or rounded zero occurs. errno, mode and incoming standard flags survive.
+ * Full directed numerical and libm errno semantics are not promised.
+ *
+ * @param x The minuend.
+ * @param y The subtrahend.
+ * @return max(x-y,+0), rounded as described, or the canonical NaN.
+ */
+GMATH_API double gmath_fdim(double x, double y);
+
+/**
+ * @brief Binary32 positive difference, with the rules of ::gmath_fdim.
+ *
+ * Raw binary32 inputs are classified before arithmetic. Returned NaN bits are
+ * 0x7fc00000. Exact integer arithmetic supplies nearest/ties-even result bits
+ * in every standard rounding mode, without widening a signaling input.
+ *
+ * @param x The minuend.
+ * @param y The subtrahend.
+ * @return The binary32 positive difference, or the canonical float NaN.
+ */
+GMATH_API float gmath_fdimf(float x, float y);
+
+/**
  * @brief The smaller of @p x and @p y, with -0 ordered below +0.
  *
  * A single quiet NaN yields the other argument; two quiet NaNs yield the

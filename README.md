@@ -138,7 +138,8 @@ library in the shape family runs in `make test`.
 
 Some large mixed grids use compact storage. Literal seeded answers remain in
 `nearbyint-seeded.corpus` (2000 words),
-`currentint64-seeded.corpus` (2000 words).
+`currentint64-seeded.corpus` (2000 words),
+`fdim64-seeded.corpus` (6000 pairs).
 Complete-file SHA256 anchors retain the original deterministic grids.
 `make prepare-grid-corpora` reconstructs missing full files with exact rational
 arithmetic, verifies every retained seed, and requires byte-identical independent

@@ -91,6 +91,8 @@ static double modf_integral(double x) {double whole;(void)gmath_modf(x,&whole);r
 static double modff_fraction(double x) {return (double)gmath_modff((float)x,NULL);}
 static double modff_integral(double x) {float whole;(void)gmath_modff((float)x,&whole);return (double)whole;}
 
+static double fdimf_widened(double x,double y) {return (double)gmath_fdimf((float)x,(float)y);}
+
 static double nextafterf_widened(double x, double y) {
   return (double)gmath_nextafterf((float)x, (float)y);
 }
@@ -222,6 +224,8 @@ static const struct {
   {"modf_integral", "modf_integral", K_D_D, 0, NULL, modf_integral, NULL, NULL},
   {"modff_fraction", "modff_fraction", K_D_D, 0, NULL, modff_fraction, NULL, NULL},
   {"modff_integral", "modff_integral", K_D_D, 0, NULL, modff_integral, NULL, NULL},
+  {"fdim", "fdim", K_DD_D, 0, NULL, NULL, gmath_fdim, NULL},
+  {"fdimf", "fdimf", K_DD_D, 0, NULL, NULL, fdimf_widened, NULL},
   {"nextafter", "nextafter", K_DD_D, 0, NULL, NULL, gmath_nextafter, NULL},
   {"nextafterf", "nextafterf", K_DD_D, 0, NULL, NULL, nextafterf_widened, NULL},
   {"scalbnf", "scalbnf", K_DN_D, 0, NULL, NULL, NULL, scalbnf_widened},
