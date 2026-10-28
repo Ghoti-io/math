@@ -72,3 +72,5 @@ fn modff_fraction feea8ae7dd573424 6174
 fn modff_integral 3f7a8130f27b762b 6174
 fn logb e0aa81ad34f8834b 32318
 fn logbf bb32234cb185f773 6296
+fn scalbln 47ab6ee726681988 48194
+fn scalblnf ef95ceda283f36cc 17604

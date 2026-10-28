@@ -44,3 +44,9 @@ tests/corpus/logbf-special.corpus text eol=lf
 tests/corpus/logb.corpus text eol=lf
 tests/corpus/logbf.corpus text eol=lf
 tests/corpus/exponent_value-special.hash text eol=lf
+
+tests/corpus/scalbln-special.corpus text eol=lf
+tests/corpus/scalblnf-special.corpus text eol=lf
+tests/corpus/scalbln.corpus text eol=lf
+tests/corpus/scalblnf.corpus text eol=lf
+tests/corpus/long_scale-special.hash text eol=lf

@@ -110,6 +110,8 @@
 #define gmath_ldexpf GHOTIIO_MATH(gmath_ldexpf)
 #define gmath_frexpf GHOTIIO_MATH(gmath_frexpf)
 #define gmath_ilogbf GHOTIIO_MATH(gmath_ilogbf)
+#define gmath_scalbln GHOTIIO_MATH(gmath_scalbln)
+#define gmath_scalblnf GHOTIIO_MATH(gmath_scalblnf)
 #define gmath_scalbn GHOTIIO_MATH(gmath_scalbn)
 #define gmath_sin GHOTIIO_MATH(gmath_sin)
 #define gmath_sqrt GHOTIIO_MATH(gmath_sqrt)

@@ -4,12 +4,18 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 24 verified phases add 43 APIs, four performance optimizations
-and certificate maintenance. Classic real-function name coverage is 63/171;
-51 Float/Double additions remain, or 108 including long double. The phase
+Current snapshot: 25 verified phases add 45 APIs, four performance optimizations
+and certificate maintenance. Classic real-function name coverage is 65/171;
+49 Float/Double additions remain, or 106 including long double. The phase
 sections below retain historical counts and measurements.
 
 ## Completed capabilities
+
+- Native-long power-of-two scaling: `gmath_scalbln` and `gmath_scalblnf`,
+  using safe long comparisons before narrowing and unchanged existing kernels.
+  Every native signed long32/long64 exponent is accepted, including extremes.
+  Exact outputs, signed special values and caller state are preserved;
+  Double before-round versus Float after-round tininess remains explicit.
 
 - Exact floating exponent values: `gmath_logb` and `gmath_logbf`, including
   subnormals and either input sign. Zero gives negative infinity/divide-by-zero;
@@ -184,11 +190,171 @@ sections below retain historical counts and measurements.
    float/double coverage, including remaining basic decomposition and
    rounding/remainder families. Adjacent Float overhead is now reduced by the
    verified direction optimization; exact modf/modff is now supplied.
-   Exact `logb`/`logbf` is now supplied; investigate `scalbln`/`scalblnf` next.
+   Exact `logb`/`logbf` and native-long `scalbln`/`scalblnf` are now supplied.
+   Audit the remaining basic Float gaps; `cbrtf` is a possible next cohesive
+   family after investigating accuracy and exception contracts.
    Keep accuracy, exception behavior and performance separate.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
+
+## Native-long scaling validation
+
+`gmath_scalbln` and `gmath_scalblnf` saturate the exponent in signed long
+before the only int cast, then call the unchanged Double/Float kernels.
+LONG_MIN/MAX never undergo negation, addition or premature narrowing. Both
+return nearest/ties-even bits in every mode, exact finite/subnormal results
+without new flags, deterministic signed infinity with OF/IX on overflow, and
+UF/IX for inexact rounded zero/subnormal. Double retains before-round tininess;
+Float retains after-round tininess. The rounded-minimum-normal witnesses
+`(001fffffffffffff,-1)` and `(00ffffff,-1)` require UF/IX and IX respectively.
+Canonical NaNs raise invalid only for signaling inputs. Signed zeros/infinities,
+errno, mode and incoming flags are preserved. Full directed/libm errno semantics
+are not promised. The derivation and saturation proof are in `design.md`.
+No other libm implementation source was read or copied; own-project kernels
+and mathematical bounds supply the implementation. Standard identities are
+not claimed novel.
+
+A read-only audit of 6,229 project-owned C/C++ source/header files found no
+direct scalbln/scalblnf calls within its exclusions. This intentionally advances
+broader standard coverage; consumers remain unmigrated. Classic real-function
+name coverage is now 65/171: 33 Double, 32 Float and zero long double. Missing
+24 Double + 25 Float means 49 Float/Double additions, or 106 including 57
+long-double names. Complex adds another 66. Name counts do not establish full
+behavioral parity and exclude fenv/macros/vendor extensions.
+
+Final sequential full default GCC14.2/GCC16.2 `make test` commands return zero,
+with persisted actual child statuses. Each main unit run has 218 tests in 30
+binaries. Clang passes the same unit-only counts, and five focused ASan/UBSan
+tests pass. The first GCC14 full attempt returned 2 because the pre-existing
+atan2f fresh generator exceeded its unchanged 60-second limit under concurrent
+validation. Its exact seed/count replay passed in 6.979 seconds under lighter
+load; the serialized full rerun passed. No numerical mismatch, waived gate or
+raised timeout is represented as success. An earlier GCC16 full run passed
+before the final recording-control wiring; both current-tree full runs were
+then repeated. Independent contract/proof, blind and follow-up reviews resolve
+the implementation findings.
+
+Valgrind 3.24 invoked all five focused tests and reported zero memory errors
+and no leaks, but four exception-state tests failed, so this is not a passing
+suite. Both corpus probes stop at their first flag mismatch; memory coverage
+is partial. An independent plain C volatile minimum-normal multiplication,
+without any gmath calls, produces the same zero bits but UF/IX natively and
+no flags under Valgrind. This directly establishes an instrumentation limitation
+for UF/IX; attributing every suite discrepancy to that model is an inference.
+No production/test exception assertions were weakened. Compatibility with this
+instrumenter remains a separate follow-up.
+
+Independent field-decoded exact Fraction quantization and separately decoded
+pinned MPFR agree on 48,558 Double and 18,082 Float raw input/exponent rows.
+MPFR exponent clipping at 8,192 is independent of the implementation caps.
+Common signed32-exponent subsets add portable numerical sets:
+
+| Set | Hash | Rows |
+| --- | --- | ---: |
+| scalbln | `47ab6ee726681988` | 48,194 |
+| scalblnf | `ef95ceda283f36cc` | 17,604 |
+
+All 69 previous result sets and legacy `f5fa269eb60ee34f` over 292,711 rows
+are unchanged. Five complete-file SHA256 gates and LF attributes protect all
+new payloads even without the optional oracle. Pinned regeneration is
+byte-identical. Fresh checks bind requested seed/count to every ordered input
+pair, independently reconstruct widened rows and signaling-Float exclusions,
+and run the real generic checker with only the two new corpora overlaid.
+Three fresh samples and a larger 147,471 Double/116,689 Float raw sample pass;
+the larger long64 probe checks 264,160 nearest results and 3,024,184 state
+calls. Actual same-sized parse-valid target corruptions verify both unit
+corpus-directory selections without renaming caller evidence.
+
+Width-aware raw result/order and state result/order hashes are:
+
+| Format / native long | Nearest hash / rows / skipped | State hash / calls |
+| --- | --- | --- |
+| Double / 32 | `47ab6ee726681988` / 48,194 / 364 | `6b19acdde5624b15` / 623,632 |
+| Double / 64 | `d1266b38f3cc4b68` / 48,558 / 0 | `7ff3bc96257bad15` / 670,440 |
+| Float / 32 | `243fedf2071a0191` / 17,718 / 364 | `b6038507f04a35c5` / 323,280 |
+| Float / 64 | `8e36464ae1171755` / 18,082 / 0 | `ee4327d77e8838c5` / 369,840 |
+
+Long32 skips only exponent words outside its native parameter range, after
+validating row schema/order. Every eligible row runs all four modes and two
+errno seeds; selected/nonfinite rows request all 32 incoming-flag subsets.
+Actual flags can merge when raised. Per-call flags/errno/mode are checked
+before hashing; hashes encode results/order, not hardware flag bits.
+
+Six emulated targets agree on all 71 numerical sets in default/portable builds,
+and 24 raw O0/O2/default/forced-Float-loop profiles agree on native long32/64
+outputs and state. Each long64 profile checks 66,640 nearest results and
+1,040,280 state calls; long32 checks 65,912 and 946,912. The larger raw sample
+also passes O2/default on all six targets. Final i686 O0 callers have no
+fldl/flds input loads. These are emulated probes, not physical-host/full
+cross-target GoogleTest claims. Windows/LLP64, exhaustive input/environment
+space and native32/application timing remain unrun.
+
+Both native compilers detect all 64 source/state plant executions in C++ and
+C17, requiring the other format to remain passing for format-specific defects.
+Real short-narrowing defects detect on i686 and PowerPC32; int-to-long identity
+variants pass as equivalent on those native-long32 targets. Thirty-two isolated
+loader/value fixtures, five checksum corruptions, a valid recording process
+and 12 output/process faults pass. Eight actual pinned numerical oracle faults
+fail before publication; actual ignored-count/seed generator faults are caught
+by complete-population verification. Recording-engine controls exercise both
+wrapper dispatch commands, missing-family counterfactuals and optional/required
+absence behavior even when numerical oracles skip; these are accounting,
+not numerical oracle evidence. The unchanged five-file publisher's earlier
+exception rollback/permission controls apply; publication is not crash-atomic.
+Old runtime modules, including both scaling kernels, remain byte-identical.
+Earlier expf/exp2f/atanf force-only deletion witness gaps remain unchanged.
+
+Two predeclared paired benchmark runs per native compiler use eight discarded
+paired warmups and 401 alternating pairs of 4,096 identical inputs across 11
+ranges, two types and clean/preseeded UF/IX states: 44 cases per run. Integer
+timestamps precede floating timing arithmetic; untimed host bit/class controls
+and own exact batch-flag/errno/mode guards run separately. Host new flags,
+exceptional errno and NaN payloads can differ. Both compiler contexts use the
+same logical processor affinity, without CPU isolation or governor changes.
+Compiler/library flags, target, linked host-libm identity and binary/source
+hashes are retained with the measurements. The two runtime images may have
+different host libraries; differences between contexts are not attributed
+solely to compiler choice.
+
+The following ranges enclose both entry states and both runs. Absolute columns
+are independent min–max envelopes of median ns/call (gmath / host); ratio
+columns enclose paired median gmath/host ratios and, in brackets, the envelope
+of paired p10 through p90. Absolute envelope endpoints are not paired samples.
+
+| API / range | GCC14 absolute ns (gmath / host) | GCC14 ratio [p10–p90] | GCC16 absolute ns (gmath / host) | GCC16 ratio [p10–p90] |
+| --- | --- | --- | --- | --- |
+| scalbln / normal | 2.632–5.067 / 3.762–6.627 | 0.670–0.764 [0.624–0.835] | 3.173–6.129 / 4.489–7.826 | 0.703–0.786 [0.589–0.846] |
+| scalblnf / normal | 2.695–4.828 / 3.529–6.382 | 0.736–0.770 [0.708–0.815] | 2.578–5.021 / 4.631–8.369 | 0.556–0.604 [0.501–0.641] |
+| scalbln / subnormal-input | 39.889–40.922 / 62.268–63.247 | 0.639–0.646 [0.623–0.678] | 39.116–44.810 / 60.125–69.349 | 0.649–0.653 [0.632–0.670] |
+| scalblnf / subnormal-input | 6.836–7.667 / 63.187–70.048 | 0.108–0.111 [0.106–0.127] | 4.708–5.451 / 60.006–66.080 | 0.077–0.084 [0.076–0.092] |
+| scalbln / exact-subnormal-result | 3.383–5.820 / 37.819–50.517 | 0.091–0.108 [0.076–0.122] | 3.369–3.480 / 39.474–41.366 | 0.085–0.086 [0.074–0.089] |
+| scalblnf / exact-subnormal-result | 3.268–5.302 / 36.755–46.218 | 0.089–0.102 [0.077–0.116] | 3.261–3.490 / 36.873–39.924 | 0.088–0.089 [0.076–0.091] |
+| scalbln / inexact-subnormal-result | 3.700–3.859 / 36.911–38.810 | 0.095–0.102 [0.082–0.123] | 3.430–3.510 / 39.324–41.613 | 0.083–0.089 [0.073–0.090] |
+| scalblnf / inexact-subnormal-result | 3.963–4.411 / 37.719–41.193 | 0.100–0.107 [0.087–0.118] | 3.726–6.680 / 35.988–48.533 | 0.098–0.135 [0.088–0.155] |
+| scalbln / rounded-normal | 3.759–3.770 / 37.819–38.783 | 0.096–0.098 [0.081–0.103] | 3.370–3.624 / 38.655–41.374 | 0.083–0.089 [0.077–0.130] |
+| scalblnf / rounded-normal | 3.599–4.722 / 37.594–47.930 | 0.092–0.111 [0.082–0.133] | 3.285–3.644 / 36.016–39.856 | 0.089–0.095 [0.078–0.124] |
+| scalbln / overflow | 2.909–3.622 / 3.430–3.725 | 0.848–0.996 [0.843–1.079] | 2.644–3.255 / 3.962–4.296 | 0.667–0.798 [0.665–0.901] |
+| scalblnf / overflow | 3.172–3.363 / 3.447–3.635 | 0.922–0.931 [0.844–1.003] | 2.585–2.888 / 4.458–4.864 | 0.565–0.625 [0.562–0.824] |
+| scalbln / long-max | 3.364–3.731 / 3.587–3.740 | 0.919–0.998 [0.845–1.031] | 3.343–3.621 / 3.917–4.081 | 0.832–0.892 [0.760–0.963] |
+| scalblnf / long-max | 3.348–3.524 / 3.565–3.627 | 0.937–0.989 [0.920–1.079] | 2.715–3.051 / 4.341–4.581 | 0.625–0.687 [0.562–0.788] |
+| scalbln / long-min | 3.531–3.628 / 4.367–4.610 | 0.768–0.814 [0.763–0.868] | 2.719–3.066 / 4.826–4.888 | 0.565–0.616 [0.554–0.662] |
+| scalblnf / long-min | 3.074–5.355 / 4.306–6.258 | 0.706–0.780 [0.625–0.944] | 2.513–2.711 / 5.019–5.155 | 0.500–0.526 [0.451–0.557] |
+| scalbln / zero-infinity | 2.759–4.211 / 1.894–2.611 | 1.440–1.615 [1.391–1.721] | 2.758–2.963 / 2.280–2.509 | 1.155–1.213 [1.152–1.341] |
+| scalblnf / zero-infinity | 2.075–2.956 / 2.016–2.366 | 1.030–1.326 [0.997–1.402] | 2.387–2.569 / 2.528–2.771 | 0.885–0.977 [0.859–1.072] |
+| scalbln / quiet-NaN | 2.762–4.177 / 2.312–2.987 | 1.214–1.387 [1.164–1.484] | 2.631–2.713 / 2.513–2.576 | 1.046–1.054 [0.997–1.103] |
+| scalblnf / quiet-NaN | 2.208–3.079 / 1.808–2.289 | 1.217–1.324 [1.145–1.427] | 2.382–2.607 / 2.511–2.722 | 0.947–0.953 [0.898–1.055] |
+| scalbln / signaling-NaN | 2.764–4.264 / 2.312–2.987 | 1.201–1.409 [1.164–1.479] | 2.715–2.900 / 2.637–2.714 | 1.008–1.098 [0.900–1.103] |
+| scalblnf / signaling-NaN | 2.271–2.599 / 1.851–2.132 | 1.211–1.282 [1.182–1.446] | 2.319–2.506 / 2.577–2.711 | 0.878–0.926 [0.874–0.976] |
+
+Normal/subnormal ranges improve on the measured host, while Double special
+ranges and several GCC14 Float special ranges remain slower. Absolute times
+vary substantially even with fixed affinity. Call/loop/checksum/timestamp work
+and amortized first-exception costs are included. No overall, application,
+physical cross-platform or general performance win is claimed. Forced-loop,
+other-compiler and native-long32 timings remain unrun. Reproduce with
+`make bench-long-scale`; correctness gates and standalone probe instructions
+are in the design document.
 
 ## Float exponent conversion optimization
 

@@ -2167,3 +2167,88 @@ compiled and identified in their own compiler context. Measured regressions
 are reported alongside gains; no overall speed claim follows from these scalar
 microbenchmarks. No external implementation source was consulted; own prior
 revisions are controlled comparison baselines only.
+
+### Native-long power-of-two scaling
+
+`gmath_scalbln` and `gmath_scalblnf` supply the long-exponent forms of
+[WG14 N1570 7.12.6.13/F.10.3.13](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf).
+They reuse the existing Double and Float scaling kernels, whose source remains
+unchanged. Comparisons occur in signed `long`: Double saturates outside
+`[-5000L,5000L]`, Float outside `[-512L,512L]`. Conversion to int happens only
+inside those bounds, which fit even a standard minimum-width int. No negation,
+absolute value, addition or narrowing touches LONG_MIN/MAX. This accepts every
+native long exponent without wrapping.
+
+For finite nonzero Double input, the existing unpacked biased exponent lies
+in `[-51,2046]`. At +5000 the sum always exceeds the overflow boundary 2047;
+at -5000 the subnormal right shift always exceeds 54, so nearest produces
+signed zero. Float unpacking lies in `[-22,254]`; +512 always exceeds 255,
+and -512 always shifts beyond 24. Larger exponent magnitudes have the same
+result and exception classes as these saturated values. Zeros, infinities
+and NaNs retain the old kernel's special dispatch. Integer comparisons add
+no floating flags or errno changes, so the wrappers preserve caller state.
+
+Finite exact results, including exact subnormals, add no flags. Every mode
+uses nearest/ties-even result bits, with signed infinity/OF-IX on overflow
+and signed zero/UF-IX on inexact underflow. Other inexact tiny results use
+UF-IX. Double retains tininess before rounding: the tiny exact value from
+`(0x1.fffffffffffffp-1022,-1L)` rounds to minimum normal with UF-IX.
+Float retains tininess after rounding: `(0x1.fffffep-126f,-1L)` rounds to
+minimum normal with IX only. NaNs canonicalize, invalid only for signaling
+inputs. Signed zeros/infinities, errno, rounding mode and incoming flags are
+preserved. Full directed numerical or libm errno semantics are not promised.
+
+Independent references decode exact rationals and quantize the result on the
+binary target grid using integer quotient/remainder ties-to-even. A separate
+MPFR path decodes through the IEEE value with target precision/exponent range
+and subnormalization. Its exponent argument is bounded independently at 8192:
+even the smallest finite Double exponent -1074 plus 8192 overflows, while
+1023-8192 is below half minimum subnormal; Float margins are larger. Thus no
+huge rational power or unrepresentable MPFR exponent is constructed, without
+reusing the production caps. New code derives from these mathematical bounds
+and own-project kernels; no other libm implementation source was read/copied.
+
+Raw corpora carry signed64 exponent words and retain signaling NaNs. A defined
+signed-word decoder handles INT64_MIN, then eligibility is checked against
+native LONG_MIN/MAX before any cast. Long32 executions skip only exponent
+values that their public parameter cannot represent; long64 executions cover
+them. Width-specific result/order hashes and exact counts/skipped counts bind
+both cases. Common signed32 exponent subsets supply the generic portable
+numerical hashes; widened Float inputs exclude signaling NaNs. Fresh checks
+bind seed/count to the complete deterministic input-pair population, reconstruct
+every widened row/exclusion independently with integer widening, check raw/state
+hashes, and execute the real all-function checker with only these two corpora
+overlaid. SHA256 checks cover all five complete committed payloads, with LF
+checkout attributes even when the optional oracle is absent.
+
+Every eligible raw row checks nearest and all four modes with two errno seeds.
+Selected cases and all nonfinite inputs request all 32 incoming-flag subsets;
+actual raised flags are captured when hardware merges requests. Per-call flags,
+mode and errno are asserted before result/order hashing; hashes are not digests
+of hardware flag encodings. The bounded byte-counted loader rejects embedded
+NUL, malformed fields, bad provenance/counts, duplicates, unsorted pairs and
+illegal result/flag classes. Tests check environment restoration after success
+and after a late malformed row following real calls. Source plants must fail
+in C++ and C17 only for the affected format; native-long64 premature-int casts
+are explicitly equivalent/skipped on long32. Quiet-NaN payload, signaling-only
+invalid loss and quiet-only invalid additions have isolated controls.
+
+The existing five-file publisher stages a generation, preserves permissions,
+and rolls back replacements on exceptions. It is not crash-atomic. The unchanged
+publisher's prior failure/rollback controls still apply; no new crash-safety
+claim is made. Actual numeric oracle faults are rejected before publication;
+separate ignored seed/count faults publish correct values for the wrong input
+selection and are rejected by the fresh complete-population check. Recording
+engine controls exercise both real wrapper dispatch paths and missing-family
+counterfactuals; these are accounting evidence, not numerical oracle evidence.
+
+Reproduce with `make check-long-scale`, `make check-planted-long-scale`,
+`make check-long-scale-oracle` and `make bench-long-scale`. The standalone
+`tools/probe-long-scale.c` links the new wrapper plus unchanged scale.c and
+float_scale.c; compile with the target's native long ABI, version header and
+ordinary IEEE flags. Repeat O0/O2 and `GMATH_FLOATSCALE_PORTABLE_BITS` and use
+SSE arithmetic flags on i686. Normalize its two output lines by stripping the
+` from DIRECTORY` suffix, then compare the matching `.long32` or `.long64`
+lines from `tests/corpus/long_scale-special.hash`. Emulation establishes probe
+coverage, not physical-host/full cross-target GoogleTest or application timing.
+Actual validation and benchmark scope is recorded in `libm-progress.md`.

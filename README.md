@@ -17,8 +17,15 @@ shape library takes nothing from libm: `gmath_sqrt` (correctly rounded: the targ
 where it rounds correctly, a portable method with the same bits elsewhere, both gated),
 `gmath_floor`, `gmath_ceil`, `gmath_trunc`, `gmath_round` (half away from zero), `gmath_rint`
 (half to even, whatever the rounding mode), `gmath_fabs`, `gmath_copysign`, `gmath_scalbn`,
-`gmath_ldexp`, `gmath_frexp` and `gmath_ilogb`. There is no `fma`: fusing is forbidden (AD-17).
+`gmath_ldexp`, `gmath_frexp` and `gmath_ilogb`. There is no `fma`: fusing is forbidden.
 `make check-libm` refuses every libm symbol, in this library and in the shape libraries.
+
+`gmath_scalbln(double, long)` and `gmath_scalblnf(float, long)` extend the
+existing scaling kernels to the full native-long exponent range without
+wrapping or narrowing first. Both preserve caller state and use nearest/ties-even
+bits in every mode. Double retains tininess before rounding; Float retains
+tininess after rounding, as documented in `basic.h` and `documentation/design.md`.
+
 
 * `sin`, `cos`, `tan`: the argument is reduced exactly (Cody-Waite below 2^30 where that is
   provably as good, Payne-Hanek otherwise), so a huge argument near a multiple of pi/2 is as
@@ -53,9 +60,8 @@ remainder additions toward broader libm coverage.
 values, with negative zero preferred for minimum and positive zero for maximum.
 A single quiet NaN returns the other number; two quiet NaNs return the canonical
 NaN; a signaling NaN in either argument raises invalid and returns the canonical
-NaN. These functions preserve `errno` and the rounding mode. Other float
-elementary functions beyond `gmath_log2f` are not yet provided. The ongoing scope and verification
-limits are recorded in `documentation/libm-progress.md`.
+NaN. These functions preserve `errno` and the rounding mode. Additional Float APIs and the current verification limits are recorded in
+`documentation/libm-progress.md`.
 
 `gmath_log2`, `gmath_log10` and `gmath_log2f` add binary/decimal logarithms,
 with a one-ulp contract in their result format under round-to-nearest. Binary

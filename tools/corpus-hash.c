@@ -83,6 +83,9 @@ static double modff_integral(double x) {float whole;(void)gmath_modff((float)x,&
 static double nextafterf_widened(double x, double y) {
   return (double)gmath_nextafterf((float)x, (float)y);
 }
+static double scalbln_common(double x, int n) {return gmath_scalbln(x, (long)n);}
+static double scalblnf_common(double x, int n) {return (double)gmath_scalblnf((float)x, (long)n);}
+
 static double scalbnf_widened(double x, int n) {
   return (double)gmath_scalbnf((float)x, n);
 }
@@ -199,6 +202,8 @@ static const struct {
   {"cos", "cos", K_D_D, 1, NULL, gmath_cos, NULL, NULL},
   {"tan", "tan", K_D_D, 1, NULL, gmath_tan, NULL, NULL},
   {"atan2", "atan2", K_DD_D, 1, NULL, NULL, gmath_atan2, NULL},
+  {"scalbln", "scalbln", K_DN_D, 0, NULL, NULL, NULL, scalbln_common},
+  {"scalblnf", "scalblnf", K_DN_D, 0, NULL, NULL, NULL, scalblnf_common},
   {"logb", "logb", K_D_D, 0, NULL, gmath_logb, NULL, NULL},
   {"logbf", "logbf", K_D_D, 0, NULL, logbf_widened, NULL, NULL},
   {"modf_fraction", "modf_fraction", K_D_D, 0, NULL, modf_fraction, NULL, NULL},

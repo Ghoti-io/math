@@ -295,6 +295,35 @@ GMATH_API double gmath_scalbn(double x, int n);
 GMATH_API double gmath_ldexp(double x, int n);
 
 /**
+ * @brief Native-long exponent counterpart of ::gmath_scalbn.
+ *
+ * All long exponents are accepted without wrapping/narrowing. Results use
+ * nearest/ties-even in every rounding mode. Exact finite results add no flags,
+ * including exact subnormals. Overflow returns signed infinity with OF/IX;
+ * inexact tiny results require UF/IX. This preserves Double tininess before
+ * rounding: a tiny exact value rounded up to minimum normal still requires
+ * UF/IX. Zeros/infinities preserve sign; NaNs canonicalize, invalid only for
+ * sNaNs. errno, mode and incoming flags are preserved. Full directed/libm errno
+ * semantics are not promised; existing scaling functions are unchanged.
+ * @param x The significand.
+ * @param n The native signed-long exponent, including LONG_MIN/LONG_MAX.
+ * @return x times 2 to the n, under this deterministic contract.
+ */
+GMATH_API double gmath_scalbln(double x, long n);
+/**
+ * @brief Native-long counterpart of ::gmath_scalbnf with the same contract.
+ *
+ * Float retains tininess after rounding: a tiny value rounded up to minimum
+ * normal requires IX only. Every native long exponent is accepted, including
+ * LONG_MIN/LONG_MAX; no narrowing precedes range classification.
+ * @param x The Float significand.
+ * @param n The native signed-long exponent.
+ * @return The scaled Float value.
+ */
+GMATH_API float gmath_scalblnf(float x, long n);
+
+
+/**
  * @brief Splits @p x into a fraction of magnitude in [0.5, 1) and a power of two:
  * `x = f * 2^*e`.  A subnormal @p x is split exactly.  For a zero, an infinity
  * or a NaN the result is @p x (a NaN as the library's) and `*e` is 0.

@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -1791,3 +1791,40 @@ check-exponent-native-controls: $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE
 	 NATIVE_LDFLAGS='$(LDFLAGS)' NATIVE_LIBRARY='$(APP_DIR)/$(STATIC_TARGET)' \
 	 NATIVE_REFERENCE='$(EXPONENT_REFERENCE_OBJECT)' NATIVE_METADATA='$(EXPONENT_REFERENCE_METADATA)' \
 	 NATIVE_CORPUS='$(CORPUS_DIR)' NATIVE_WORK='$(BUILD_DIR)/exponent-native-controls' python3 tools/check-exponent-native-controls.py
+
+# Native-long exponent scaling, independent raw width/state references.
+LONG_SCALE_PROBE := $(APP_DIR)/tools/probe-long-scale$(EXE_EXTENSION)
+$(LONG_SCALE_PROBE): tools/probe-long-scale.c tests/long_scale_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: check-long-scale check-planted-long-scale oracle-long-scale check-long-scale-oracle
+check-long-scale: $(LONG_SCALE_PROBE)
+	@python3 tools/check-long-scale.py $(CORPUS_DIR)
+	@longbits=$$($(CC) $(CFLAGS) -dM -E -x c /dev/null | awk '$$2=="__SIZEOF_LONG__"{print $$3*8}'); \
+	 python3 tools/check-long-scale-output.py $(LONG_SCALE_PROBE) --corpus $(CORPUS_DIR) --long-bits "$$longbits"
+oracle-long-scale:
+	@$(ORACLE) long_scale --out $(CORPUS_DIR) --seed 20261028 --count 1000
+check-long-scale-oracle: $(LONG_SCALE_PROBE) $(HASH_PROBE)
+	@rc=0; seed=$$(python3 -c 'import secrets;print(secrets.randbits(63))'); \
+	 $(ORACLE) fresh-long_scale --out $(BUILD_DIR)/oracle-long-scale --seed $$seed --count 1000 || rc=$$?; \
+	 if [ $$rc -eq 0 ]; then \
+	   $(ORACLE) long_scale --out $(BUILD_DIR)/longscale-committed --seed 20261028 --count 1000 && \
+	   for f in scalbln-special.corpus scalblnf-special.corpus scalbln.corpus scalblnf.corpus long_scale-special.hash; do \
+	     cmp tests/corpus/$$f $(BUILD_DIR)/longscale-committed/$$f || exit 1; \
+	   done && longbits=$$($(CC) $(CFLAGS) -dM -E -x c /dev/null | awk '$$2=="__SIZEOF_LONG__"{print $$3*8}') && \
+	   python3 tools/check-long-scale-output.py $(LONG_SCALE_PROBE) --fresh $(BUILD_DIR)/oracle-long-scale --seed $$seed --count 1000 --long-bits "$$longbits" --numeric-probe $(HASH_PROBE); \
+	 elif [ $$rc -eq 3 ]; then echo 'long scale oracle: SKIPPED optional pinned regeneration/fresh'; else exit $$rc; fi
+	@longbits=$$($(CC) $(CFLAGS) -dM -E -x c /dev/null | awk '$$2=="__SIZEOF_LONG__"{print $$3*8}'); \
+	 python3 tools/check-long-scale-oracle.py --work $(BUILD_DIR)/longscale-oracle-controls --probe $(LONG_SCALE_PROBE) --numeric-probe $(HASH_PROBE) --long-bits "$$longbits"
+check-planted-long-scale: $(OBJ_DIR)/tests/test_long_scale.o $(LIBOBJECTS) $(LONG_SCALE_PROBE)
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_RAW_LDFLAGS='$(LDFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_long_scale.o' PLANT_WORK='$(BUILD_DIR)/planted-long-scale' \
+	 python3 tools/check-planted-long-scale.py
+LONG_SCALE_BENCH := $(APP_DIR)/tools/bench-long-scale$(EXE_EXTENSION)
+$(LONG_SCALE_BENCH): tools/bench-long-scale.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: bench-long-scale
+bench-long-scale: $(LONG_SCALE_BENCH)
+	@$(LONG_SCALE_BENCH)
