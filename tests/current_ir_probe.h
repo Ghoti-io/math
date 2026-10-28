@@ -5,6 +5,7 @@
 #ifndef GMATH_TEST_CURRENT_IR_PROBE_H
 #define GMATH_TEST_CURRENT_IR_PROBE_H
 #include "corpus_hash.h"
+#include "current_ir_prior.h"
 #include <ghoti.io/math/basic.h>
 #include <errno.h>
 #include <fenv.h>
@@ -119,6 +120,9 @@ static uint64_t cr_controls(void) {
   return 0;
 #endif
 }
+#if defined(GMATH_CURRENTINT_REFERENCE)
+static int cr_prior_active;
+#endif
 static int cr_call(uint64_t input, uint64_t expected, unsigned flag,
     unsigned width, int wide, int mode, int subset, int error, uint64_t * hash) {
   const int flags[] = {FE_INVALID, FE_DIVBYZERO, FE_OVERFLOW, FE_UNDERFLOW, FE_INEXACT};
@@ -135,10 +139,16 @@ static int cr_call(uint64_t input, uint64_t expected, unsigned flag,
     memcpy(&x, &input, 8);
     if (wide) {
       long long (*volatile fn)(double) = gmath_llrint;
+#if defined(GMATH_CURRENTINT_REFERENCE)
+      if (cr_prior_active) {fn = gmath_llrint_prior;}
+#endif
       got = (uint64_t)fn(x);
     }
     else {
       long (*volatile fn)(double) = gmath_lrint;
+#if defined(GMATH_CURRENTINT_REFERENCE)
+      if (cr_prior_active) {fn = gmath_lrint_prior;}
+#endif
       got = (uint64_t)fn(x);
     }
   }
@@ -148,10 +158,16 @@ static int cr_call(uint64_t input, uint64_t expected, unsigned flag,
     memcpy(&x, &raw, 4);
     if (wide) {
       long long (*volatile fn)(float) = gmath_llrintf;
+#if defined(GMATH_CURRENTINT_REFERENCE)
+      if (cr_prior_active) {fn = gmath_llrintf_prior;}
+#endif
       got = (uint64_t)fn(x);
     }
     else {
       long (*volatile fn)(float) = gmath_lrintf;
+#if defined(GMATH_CURRENTINT_REFERENCE)
+      if (cr_prior_active) {fn = gmath_lrintf_prior;}
+#endif
       got = (uint64_t)fn(x);
     }
   }
@@ -166,8 +182,85 @@ static int cr_call(uint64_t input, uint64_t expected, unsigned flag,
         width, wide, input, got, expected, got_flags, want, got_errno, error, got_mode, mode);
     return 1;
   }
+#if defined(GMATH_CURRENTINT_REFERENCE)
+  if (!cr_prior_active) {
+    uint64_t ignored = GMATH_FNV_BASIS;
+    cr_prior_active = 1;
+    int prior_status = cr_call(input, expected, flag, width, wide, mode,
+        subset, error, &ignored);
+    cr_prior_active = 0;
+    if (prior_status) {return prior_status;}
+  }
+#endif
   *hash = gmath_fnv_u64(gmath_fnv_u64(*hash, got), flag);
   return 0;
+}
+/* Bounded compatibility fixtures, including nonstandard DAZ/FTZ controls.
+ * They do not broaden the public coherent-standard-environment guarantee. */
+static int cr_x86_control_cases(int print) {
+#if (defined(__GNUC__) || defined(__clang__)) && defined(__SSE2__) &&          \
+    (defined(__i386__) || defined(__x86_64__))
+  fenv_t saved;
+  int error = errno, status = 1;
+  if (fegetenv(&saved)) {return 1;}
+#ifdef __cplusplus
+  alignas(16) unsigned char area[512];
+#else
+  _Alignas(16) unsigned char area[512];
+#endif
+  memset(area, 0, sizeof area);
+  __asm__ volatile("fxsave %0" : "=m"(area) : : "memory");
+  uint32_t supported, original;
+  memcpy(&supported, area + 28, sizeof supported);
+  if (!supported) {supported = UINT32_C(0xffbf);}
+  __asm__ volatile("stmxcsr %0" : "=m"(original) : : "memory");
+  const uint32_t choices[] = {0, UINT32_C(0x40), UINT32_C(0x8000), UINT32_C(0x8040)};
+  const int modes[] = {FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO};
+  uint64_t hash = GMATH_FNV_BASIS, calls = 0;
+  unsigned settings = 0;
+  for (unsigned control = 0; control < 4; control++) {
+    if (choices[control] & ~supported) {continue;}
+    uint32_t selected = (original & ~UINT32_C(0x8040)) | choices[control];
+    __asm__ volatile("ldmxcsr %0" : : "m"(selected) : "memory");
+    settings++;
+    for (unsigned width = 32; width <= 64; width += 32) {
+      unsigned p = width == 64 ? 52u : 23u, bias = width == 64 ? 1023u : 127u;
+      uint64_t sign = UINT64_C(1) << (width - 1);
+      uint64_t cases[] = {0, 1, (UINT64_C(1) << p) - 1, UINT64_C(1) << p,
+          (uint64_t)(bias - 1) << p, (uint64_t)bias << p};
+      for (unsigned item = 0; item < 6; item++) {
+        for (unsigned negative = 0; negative < 2; negative++) {
+          uint64_t raw = cases[item] | (negative ? sign : 0);
+          for (unsigned mode = 0; mode < 4; mode++) {
+            uint64_t expected = item == 5 ? (negative ? UINT64_MAX : 1) :
+                (!item ? 0 : (negative ? (mode == 1 ? UINT64_MAX : 0) : (mode == 2 ? 1 : 0)));
+            unsigned flag = item && item != 5 ? 2u : 0u;
+            for (unsigned subset = 0; subset < 32; subset++) {
+              for (unsigned err = 0; err < 2; err++) {
+                for (unsigned wide = 0; wide < 2; wide++) {
+                  if (cr_call(raw, expected, flag, width, (int)wide, modes[mode],
+                          (int)subset, err ? 733 : 0, &hash)) {goto done;}
+                  calls++;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  if (print) {
+    printf("currentint.x86-controls settings%u daz%u logical%" PRIu64 " hash%016" PRIx64 "\n", settings, !!(supported & UINT32_C(0x40)), calls, hash);
+  }
+  status = 0;
+done:
+  if (fesetenv(&saved)) {status = 1;}
+  errno = error;
+  return status;
+#else
+  if (print) {puts("currentint.x86-controls SKIPPED: compiler target lacks SSE2");}
+  return 0;
+#endif
 }
 static int cr_selected(uint64_t raw, unsigned width, uint64_t index) {
   unsigned p = width == 64 ? 52u : 23u, bias = width == 64 ? 1023u : 127u;

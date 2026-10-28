@@ -45,4 +45,12 @@ TEST(CurrentInteger, NativeLong32ChecksTheRoundedBoundaryBeforeInexact) {
   GTEST_SKIP()<<"native long is64 bits; signed32 boundary runs in raw cross probes";
 #endif
 }
+TEST(CurrentInteger, PreservesPriorSubnormalBehaviorUnderDazAndFtz) {
+#if (defined(__GNUC__) || defined(__clang__)) && defined(__SSE2__) &&          \
+    (defined(__i386__) || defined(__x86_64__))
+  EXPECT_EQ(cr_x86_control_cases(1), 0);
+#else
+  GTEST_SKIP() << "DAZ/FTZ fixtures require a compiler target with SSE2";
+#endif
+}
 int main(int argc,char ** argv) {::testing::InitGoogleTest(&argc,argv);return RUN_ALL_TESTS();}

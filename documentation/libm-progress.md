@@ -1,10 +1,27 @@
 # Libm gap closure
 
+## Native current-integer conversion
+
+Admitted normal x86 inputs now use current-mode hardware conversions; all other
+inputs and query/portable configurations retain the exact integer fallback.
+All 84 hashes and public state contracts are unchanged. Full GCC14/GCC16 gates,
+Clang unit-only, focused sanitizers, six-target paired probes and independent
+reviews accompany this increment. See [the proof and complete measurements](current-integer-performance.md).
+
+Two predeclared final runs per native compiler/comparison retain 2,816 records.
+Ordinary current/prior median ratios are 0.106–0.221 on GCC14 and 0.104–0.161 on
+GCC16, about 4.5–9.6 times faster. Ordinary calls still take 1.132–1.502 times host
+libm. Fallback subnormal/finite-overflow paths regress in some cases; the latter
+reaches 1.839 times prior, within the predeclared 2 ns allowance for differences
+of separate medians. This is a narrow tradeoff, not general nonregression or an
+overall/application/platform win. The prior failed partial Valgrind scope and
+unverified older force-only IX witnesses remain unchanged.
+
 Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 31 verified phases add 56 APIs, six performance optimizations
+Current snapshot: 32 verified phases add 56 APIs, seven performance optimizations
 and certificate maintenance. Classic real-function name coverage is 76/171;
 38 Float/Double additions remain, or 95 including long double. The phase
 sections below retain historical counts and measurements.
