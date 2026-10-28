@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -1862,3 +1862,66 @@ $(CBRTF_BENCH): tools/bench-cbrtf.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 .PHONY: bench-cbrtf
 bench-cbrtf: $(CBRTF_BENCH)
 	@$(CBRTF_BENCH)
+
+# Source-linked all-mode bound and compatibility controller accounting.
+.PHONY: check-cbrtf-fast-budget check-cbrtf-compat-driver
+check-cbrtf-fast-budget:
+	@python3 tools/oracle/check_cbrtf_fast_budget.py
+	@python3 tools/check-cbrtf-fast-budget.py
+check-cbrtf-compat-driver:
+	@python3 tools/check-cbrtf-compat.py --calibrate
+
+# Actual-prior comparisons are optional; default gates need no Git/prior object.
+CBRTF_REFERENCE_OBJECT ?=
+CBRTF_REFERENCE_METADATA ?= $(if $(strip $(CBRTF_REFERENCE_OBJECT)),$(CBRTF_REFERENCE_OBJECT).json)
+.PHONY: cbrtf-reference-force
+cbrtf-reference-force:
+CBRTF_COMPARE := $(APP_DIR)/tools/compare-cbrtf$(EXE_EXTENSION)
+CBRTF_REFERENCE_PROBE := $(APP_DIR)/tools/probe-cbrtf-prior$(EXE_EXTENSION)
+CBRTF_REFERENCE_BENCH := $(APP_DIR)/tools/bench-cbrtf-prior$(EXE_EXTENSION)
+$(CBRTF_COMPARE): tools/compare-cbrtf.c $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(CBRTF_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) cbrtf-reference-force
+	@test -n "$(CBRTF_REFERENCE_OBJECT)" || { echo 'cbrtf comparison requires an actual CBRTF_REFERENCE_OBJECT' >&2; exit 1; }
+	@mkdir -p $(dir $@)
+	@python3 tools/adjacent_baseline.py "$(CBRTF_REFERENCE_OBJECT)" "$(CBRTF_REFERENCE_METADATA)" --family cbrtf --expected-revision 412417c7a0edc5b0066296e578400dd21d4685e4 --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CBRTF_REFERENCE=gmath_cbrtf_prior -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(LDFLAGS) -lm
+$(CBRTF_REFERENCE_PROBE): tools/probe-cbrtf.c tests/cbrtf_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(CBRTF_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) cbrtf-reference-force
+	@test -n "$(CBRTF_REFERENCE_OBJECT)" || { echo 'cbrtf probe requires CBRTF_REFERENCE_OBJECT' >&2; exit 1; }
+	@mkdir -p $(dir $@)
+	@python3 tools/adjacent_baseline.py "$(CBRTF_REFERENCE_OBJECT)" "$(CBRTF_REFERENCE_METADATA)" --family cbrtf --expected-revision 412417c7a0edc5b0066296e578400dd21d4685e4 --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CBRTF_REFERENCE=gmath_cbrtf_prior -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(LDFLAGS) -lm
+$(CBRTF_REFERENCE_BENCH): tools/bench-cbrtf.c $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(CBRTF_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) cbrtf-reference-force
+	@test -n "$(CBRTF_REFERENCE_OBJECT)" || { echo 'cbrtf benchmark requires CBRTF_REFERENCE_OBJECT' >&2; exit 1; }
+	@mkdir -p $(dir $@)
+	@python3 tools/adjacent_baseline.py "$(CBRTF_REFERENCE_OBJECT)" "$(CBRTF_REFERENCE_METADATA)" --family cbrtf --expected-revision 412417c7a0edc5b0066296e578400dd21d4685e4 --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CBRTF_BASELINE=gmath_cbrtf_prior -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(LDFLAGS) -lm
+.PHONY: check-cbrtf-prior bench-cbrtf-prior
+check-cbrtf-prior: $(CBRTF_COMPARE) $(CBRTF_REFERENCE_PROBE)
+	@python3 tools/check-cbrtf-compat.py $(CBRTF_COMPARE) --baseline-metadata "$(CBRTF_REFERENCE_METADATA)"
+	@$(CBRTF_REFERENCE_PROBE) $(CORPUS_DIR)
+bench-cbrtf-prior: $(CBRTF_REFERENCE_BENCH)
+	@$(CBRTF_REFERENCE_BENCH)
+
+.PHONY: check-cbrtf-native-controls
+check-cbrtf-native-controls: $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(CBRTF_REFERENCE_METADATA)
+	@test -n "$(CBRTF_REFERENCE_OBJECT)" || { echo 'native controls require CBRTF_REFERENCE_OBJECT' >&2; exit 1; }
+	@NATIVE_CC='$(CC)' NATIVE_CXX='$(CXX) $(CXXFLAGS)' NATIVE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
+	 NATIVE_LIB_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' NATIVE_INCLUDE='$(INCLUDE)' NATIVE_LDFLAGS='$(LDFLAGS)' \
+	 NATIVE_LIBRARY='$(APP_DIR)/$(STATIC_TARGET)' NATIVE_REFERENCE='$(CBRTF_REFERENCE_OBJECT)' NATIVE_METADATA='$(CBRTF_REFERENCE_METADATA)' \
+	 NATIVE_CORPUS='$(CORPUS_DIR)' NATIVE_WORK='$(BUILD_DIR)/cbrtf-native-controls' python3 tools/check-cbrtf-native-controls.py
+
+NM ?= nm
+OBJCOPY ?= objcopy
+CBRTF_BASELINE_DIR ?= $(BUILD_DIR)/cbrtf-baseline
+.PHONY: build-cbrtf-baseline
+build-cbrtf-baseline: $(FLAGS_STAMP) | $(LIBVER_GEN)
+	@python3 tools/build-cbrtf-baseline.py --out "$(CBRTF_BASELINE_DIR)" --cc='$(CC)' --flags='$(LIB_CFLAGS) $(INCLUDE)' --nm='$(NM)' --objcopy='$(OBJCOPY)'
+
+CBRTF_BOUNDARY_PROBE := $(APP_DIR)/tools/probe-cbrtf-boundaries$(EXE_EXTENSION)
+$(CBRTF_BOUNDARY_PROBE): tools/probe-cbrtf-boundaries.c tests/cbrtf_probe.h src/elementary/float_cbrt.c src/elementary/cbrt_table.h src/elementary/elem_common.h $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(CBRTF_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) cbrtf-reference-force
+	@test -n "$(CBRTF_REFERENCE_OBJECT)" || { echo 'boundary probe requires CBRTF_REFERENCE_OBJECT' >&2; exit 1; }
+	@mkdir -p $(dir $@)
+	@python3 tools/adjacent_baseline.py "$(CBRTF_REFERENCE_OBJECT)" "$(CBRTF_REFERENCE_METADATA)" --family cbrtf --expected-revision 412417c7a0edc5b0066296e578400dd21d4685e4 --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CBRTF_REFERENCE=gmath_cbrtf_prior -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(LDFLAGS) -lm
+.PHONY: check-cbrtf-boundaries
+check-cbrtf-boundaries: $(CBRTF_BOUNDARY_PROBE)
+	@$(CBRTF_BOUNDARY_PROBE)

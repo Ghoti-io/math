@@ -2253,10 +2253,11 @@ lines from `tests/corpus/long_scale-special.hash`. Emulation establishes probe
 coverage, not physical-host/full cross-target GoogleTest or application timing.
 Actual validation and benchmark scope is recorded in `libm-progress.md`.
 
-### Float cube root
+### Float cube root: initial wrapper
 
-`gmath_cbrtf` reuses the existing own-project Double cube-root kernel and narrows
-its result once to Float. Raw binary32 zero/infinity/NaN dispatch occurs before
+The initial `gmath_cbrtf` path reuses the existing own-project Double cube-root
+kernel and narrows once to Float. The seed-admission section below supersedes
+its normal-input dispatch while preserving these contracts. Raw binary32 zero/infinity/NaN dispatch occurs before
 widening, so signaling payloads are inspected without an accidental conversion.
 Signed zeros/infinities preserve their bits; all NaNs become canonical positive
 quiet NaN, invalid only for signaling inputs. The old Double source and tables
@@ -2313,3 +2314,86 @@ checks. Recording-engine dispatch controls are accounting evidence only. The
 unchanged exception-rollback publisher is reused; it is not crash-atomic.
 Numerical/benchmark evidence and pending platform/tool coverage are recorded in
 `libm-progress.md`.
+
+### Float cube-root seed admission
+
+The Float path now attempts the identical cubic midpoint seed from the existing
+Double kernel, then uses that kernel as a fallback. The Double implementation,
+its table and shared arithmetic helpers are unchanged. This is a performance
+change: public accuracy, special values, exact-power exceptions and caller-state
+contracts remain those in the preceding section.
+
+For a normal input, write its exponent as `3q+r`, `r=0,1,2`. The normalized seed
+uses the existing 64 midpoint reciprocal/root pairs, cubic Taylor polynomial
+and cube-root-of-two factors. A performance-only 512-byte mask bypasses seed
+work for possible exact dyadic cubes: odd roots 3 through 255 are cubed exactly,
+normalized to 24 significant bits, then their top 12 fraction bits mark 126 of
+4096 buckets. False positives select the old kernel safely. Subnormal inputs
+keep their previous path. Exact normal binary powers return raw output bits.
+
+The source-linked rational certificate uses all-mode Double relative operation
+error `u=2^-52`, not nearest-only error-free-product assumptions. The exact
+Taylor relative remainder is at most `10/(243*127^4)`; the computed rounding
+allowance is below `128u`. Together these give seed relative error below
+`2^-32`, hence absolute error below `B=2^-31` in the normalized domain.
+Directed split high/low sums reconstruct exactly by Sterbenz. Conservative
+square/product/cube reconstruction errors are below `2^-48`, `2^-46`, `2^-44`,
+and the compensated residual error is below `2^-43`. With root error `d`,
+the ideal correction is `d*(1+d/y+d^2/(3*y^2))`. Bounding the actual denominator,
+division and final addition gives distance from seed to the **actual old
+post-Newton Double result** below `4.65889105506e-10`, strictly below `2^-29`.
+
+The gate requires normalized seed bits in `[1,2)` and low 28-bit residue
+strictly between `0x00800000` and `0x0f800000`. These are repeating half-Float
+cells: their endpoints include both representable values and nearest
+midpoints. Rejecting a band of `2^23` Double words (`2^-29`) at either end
+keeps seed and old result in the same cell for every rounding mode. Exact
+power-of-two scaling changes only the exponent; applying the input sign to the
+Double **before** Float narrowing preserves the corresponding negative cells.
+An uncertain seed falls back. This preserves previous results; it does not
+establish general correct rounding or add a directed-accuracy promise.
+
+Normal-input quotients are between -42 and 42, and scaled roots stay normal
+finite Floats. A dyadic ledger derives grids of `2^-106` for square lows, `2^-107`
+for product lows and `2^-159` for residuals; nonzero correction magnitudes
+are at least `2^-164`.
+Normalized arithmetic and the explicit IX force stay below `2^110`; exact
+widening of an original Float stays below `2^128`. Thus no fast-path operation
+introduces invalid, divide-by-zero, underflow or overflow. The volatile
+`2^100+1` force adds IX only in every mode; exact powers bypass it. The
+certificate validates every table constant with rational midpoint/cube
+inequalities, binds old source bytes, individual Float operation models and
+the complete Float translation unit. These are applicability guards and a
+mathematical model, not a formal C verifier.
+
+On the measured GNU/Linux configurations, rebuild the actual own-project
+baseline reproducibly with the same compiler
+and library arguments in both commands:
+
+```sh
+make build-cbrtf-baseline BUILD_DIR=build/verify CBRTF_BASELINE_DIR=build/cbrtf-baseline
+make check-cbrtf-prior check-cbrtf-boundaries BUILD_DIR=build/verify CBRTF_REFERENCE_OBJECT=build/cbrtf-baseline/prior.o
+python3 tools/check-cbrtf-compat.py build/verify/apps/tools/compare-cbrtf --baseline-metadata build/cbrtf-baseline/prior.o.json --exhaustive --all-modes --jobs 2
+```
+
+The builder reads own revision `412417c7a0edc5b0066296e578400dd21d4685e4`, checks
+its helper against the current bytes, compiles its public Float module and
+renames only the public symbol. Compiler invocation, library arguments and
+object digests identify the declared baseline; metadata cannot authenticate an
+arbitrarily supplied object's source. Acceptance tools also require the stated
+revision. Optional tools always relink so object/configuration changes cannot
+reuse a stale comparison binary. No Git history is needed for default gates.
+`make check-cbrtf-fast-budget` includes arithmetic/source counterfactuals;
+`check-cbrtf-compat-driver` calibrates coverage, identity, failure, timeout and
+child cleanup. `check-cbrtf-native-controls` requires an actual prior object.
+
+Default C/C++ tests also pin ordered input/result hashes for all four modes:
+nearest `4c22f58222507773`, down `e8c7ee4999e8a859`, up `d7f9294e89e70c3b`,
+toward zero `b207e1dd250e9dc9`. These match the separately compiled prior
+function over the complete committed corpus. They protect compatibility,
+not independent directed accuracy. Fresh populations retain independent
+nearest references and state checks without requiring the committed hashes.
+The supplemental signed midpoint fixture `236e2a8e` independently certifies
+nearest `361d6f3e` by pinned references and exact cube inequalities; its sixteen
+mode/sign/entry-state calls are separate from corpus accounting. Optional hooks
+repeat them against the actual prior function.

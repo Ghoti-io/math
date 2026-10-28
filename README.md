@@ -5,8 +5,9 @@ Deterministic elementary functions that give the same bits on every host. It is 
 
 ## What is implemented
 
-`gmath_cbrtf(float)` supplies the Float cube root through the unchanged own
-Double kernel: one Float ULP under nearest, canonical raw NaNs, exact signed
+`gmath_cbrtf(float)` supplies the Float cube root with a guarded cubic seed
+and unchanged own Double fallback: one Float ULP under nearest, canonical raw
+NaNs, exact signed
 zeros/infinities and exact binary powers with exponents divisible by three.
 Every other finite nonzero input requires inexact, including other exact cubes.
 General correct rounding and directed numerical accuracy are not promised.

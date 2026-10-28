@@ -7,8 +7,11 @@
 #include <fstream>
 #include <string>
 TEST(Cbrtf, PinnedCorpusAndCallerState) {
-  const char *dir=std::getenv("GMATH_CBRTF_CORPUS_DIR");EXPECT_EQ(cf_run(dir&&*dir?dir:"tests/corpus",1),0);
+  const char *dir=std::getenv("GMATH_CBRTF_CORPUS_DIR");uint64_t hash=0;uint64_t mode_hashes[4]={0};
+  EXPECT_EQ(cf_run_record(dir&&*dir?dir:"tests/corpus",1,&hash,mode_hashes),0);
+  if (!dir||!*dir) {EXPECT_EQ(hash,GMATH_CBRTF_PINNED_HASH);EXPECT_TRUE(cf_pinned_modes(mode_hashes));}
 }
+TEST(Cbrtf, GuardedMidpointKeepsPriorBits) {EXPECT_EQ(cf_guard_witness(),0);}
 TEST(Cbrtf, EveryBinaryPowerAndSpecialState) {
   fenv_t saved;int saved_errno=errno;ASSERT_EQ(fegetenv(&saved),0);
   const int modes[]={FE_TONEAREST,FE_DOWNWARD,FE_UPWARD,FE_TOWARDZERO};

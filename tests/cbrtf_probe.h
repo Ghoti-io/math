@@ -13,6 +13,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include "corpus_hash.h"
+#define GMATH_CBRTF_PINNED_HASH UINT64_C(0xb56d6fe265757f09)
+static inline int cf_pinned_modes(const uint64_t hashes[4]) {
+  static const uint64_t expected[4]={UINT64_C(0x4c22f58222507773),UINT64_C(0xe8c7ee4999e8a859),UINT64_C(0xd7f9294e89e70c3b),UINT64_C(0xb207e1dd250e9dc9)};
+  return !memcmp(hashes,expected,sizeof expected);
+}
+#ifdef GMATH_CBRTF_REFERENCE
+#ifndef GMATH_CBRTF_BASELINE_IDENTITY
+#error "Declared baseline identity is required for prior comparison"
+#endif
+#ifdef __cplusplus
+extern "C" float GMATH_CBRTF_REFERENCE(float);
+#else
+extern float GMATH_CBRTF_REFERENCE(float);
+#endif
+#endif
 #define CF_PROVENANCE "# Pinned oracle: tools/oracle/gen_corpus_cbrtf.py; MPFR 4.2.2 gmpy2 2.3.2 mpmath 1.4.1"
 static float cf_value(uint32_t u) {float f;memcpy(&f,&u,4);return f;}
 static uint32_t cf_bits(float f) {uint32_t u;memcpy(&u,&f,4);return u;}
@@ -63,23 +78,59 @@ static int cf_numerical(uint32_t input,uint32_t output,uint32_t target,uint32_t 
   if (bound>*maximum) *maximum=bound;
   return bound<=0.51;
 }
-static int cf_call(uint32_t input,int mode,int subset,int error_seed,uint32_t *output) {
+static int cf_call_with(float (*target_function)(float),const char *role,uint32_t input,int mode,int subset,int error_seed,uint32_t *output) {
+  *output=0;
   const int flags[]={FE_INVALID,FE_DIVBYZERO,FE_OVERFLOW,FE_UNDERFLOW,FE_INEXACT};int incoming=0;
   for (int j=0;j<5;j++) if (subset&(1<<j)) incoming|=flags[j];
   if (fesetround(mode)||feclearexcept(FE_ALL_EXCEPT)||feraiseexcept(incoming)) return 0;
   incoming=fetestexcept(FE_ALL_EXCEPT);errno=error_seed;
-  float x;memcpy(&x,&input,4);float (*volatile function)(float)=gmath_cbrtf;
+  float x;memcpy(&x,&input,4);float (*volatile function)(float)=target_function;
   float result=function(x);int actual_errno=errno,actual_flags=fetestexcept(FE_ALL_EXCEPT),actual_mode=fegetround();
   *output=cf_bits(result);
   int ok=actual_errno==error_seed&&actual_mode==mode&&actual_flags==(incoming|cf_required(input));
-  if (!ok) fprintf(stderr,"cbrtf state input%08" PRIx32 " mode%d subset%d result%08" PRIx32 " flags%x expected%x errno%d/%d mode%d/%d\n",
-                   input,mode,subset,*output,actual_flags,incoming|cf_required(input),actual_errno,error_seed,actual_mode,mode);
+  if (!ok) fprintf(stderr,"cbrtf %s state input%08" PRIx32 " mode%d subset%d result%08" PRIx32 " flags%x expected%x errno%d/%d mode%d/%d\n",
+                   role,input,mode,subset,*output,actual_flags,incoming|cf_required(input),actual_errno,error_seed,actual_mode,mode);
   return ok;
 }
-static int cf_run(const char *directory,int print) {
+static int cf_call(uint32_t input,int mode,int subset,int error_seed,uint32_t *output) {
+  return cf_call_with(gmath_cbrtf,"current",input,mode,subset,error_seed,output);
+}
+/* A verified prior-public-function witness near a nearest midpoint. Pinned
+ * MPFR/mpmath and exact cube cells independently certify the nearest values.
+ * This supplements (and does not alter) the committed corpus/hash population.
+ */
+static inline int cf_guard_witness(void) {
+  static const uint32_t inputs[2]={0x236e2a8eu,0xa36e2a8eu};
+  static const uint32_t expected[2][4]={{0x361d6f3eu,0x361d6f3eu,0x361d6f3fu,0x361d6f3eu},
+    {0xb61d6f3eu,0xb61d6f3fu,0xb61d6f3eu,0xb61d6f3eu}};
+  const int modes[4]={FE_TONEAREST,FE_DOWNWARD,FE_UPWARD,FE_TOWARDZERO};
+  fenv_t saved;int error=errno,status=0;if (fegetenv(&saved)) return 1;
+  for (unsigned sign=0;sign<2;sign++) for (unsigned mode=0;mode<4;mode++) for (unsigned seed=0;seed<2;seed++) {
+    uint32_t output;
+    if (!cf_call(inputs[sign],modes[mode],seed?31:0,seed?733:0,&output)||output!=expected[sign][mode]) {
+      fprintf(stderr,"cbrtf guarded midpoint input%08" PRIx32 " mode%u result%08" PRIx32 " expected%08" PRIx32 "\n",inputs[sign],mode,output,expected[sign][mode]);status=1;goto finish;
+    }
+#ifdef GMATH_CBRTF_REFERENCE
+    uint32_t previous=0;
+    if (!cf_call_with(GMATH_CBRTF_REFERENCE,"prior",inputs[sign],modes[mode],seed?31:0,seed?733:0,&previous)||previous!=output) {
+      fputs("cbrtf guarded midpoint prior differs\n",stderr);status=1;goto finish;
+    }
+#endif
+  }
+ finish:
+  if (fesetenv(&saved)) status=1;
+  errno=error;return status;
+}
+static int cf_run_record(const char *directory,int print,uint64_t *result_hash,uint64_t mode_hashes[4]) {
   fenv_t saved;int saved_errno=errno;if (fegetenv(&saved)) return 1;
   char path[4096],line[256];FILE *file=NULL;int status=1;
-  uint64_t hash=GMATH_FNV_BASIS,rows=0,calls=0;double maximum=0;
+#ifdef GMATH_CBRTF_REFERENCE
+  if (GMATH_CBRTF_REFERENCE==gmath_cbrtf) {
+    (void)fesetenv(&saved);errno=saved_errno;
+    fputs("cbrtf reference aliases current function\n",stderr);return 1;
+  }
+#endif
+  uint64_t hash=GMATH_FNV_BASIS,rows=0,calls=0;uint64_t modes_hash[4]={GMATH_FNV_BASIS,GMATH_FNV_BASIS,GMATH_FNV_BASIS,GMATH_FNV_BASIS};double maximum=0;
   if (snprintf(path,sizeof path,"%s/cbrtf-special.corpus",directory)>=(int)sizeof path) goto done;
   file=fopen(path,"rb");if (!file) goto done;
   if (cf_line(file,line,sizeof line)!=1||strcmp(line,CF_PROVENANCE)) goto done;
@@ -112,12 +163,20 @@ static int cf_run(const char *directory,int print) {
       for (int m=0;m<4;m++) for (int subset=0;subset<selections;subset++) for (int err=0;err<2;err++) {
         uint32_t output;
         if (!cf_call(input,modes[m],subset,err?733:0,&output)) goto done;
+#ifdef GMATH_CBRTF_REFERENCE
+        uint32_t previous;
+        if (!cf_call_with(GMATH_CBRTF_REFERENCE,"prior",input,modes[m],subset,err?733:0,&previous)) goto done;
+        if (previous!=output) {
+          fprintf(stderr,"cbrtf prior result input%08" PRIx32 " mode%d subset%d current%08" PRIx32 " prior%08" PRIx32 "\n",input,modes[m],subset,output,previous);goto done;
+        }
+#endif
         if (m==0) {if (!cf_numerical(input,output,target,error,&maximum)) {
           fprintf(stderr,"cbrtf numerical input%08" PRIx32 " mode%d subset%d result%08" PRIx32 " target%08" PRIx32 " error%08" PRIx32 "\n",input,modes[m],subset,output,target,error);goto done;
         }}
         else if (a>=0x7f800000u||!a||cf_power(a)) {if (output!=target) goto done;}
         else if ((input^output)&0x80000000u||(output&0x7fffffffu)<0x00800000u||(output&0x7fffffffu)>=0x7f800000u) goto done;
         if (!m&&!subset&&!err) {hash=gmath_fnv_u64(hash,output);hash=gmath_fnv_u64(hash,required);}
+        if (!subset&&!err) {modes_hash[m]=gmath_fnv_u64(modes_hash[m],input);modes_hash[m]=gmath_fnv_u64(modes_hash[m],output);}
         ++calls;
       }
       previous=input;++rows;
@@ -129,8 +188,11 @@ done:
   if (file) fclose(file);
   if (fesetenv(&saved)) status=1;
   errno=saved_errno;
+  if (!status&&result_hash) *result_hash=hash;
+  if (!status&&mode_hashes) memcpy(mode_hashes,modes_hash,sizeof modes_hash);
   if (print&&!status) printf("cbrtf.raw %016" PRIx64 " %" PRIu64 " statecalls %" PRIu64 " bound %.9f from %s\n",hash,rows,calls,maximum,directory);
   if (status) fprintf(stderr,"cbrtf raw/state/reference failure: %s row %" PRIu64 "\n",directory,rows);
   return status;
 }
+static inline int cf_run(const char *directory,int print) {return cf_run_record(directory,print,NULL,NULL);}
 #endif

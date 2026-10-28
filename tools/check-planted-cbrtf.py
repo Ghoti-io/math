@@ -21,13 +21,13 @@ def build(source,label):
     raw=work/(label+'-raw');unit=work/(label+'-unit');archive=os.environ['PLANT_ARCHIVE']
     command(words('PLANT_CC')+words('PLANT_CFLAGS')+['tools/probe-cbrtf.c',str(obj),archive]+words('PLANT_RAW_LDFLAGS')+['-lm','-o',str(raw)],label+'-raw-link')
     command(words('PLANT_CXX')+[os.environ['PLANT_TEST_OBJ'],str(obj),archive]+words('PLANT_LDFLAGS')+['-o',str(unit)],label+'-unit-link')
-    return command([str(raw)],label+'-raw-run',None),command([str(unit),'--gtest_filter=Cbrtf.PinnedCorpusAndCallerState','--gtest_brief=1'],label+'-unit-run',None)
+    return command([str(raw)],label+'-raw-run',None),command([str(unit),'--gtest_filter=Cbrtf.PinnedCorpusAndCallerState:Cbrtf.GuardedMidpointKeepsPriorBits','--gtest_brief=1'],label+'-unit-run',None)
 
 def main():
     source=Path('src/elementary/float_cbrt.c').read_text()
     if build(source,'control')!=(0,0): raise RuntimeError('valid source control failed')
     plants=[('returninput','float result=(float)gmath_cbrt((double)x);','float result=x;'),
-      ('sign','return result;','return -result;'),
+      ('sign','fc_ix();return result;','fc_ix();return -result;'),
       ('zero-sign','return fc_value(word);','return fc_value(a);'),
       ('NaN-payload','return fc_value(0x7fc00000u);','return fc_value(word|0x00400000u);'),
       ('signaling-invalid','if (!(a&0x00400000u)) (void)gmath_invalid();','if (0) (void)gmath_invalid();'),
@@ -37,11 +37,19 @@ def main():
       ('zero-errno','uint32_t word=fc_word(x), a=word&0x7fffffffu;','uint32_t word=fc_word(x), a=word&0x7fffffffu; if (!errno) errno=732;'),
       ('rounding','uint32_t word=fc_word(x), a=word&0x7fffffffu;','uint32_t word=fc_word(x), a=word&0x7fffffffu; (void)fesetround(FE_TONEAREST);'),
       ('mixed-flags','uint32_t word=fc_word(x), a=word&0x7fffffffu;','uint32_t word=fc_word(x), a=word&0x7fffffffu; if ((fetestexcept(FE_INVALID|FE_DIVBYZERO)&(FE_INVALID|FE_DIVBYZERO))==(FE_INVALID|FE_DIVBYZERO)) (void)feclearexcept(FE_INVALID|FE_DIVBYZERO);'),
-      ('observable-IX-loss','return result;','(void)feclearexcept(FE_INEXACT); return result;')]
+      ('normal-power-IX','if (!fraction&&e%3==0)','if (!fraction&&e%3!=0)'),
+      ('fast-returninput','fc_ix();return result;','fc_ix();(void)result;return x;'),
+      ('gate-disabled','residue>UINT64_C(0x00800000)&&residue<UINT64_C(0x0f800000)','residue>0&&residue<UINT64_C(0x0fffffff)'),
+      ('seed-row','gmath_cbrt_seed[j][1]','gmath_cbrt_seed[j][0]'),
+      ('negative-remainder','if (r<0) {r+=3;--q;}','if (r<0) {r+=3;}'),
+      ('scaled-exponent','(uint64_t)(int64_t)q<<52','(uint64_t)(int64_t)(q+1)<<52'),
+      ('observable-IX-loss','fc_ix();return result;','fc_ix(); (void)feclearexcept(FE_INEXACT); return result;')]
+    for mode in ('FE_DOWNWARD','FE_UPWARD','FE_TOWARDZERO'):
+        plants.append(('directed-'+mode,'fc_ix();return result;','fc_ix();if (a==0x3f800001u&&fegetround()=='+mode+') result=fc_value(fc_word(result)^1u);return result;'))
     for label,old,new in plants:
         if source.count(old)!=1: raise RuntimeError('mutation anchor not unique: '+label)
         if build(source.replace(old,new),label)!=(1,1): raise RuntimeError('source plant escaped C/C++: '+label)
-    old='volatile double big=0x1p100;\n    volatile double ignored=big+1.0;\n    (void)ignored;'
+    old='volatile double big=0x1p100;\n  volatile double ignored=big+1.0;\n  (void)ignored;'
     if source.count(old)!=1: raise RuntimeError('force-only anchor')
     state=build(source.replace(old,'(void)0;'),'force-only-deletion')
     if state not in ((0,0),(1,1)): raise RuntimeError('force-only results disagree')
