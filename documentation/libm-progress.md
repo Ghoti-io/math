@@ -4,7 +4,7 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 23 verified phases add 43 APIs, three performance optimizations
+Current snapshot: 24 verified phases add 43 APIs, four performance optimizations
 and certificate maintenance. Classic real-function name coverage is 63/171;
 51 Float/Double additions remain, or 108 including long double. The phase
 sections below retain historical counts and measurements.
@@ -189,6 +189,132 @@ sections below retain historical counts and measurements.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
+
+## Float exponent conversion optimization
+
+Only the Float finite normal exponent tail changes: an exact conversion and
+unsigned whole-word zero mask replace the old exponent-zero branch. Strictly
+negative subnormal exponents return immediately. The entire Double source
+prefix and Float special dispatch match the API baseline byte-for-byte; no
+other runtime module changes. The source mask does not guarantee branchless
+machine code; GCC14 currently uses conditional integer movement. All 69
+reference sets and legacy aggregate `f5fa269eb60ee34f` over 292,711 remain
+unchanged.
+
+Every possible finite exponent output is checked separately: 2,098 Double and
+277 Float values, each reached by both signs of an exact-power input, four
+modes, 32 requested incoming subsets and two errno seeds. Independent unsigned
+integer encoding supplies the expected bits. This gives 1,216,000 logical
+observations; optional actual-prior hooks make 2,432,000 physical calls,
+resetting state and checking each against the targets. It enumerates the
+conversion domain, not all raw inputs or complete hardware state space.
+Domain result/order hashes are `f4c934bfef138325` and `717cc11f90d36325`.
+Flags, mode and errno are asserted separately; requested subsets can merge.
+
+Six emulated targets pass all 69 numeric sets default/portable, plus 24
+O0/O2/default/forced-loop raw and finite-domain profiles with actual separately
+compiled prior functions. Each raw profile retains 38,620 nearest records and
+486,528 selected state records, now two calls per record. The domain adds the
+1,216,000 logical observations per profile. Actual PPC32 repair deletion and
+all-ones-mask controls detect negative zero at input one in the changed Float format,
+at both optimization levels/default/loop (eight cases), with unchanged flags,
+mode and errno. Native forced-negative-zero plants are distinct controls.
+The final i686 O0 raw caller has no fldl/flds argument loads. These are emulated
+probes, not physical hosts or full cross-target GoogleTest.
+
+The native mutation suite grows from 70 to 76 source/state plants, each checked
+by C++ and C17 with format-specific failure requirements. New plants cover mask
+polarity, an all-zero mask and spurious zero-conversion inexact.
+Default accounting calibration detects 11 metadata/output/status faults plus
+an actual bounded direct-child timeout; identity-family/header compatibility
+and rejected-family publication controls also pass. Recording processes do
+not count as numerical oracle evidence. Optional native controls pass 31 cases
+per GCC14/GCC16 compiler: three valid tools, individual-format wrong values,
+NaN-bit changes, aliases and result-preserving flag/errno/mode corruption.
+The selected corpus directory is forwarded to the raw controls.
+
+Validation uses the declared API-baseline revision
+`fad5c17ae0e9ffe8fed3f6540aacca6f30ed8d6f`, separately compiled with identical
+compiler/library arguments, with only two public symbols renamed. Object,
+compiler-driver and argument digests bind the chosen context, without
+pretending to authenticate arbitrary source provenance. Changed object/flags/
+compiler, missing baseline and a newer executable with invalid older object
+are rejected; optional tools force relinking. The adjacent helper's default
+identity/header bytes remain compatible. Default gates need no baseline or Git.
+
+Independent mathematical/domain/recipe and blind reviews are resolved. Five
+actual tool findings were patched: exact prior NaN comparison, selected-corpus
+forwarding, isolated wrong-format and alias fixtures, and bits-preserving state
+corruption calibration. No findings are deferred. No external libm source was
+read or copied; own prior source is used solely for controlled comparisons.
+
+Final full GCC14.2/GCC16.2 commands return zero, with persisted actual child
+status and 213 main unit tests in 29 binaries each. Clang passes the same unit
+set (unit-only); four focused ASan/UBSan tests pass. Host pinned regeneration
+is byte-identical, and fresh independent references/checks pass. Optional
+nested pinned oracles skip explicitly in the GCC16 image. All 76 source/state
+plants pass on both compilers. Earlier expf/exp2f/atanf force-only deletion
+witness gaps remain unchanged.
+
+Earlier sign-bit-only and Double/Float candidates were rejected after measured
+subnormal regressions, including a repeatable 40–60% Float cost. The final
+Float-only whole-word mask was promoted after independent proof/admission
+review and private archive-preserving measurements. Final measurements use the
+promoted library, with a predeclared two runs per compiler after this phase's
+validation jobs finished: eight discarded paired warmups, 401 alternating
+pairs of 4,096 identical inputs per nine ranges, two formats and two entry
+states. Integer timestamps, typed bit/state/errno guards and actual-prior
+identity accompany absolute medians and paired ratio p10/median/p90. The normal
+range samples binary exponents 0–19 for Double and 0–11 for Float; powers and
+wide inputs supply broader finite coverage. No CPU/governor isolation is
+claimed; frequency, code layout and linked caller context affect timings.
+
+The table gives min–max paired medians across two runs and clean/UF-IX states.
+Only Float changes. The unchanged Double source is a context control; its
+ratios are not an optimization claim.
+
+| Range | Float/prior GCC14 | Float/prior GCC16 | Double control/prior GCC14 | Double control/prior GCC16 |
+| --- | ---: | ---: | ---: | ---: |
+| Normal | 0.575–0.696 | 0.671–0.672 | 0.999–1.028 | 1.026–1.028 |
+| Subnormal | 0.994–1.000 | 1.166–1.166 | 1.000–1.002 | 1.198–1.202 |
+| Binary powers | 0.745–0.809 | 0.869–0.876 | 1.003–1.119 | 0.999–1.001 |
+| Near one | 0.319–0.380 | 0.356–0.363 | 0.996–1.007 | 0.996–1.006 |
+| Wide finite | 0.739–0.852 | 0.861–0.863 | 1.009–1.018 | 0.999–1.000 |
+| Zero | 0.856–0.899 | 1.000–1.000 | 1.000–1.028 | 1.000–1.001 |
+| Infinity | 0.999–1.000 | 1.000–1.001 | 0.850–0.857 | 0.833–0.835 |
+| Quiet NaN | 0.833–0.926 | 0.999–1.000 | 0.853–0.858 | 0.833–0.835 |
+| Signaling NaN | 0.984–1.000 | 0.997–1.001 | 0.857–0.908 | 0.999–0.999 |
+
+Separately linked host-libm comparisons give:
+
+| Range | Float/libm GCC14 | Float/libm GCC16 |
+| --- | ---: | ---: |
+| Normal | 0.858–1.077 | 0.601–0.603 |
+| Subnormal | 0.780–0.819 | 0.583–0.584 |
+| Binary powers | 0.859–1.112 | 0.601–0.602 |
+| Near one | 0.859–1.026 | 0.601–0.602 |
+| Wide finite | 0.859–1.020 | 0.601–0.602 |
+| Zero | 1.144–1.267 | 0.800–0.800 |
+| Infinity | 0.667–0.786 | 0.546–0.546 |
+| Quiet NaN | 0.776–0.932 | 0.637–0.638 |
+| Signaling NaN | 0.667–0.669 | 0.546–0.547 |
+
+Normal Float absolute medians in actual-prior binaries span 1.116–2.272 ns
+current versus 1.939–3.195 ns prior on GCC14, and 1.301–1.482 versus
+1.938–2.189 ns on GCC16. Host-comparison binaries give 1.257–2.133 versus
+1.465–1.951 ns on GCC14 and 1.117–1.119 versus 1.857–1.858 ns on GCC16.
+Ratios are paired within each binary; absolute medians across binaries must
+not be divided to infer additional gains. Call/loop/checksum/timestamp work
+and amortized first-exception costs are included.
+
+This supports substantial measured Float normal/near-one improvements with
+a real GCC16 subnormal regression of about 16.6%. Unchanged Double controls
+also drift by about 20% in some ranges, demonstrating context sensitivity;
+that does not establish the Float slowdown is noise. The narrower increment
+accepts this measured range tradeoff, with no application workload weights
+or overall speed win established. Some GCC14 host-comparison cases remain
+slower. Windows, exhaustive raw-input/environment space, physical cross-target
+hosts, forced-loop timing and application performance remain unrun.
 
 ## Floating exponent validation
 

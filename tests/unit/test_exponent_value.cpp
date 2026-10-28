@@ -1,7 +1,7 @@
 /** @file Exact floating exponent references and caller state.
  * Copyright 2026 by Corey Pennycuff
  */
-#include "../exponent_value_probe.h"
+#include "../exponent_value_domain.h"
 #include "test_helpers.h"
 #include <chrono>
 #include <filesystem>
@@ -75,6 +75,14 @@ TEST(ExponentValue, ProbeBoundaryRestoration) {
       EXPECT_EQ(mode, FE_DOWNWARD);
     }
   }
+}
+TEST(ExponentValue, FiniteConversionDomain) {
+  EXPECT_EQ(expv_integer_bits(0, 64), UINT64_C(0));
+  EXPECT_EQ(expv_integer_bits(-1, 64), UINT64_C(0xbff0000000000000));
+  EXPECT_EQ(expv_integer_bits(-1074, 64), UINT64_C(0xc090c80000000000));
+  EXPECT_EQ(expv_integer_bits(-149, 32), UINT64_C(0xc3150000));
+  EXPECT_EQ(expv_domain(64, 1), 0);
+  EXPECT_EQ(expv_domain(32, 1), 0);
 }
 int main(int argc, char ** argv) {
   ::testing::InitGoogleTest(&argc, argv);

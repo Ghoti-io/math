@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -1748,3 +1748,46 @@ $(EXPONENT_VALUE_BENCH): tools/bench-exponent-value.c $(APP_DIR)/$(STATIC_TARGET
 .PHONY: bench-exponent-value
 bench-exponent-value: $(EXPONENT_VALUE_BENCH)
 	@$(EXPONENT_VALUE_BENCH)
+
+# Optional actual-prior object-backed exponent comparisons; ordinary gates do
+# not need Git or a prior object. Force relinking for configuration changes.
+EXPONENT_REFERENCE_OBJECT ?=
+EXPONENT_REFERENCE_METADATA ?= $(if $(strip $(EXPONENT_REFERENCE_OBJECT)),$(EXPONENT_REFERENCE_OBJECT).json)
+.PHONY: exponent-reference-force
+exponent-reference-force:
+EXPONENT_DOMAIN_COMPARE := $(APP_DIR)/tools/compare-exponent-domain$(EXE_EXTENSION)
+EXPONENT_REFERENCE_PROBE := $(APP_DIR)/tools/probe-exponent-prior$(EXE_EXTENSION)
+EXPONENT_REFERENCE_BENCH := $(APP_DIR)/tools/bench-exponent-prior$(EXE_EXTENSION)
+$(EXPONENT_DOMAIN_COMPARE): tools/compare-exponent-domain.c tests/exponent_value_domain.h tests/exponent_value_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(EXPONENT_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) exponent-reference-force
+	@test -n "$(EXPONENT_REFERENCE_OBJECT)" || { echo 'exponent comparison requires an actual EXPONENT_REFERENCE_OBJECT' >&2; exit 1; }
+	@mkdir -p $(dir $@)
+	@python3 tools/adjacent_baseline.py "$(EXPONENT_REFERENCE_OBJECT)" "$(EXPONENT_REFERENCE_METADATA)" --family exponent --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_LOGB_REFERENCE=gmath_exponent_prior_logb -DGMATH_LOGBF_REFERENCE=gmath_exponent_prior_logbf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+$(EXPONENT_REFERENCE_PROBE): tools/probe-exponent-value.c tests/exponent_value_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(EXPONENT_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) exponent-reference-force
+	@test -n "$(EXPONENT_REFERENCE_OBJECT)" || { echo 'exponent probe requires EXPONENT_REFERENCE_OBJECT' >&2; exit 1; }
+	@mkdir -p $(dir $@)
+	@python3 tools/adjacent_baseline.py "$(EXPONENT_REFERENCE_OBJECT)" "$(EXPONENT_REFERENCE_METADATA)" --family exponent --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_LOGB_REFERENCE=gmath_exponent_prior_logb -DGMATH_LOGBF_REFERENCE=gmath_exponent_prior_logbf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+$(EXPONENT_REFERENCE_BENCH): tools/bench-exponent-value.c $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(EXPONENT_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) exponent-reference-force
+	@test -n "$(EXPONENT_REFERENCE_OBJECT)" || { echo 'exponent benchmark requires EXPONENT_REFERENCE_OBJECT' >&2; exit 1; }
+	@mkdir -p $(dir $@)
+	@python3 tools/adjacent_baseline.py "$(EXPONENT_REFERENCE_OBJECT)" "$(EXPONENT_REFERENCE_METADATA)" --family exponent --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_LOGB_BASELINE=gmath_exponent_prior_logb -DGMATH_LOGBF_BASELINE=gmath_exponent_prior_logbf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+.PHONY: check-exponent-prior bench-exponent-prior
+check-exponent-prior: $(EXPONENT_DOMAIN_COMPARE) $(EXPONENT_REFERENCE_PROBE)
+	@python3 tools/check-exponent-domain.py $(EXPONENT_DOMAIN_COMPARE) --baseline-metadata "$(EXPONENT_REFERENCE_METADATA)"
+	@$(EXPONENT_REFERENCE_PROBE) "$(CORPUS_DIR)" > $(BUILD_DIR)/exponent-prior.actual
+	@sed 's/ from .*//' $(BUILD_DIR)/exponent-prior.actual > $(BUILD_DIR)/exponent-prior.normalized
+	@cmp $(CORPUS_DIR)/exponent_value-special.hash $(BUILD_DIR)/exponent-prior.normalized
+bench-exponent-prior: $(EXPONENT_REFERENCE_BENCH)
+	@$(EXPONENT_REFERENCE_BENCH)
+
+.PHONY: check-exponent-domain-driver
+check-exponent-domain-driver:
+	@python3 tools/check-exponent-domain.py --calibrate
+.PHONY: check-exponent-native-controls
+check-exponent-native-controls: $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(EXPONENT_REFERENCE_METADATA)
+	@NATIVE_CC='$(CC)' NATIVE_CFLAGS='$(CFLAGS) $(INCLUDE)' NATIVE_LIB_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 NATIVE_LDFLAGS='$(LDFLAGS)' NATIVE_LIBRARY='$(APP_DIR)/$(STATIC_TARGET)' \
+	 NATIVE_REFERENCE='$(EXPONENT_REFERENCE_OBJECT)' NATIVE_METADATA='$(EXPONENT_REFERENCE_METADATA)' \
+	 NATIVE_CORPUS='$(CORPUS_DIR)' NATIVE_WORK='$(BUILD_DIR)/exponent-native-controls' python3 tools/check-exponent-native-controls.py

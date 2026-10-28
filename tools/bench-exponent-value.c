@@ -12,6 +12,25 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#if defined(GMATH_LOGB_BASELINE) != defined(GMATH_LOGBF_BASELINE)
+#error "Configure both exponent baseline functions together"
+#endif
+#ifdef GMATH_LOGB_BASELINE
+#ifndef GMATH_EXPONENT_BASELINE_IDENTITY
+#error "Exponent baseline identity is required"
+#endif
+extern double GMATH_LOGB_BASELINE(double);
+extern float GMATH_LOGBF_BASELINE(float);
+#define EXPONENT_BASELINE_D GMATH_LOGB_BASELINE
+#define EXPONENT_BASELINE_F GMATH_LOGBF_BASELINE
+#define EXPONENT_BASELINE_LABEL "prior"
+#define EXPONENT_BASELINE_ERRNO 1
+#else
+#define EXPONENT_BASELINE_D logb
+#define EXPONENT_BASELINE_F logbf
+#define EXPONENT_BASELINE_LABEL "host"
+#define EXPONENT_BASELINE_ERRNO 0
+#endif
 #define N 4096
 #define PAIRS 401
 static double dx[N];
@@ -43,8 +62,8 @@ static uint64_t timestamp(void) {
   return (uint64_t)t.tv_sec * UINT64_C(1000000000) + (uint64_t)t.tv_nsec;
 }
 static double measure(int single, int host, int seeded, int range) {
-  df = host ? logb : gmath_logb;
-  ff = host ? logbf : gmath_logbf;
+  df = host ? EXPONENT_BASELINE_D : gmath_logb;
+  ff = host ? EXPONENT_BASELINE_F : gmath_logbf;
   if (feclearexcept(FE_ALL_EXCEPT) ||
       feraiseexcept(seeded ? FE_UNDERFLOW | FE_INEXACT : 0)) {
     exit(2);
@@ -64,7 +83,8 @@ static double measure(int single, int host, int seeded, int range) {
                              : range == 8 ? FE_INVALID
                                           : 0);
   if (fetestexcept(FE_ALL_EXCEPT) != expected ||
-      ((!host || range < 5) && errno != (seeded ? 731 : 0)) ||
+      ((!host || EXPONENT_BASELINE_ERRNO || range < 5) &&
+       errno != (seeded ? 731 : 0)) ||
       fegetround() != FE_TONEAREST) {
     exit(2);
   }
@@ -81,6 +101,17 @@ int main(void) {
   }
   printf("compiler %s; C%ld; binary64/binary32; nearest; integer timestamps\n",
          __VERSION__, (long)__STDC_VERSION__);
+#ifdef GMATH_LOGB_BASELINE
+  double (*volatile current_d)(double) = gmath_logb;
+  float (*volatile current_f)(float) = gmath_logbf;
+  double (*volatile prior_d)(double) = GMATH_LOGB_BASELINE;
+  float (*volatile prior_f)(float) = GMATH_LOGBF_BASELINE;
+  if (current_d == prior_d || current_f == prior_f) {
+    fputs("exponent baseline aliases current function\n", stderr);
+    return 2;
+  }
+  fputs(GMATH_EXPONENT_BASELINE_IDENTITY, stdout);
+#endif
   uint64_t rng = UINT64_C(0x7369676e65647061);
   const char * names[] = {"normal",   "subnormal", "binary-powers",
                           "near-one", "wide",      "zero",
@@ -130,16 +161,20 @@ int main(void) {
       memcpy(&fx[j], &f, 4);
     }
     for (int j = 0; j < N; j++) {
-      double (*volatile hd)(double) = logb;
-      float (*volatile hf)(float) = logbf;
+      double (*volatile hd)(double) = EXPONENT_BASELINE_D;
+      float (*volatile hf)(float) = EXPONENT_BASELINE_F;
       uint64_t own_d = dbits(gmath_logb(dx[j])), host_d = dbits(hd(dx[j]));
       uint32_t own_f = fbits(gmath_logbf(fx[j])), host_f = fbits(hf(fx[j]));
+#ifdef GMATH_LOGB_BASELINE
+      int valid = own_d == host_d && own_f == host_f;
+#else
       int valid = range >= 7 ? (own_d == UINT64_C(0x7ff8000000000000) &&
                                 (host_d & UINT64_C(0x7fffffffffffffff)) >
                                     UINT64_C(0x7ff0000000000000) &&
                                 own_f == 0x7fc00000u &&
                                 (host_f & 0x7fffffffu) > 0x7f800000u)
                              : (own_d == host_d && own_f == host_f);
+#endif
       if (!valid) {
         fputs("exponent benchmark bit/class guard failed\n", stderr);
         return 2;
@@ -173,10 +208,11 @@ int main(void) {
         qsort(own, PAIRS, sizeof(double), compare);
         qsort(host, PAIRS, sizeof(double), compare);
         qsort(ratio, PAIRS, sizeof(double), compare);
-        printf("%s %s %s gmath %.3f host %.3f ratio %.3f %.3f %.3f\n",
+        printf("%s %s %s gmath %.3f %s %.3f ratio %.3f %.3f %.3f\n",
                single ? "logbf" : "logb", names[range],
-               seeded ? "UF/IX" : "clean", own[PAIRS / 2], host[PAIRS / 2],
-               ratio[PAIRS / 10], ratio[PAIRS / 2], ratio[9 * PAIRS / 10]);
+               seeded ? "UF/IX" : "clean", own[PAIRS / 2],
+               EXPONENT_BASELINE_LABEL, host[PAIRS / 2], ratio[PAIRS / 10],
+               ratio[PAIRS / 2], ratio[9 * PAIRS / 10]);
       }
     }
   }

@@ -50,8 +50,9 @@ def load(path):
     return metadata
 
 
-def identity_line(metadata):
-    return 'adjacent.baseline declared_revision %s object_sha256 %s flags_sha256 %s compiler_sha256 %s\n'%tuple(metadata[name] for name in FIELDS)
+def identity_line(metadata,family='adjacent'):
+    if family not in ('adjacent','exponent'):raise RuntimeError('unsupported baseline family')
+    return family+'.baseline declared_revision %s object_sha256 %s flags_sha256 %s compiler_sha256 %s\n'%tuple(metadata[name] for name in FIELDS)
 
 
 def validate(metadata,object_path,flags,compiler):
@@ -60,12 +61,12 @@ def validate(metadata,object_path,flags,compiler):
     if compiler_digest(compiler)!=metadata['compiler_sha256']:raise RuntimeError('baseline compiler identity differs')
 
 
-def write_header(path,metadata):
+def write_header(path,metadata,family='adjacent'):
     path=Path(path);temporary=None
     try:
         with tempfile.NamedTemporaryFile(mode='w',dir=path.parent,prefix='.'+path.name+'.',delete=False) as target:
             temporary=Path(target.name)
-            target.write('/* Generated baseline identity; caller-declared revision. */\n#define GMATH_ADJACENT_BASELINE_IDENTITY '+json.dumps(identity_line(metadata),ensure_ascii=True)+'\n')
+            target.write('/* Generated baseline identity; caller-declared revision. */\n#define GMATH_'+family.upper()+'_BASELINE_IDENTITY '+json.dumps(identity_line(metadata,family),ensure_ascii=True)+'\n')
         temporary.replace(path)
     finally:
         if temporary is not None:temporary.unlink(missing_ok=True)
@@ -74,10 +75,11 @@ def write_header(path,metadata):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('object',type=Path);parser.add_argument('metadata',type=Path)
+    parser.add_argument('--family',choices=('adjacent','exponent'),default='adjacent')
     parser.add_argument('--flags',required=True);parser.add_argument('--cc',required=True);parser.add_argument('--header',type=Path,required=True)
     args=parser.parse_args();metadata=load(args.metadata)
-    validate(metadata,args.object,args.flags,args.cc);write_header(args.header,metadata)
-    print(identity_line(metadata),end='');return 0
+    validate(metadata,args.object,args.flags,args.cc);write_header(args.header,metadata,args.family)
+    print(identity_line(metadata,args.family),end='');return 0
 
 
 if __name__=='__main__':

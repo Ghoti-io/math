@@ -93,8 +93,16 @@ float gmath_logbf(float x) {
     (void)gmath_div_by_zero(0);
     return lb_float(UINT32_C(0xff800000));
   }
-  int exponent =
-      a < UINT32_C(0x00800000) ? (int)lb_top(a) - 149 : (int)(a >> 23) - 127;
-  /* [-149,127] is exactly representable, with no new flags in any mode. */
-  return exponent ? (float)exponent : lb_float(0);
+  if (a < UINT32_C(0x00800000)) {
+    return (float)((int)lb_top(a) - 149);
+  }
+  int exponent = (int)(a >> 23) - 127;
+  /* Normal exponents [-126,127] convert exactly in every mode.
+   * Nonzero preserves every bit; zero clears either zero sign. Unsigned
+   * subtraction is defined: the nonzero mask is UINT32_MAX. */
+  float converted = (float)exponent;
+  uint32_t bits;
+  memcpy(&bits, &converted, sizeof bits);
+  uint32_t mask = UINT32_C(0) - (uint32_t)(exponent != 0);
+  return lb_float(bits & mask);
 }

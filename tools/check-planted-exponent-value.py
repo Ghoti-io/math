@@ -39,13 +39,13 @@ def main():
               ('zero-sign','return gmath_div_by_zero(GMATH_SIGN_BIT);','return gmath_div_by_zero(0);'),
               ('positive-zero','return exponent ? (double)exponent : gmath_double(0);','return exponent ? (double)exponent : -0.0;')]
         else:
-            changes += [('quiet-invalid','if (!(word & UINT32_C(0x00400000)))','if ((word & UINT32_C(0x00400000))) (void)gmath_invalid();\n    if (!(word & UINT32_C(0x00400000)))'),('normal-bias','- 127','- 126'),('subnormal-bias','- 149','- 148'),
+            changes += [('mask-polarity','exponent != 0','exponent == 0'),('mask-zero','UINT32_C(0) - (uint32_t)(exponent != 0)','UINT32_C(0)'),('zero-conversion-ix','float converted = (float)exponent;','float converted = (float)exponent; if (exponent == 0) (void)feraiseexcept(FE_INEXACT);'),('quiet-invalid','if (!(word & UINT32_C(0x00400000)))','if ((word & UINT32_C(0x00400000))) (void)gmath_invalid();\n    if (!(word & UINT32_C(0x00400000)))'),('normal-bias','- 127','- 126'),('subnormal-bias','- 149','- 148'),
               ('subnormal-cut','a < UINT32_C(0x00800000)','a < UINT32_C(0x00200000)'),
               ('canonical','return lb_float(UINT32_C(0x7fc00000));','return lb_float(UINT32_C(0x7fc00001));'),
               ('infinity-sign','return lb_float(UINT32_C(0x7f800000));','return x;'),
               ('zero-flags','(void)gmath_div_by_zero(0);','(void)0;'),
               ('zero-sign','return lb_float(UINT32_C(0xff800000));','return lb_float(UINT32_C(0x7f800000));'),
-              ('positive-zero','return exponent ? (float)exponent : lb_float(0);','return exponent ? (float)exponent : -0.0f;')]
+              ('positive-zero','return lb_float(bits & mask);','return lb_float((bits & mask) | ((uint32_t)(exponent == 0) << 31));')]
         for name,old,new in changes:
             if body.count(old)!=1:raise RuntimeError('nonunique source anchor '+str(width)+name)
             plants.append((str(width)+'-'+name,original[:start]+body.replace(old,new,1)+original[end:],width))

@@ -6,6 +6,9 @@ int main(int argc, char ** argv) {
   if (argc > 2) {
     return 2;
   }
+#ifdef GMATH_LOGB_REFERENCE
+  fputs(GMATH_EXPONENT_BASELINE_IDENTITY, stderr);
+#endif
   const char * directory = argc == 2 ? argv[1] : "tests/corpus";
   int double_status = expv_probe(directory, 64, 1);
   int float_status = expv_probe(directory, 32, 1);

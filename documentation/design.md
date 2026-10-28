@@ -2093,3 +2093,77 @@ Repeat at O0/O2 and with `-DGMATH_LOGB_PORTABLE_BITS`; use SSE arithmetic flags
 on i686. These math-local probes were run separately from the external suite
 runners, which remain unchanged. Emulation does not establish physical-host,
 Windows, exhaustive state-space or application performance coverage.
+
+#### Result-preserving Float exponent conversion
+
+The optimized Float path returns subnormal exponents immediately: their range
+`[-149,-127]` excludes zero, so this is the prior exact nonzero conversion.
+For normal input, convert the exact integer exponent in `[-126,127]` and apply
+`UINT32_C(0) - (uint32_t)(exponent != 0)` to the converted bits. Nonzero gives
+`UINT32_MAX`, preserving every bit; zero gives zero, producing positive zero
+even when directed software conversion supplied negative zero. Integer/memcpy
+operations add no floating exceptions. Executing the formerly skipped zero
+conversion is checked with actual emulated PPC32 bits, flags and caller state.
+The entire Double source prefix and Float special dispatch remain unchanged.
+No input floating arithmetic is added.
+
+Earlier sign-bit-only and Double/Float variants were rejected after actual
+public-tool measurements exposed subnormal regressions. The admitted scope is
+Float normal/near-one improvement with the measured compiler/range tradeoffs
+in `libm-progress.md`. The source mask does not guarantee branchless machine
+code; current GCC14 Float code uses conditional integer movement. Code layout,
+caller work and compiler transformations remain part of measured performance.
+Unchanged Double calls serve as context controls, not optimization claims.
+
+`tests/exponent_value_domain.h` independently encodes expected integer outputs
+with unsigned bits. It executes all 2,098 Double and 277 Float finite output
+exponents, through both signs of an exact-power input, four modes, all 32
+requested incoming subsets and two errno seeds: 1,216,000 logical observations.
+Actual raised flags are captured rather than assuming every requested subset
+is a distinct hardware state. This enumerates the finite conversion domain,
+not the raw input or complete state space. The raw reference probe separately
+checks classification, neighboring inputs, NaNs/zeros/infinities and state.
+Optional prior hooks reset state and check both implementations independently
+against the committed targets; each logical observation makes two calls.
+Domain and raw digests encode results/order, with state asserted separately.
+
+`make check-exponent-domain-driver` calibrates exact metadata/count/hash/order,
+process failure, stderr and timeout rejection, without Git or a prior object.
+Recording-process controls are accounting tests, not numerical oracle evidence.
+The optional native controls exercise independent per-format wrong values,
+NaN-bit changes, aliases and bit-preserving flag/errno/mode defects. Prior timing
+requires exact NaN bits; host timing permits differing payloads.
+
+The optional `check-exponent-prior`, `check-exponent-native-controls` and
+`bench-exponent-prior` targets require `EXPONENT_REFERENCE_OBJECT`, with metadata
+at the object path plus `.json` unless overridden. Identity binds the declared
+revision, actual object bytes, compiler-driver invocation and exact library
+argument vector. It does not authenticate arbitrary source provenance. Each
+optional tool is forcibly relinked, preventing stale configuration/object reuse.
+The shared identity helper preserves its existing adjacent-family defaults.
+Default gates do not require Git, a prior checkout or a baseline object.
+
+For a native GNU/Linux reproduction, reuse the Python baseline-construction
+recipe in the adjacent section above, with these substitutions:
+
+- revision `fad5c17ae0e9ffe8fed3f6540aacca6f30ed8d6f`;
+- output directory `build/exponent-prior`;
+- source `exponent_value.c` plus unchanged `elem_common.h`;
+- object `exponent_value.o`;
+- symbol suffixes `gmath_logb`, `gmath_logbf`;
+- renamed symbol prefix `gmath_exponent_prior_` instead of
+  `gmath_adjacent_prior_`.
+
+Use identical Make settings for baseline and current library, then pass
+`EXPONENT_REFERENCE_OBJECT=build/exponent-prior/exponent_value.o` to those three
+targets. `make bench-exponent-value` retains its separately labeled host-libm
+comparison. Both use eight discarded paired warmups and 401 alternating pairs
+of 4,096 identical inputs per format/range/state, integer timestamps, untimed
+value/state controls, absolute medians and paired ratio p10/median/p90. The
+finite-domain C17 comparison can be cross-compiled with the same optional
+reference macros as the raw probe; allow unused private probe helpers when
+compiling only that domain entry point. Cross-target baseline objects must be
+compiled and identified in their own compiler context. Measured regressions
+are reported alongside gains; no overall speed claim follows from these scalar
+microbenchmarks. No external implementation source was consulted; own prior
+revisions are controlled comparison baselines only.

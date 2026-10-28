@@ -48,9 +48,39 @@ static int expv_hex(const char * text, unsigned width, uint64_t * result) {
   *result = v;
   return 1;
 }
-static int expv_call(uint64_t raw, uint64_t result, unsigned flags,
-                     unsigned width, int mode, int seed, int error,
-                     uint64_t * hash) {
+#if defined(GMATH_LOGB_REFERENCE) != defined(GMATH_LOGBF_REFERENCE)
+#error "Configure both exponent reference functions together"
+#endif
+#ifdef GMATH_LOGB_REFERENCE
+#ifndef GMATH_EXPONENT_BASELINE_IDENTITY
+#error "Exponent reference identity is required"
+#endif
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern double GMATH_LOGB_REFERENCE(double);
+extern float GMATH_LOGBF_REFERENCE(float);
+#ifdef __cplusplus
+}
+#endif
+#endif
+static inline int expv_reference_alias(void) {
+#ifdef GMATH_LOGB_REFERENCE
+  double (*volatile current_d)(double) = gmath_logb;
+  float (*volatile current_f)(float) = gmath_logbf;
+  double (*volatile prior_d)(double) = GMATH_LOGB_REFERENCE;
+  float (*volatile prior_f)(float) = GMATH_LOGBF_REFERENCE;
+  return current_d == prior_d || current_f == prior_f;
+#else
+  return 0;
+#endif
+}
+static int expv_invoke(uint64_t raw, uint64_t result, unsigned flags,
+                       unsigned width, int mode, int seed, int error,
+                       uint64_t * hash, int reference) {
+#ifndef GMATH_LOGB_REFERENCE
+  (void)reference;
+#endif
   if (fesetround(mode) || feclearexcept(FE_ALL_EXCEPT) || feraiseexcept(seed)) {
     return 1;
   }
@@ -61,6 +91,11 @@ static int expv_call(uint64_t raw, uint64_t result, unsigned flags,
     double x;
     memcpy(&x, &raw, 8);
     double (*volatile fn)(double) = gmath_logb;
+#ifdef GMATH_LOGB_REFERENCE
+    if (reference) {
+      fn = GMATH_LOGB_REFERENCE;
+    }
+#endif
     double y = fn(x);
     memcpy(&got, &y, 8);
   } else {
@@ -68,6 +103,11 @@ static int expv_call(uint64_t raw, uint64_t result, unsigned flags,
     float x;
     memcpy(&x, &word, 4);
     float (*volatile fn)(float) = gmath_logbf;
+#ifdef GMATH_LOGBF_REFERENCE
+    if (reference) {
+      fn = GMATH_LOGBF_REFERENCE;
+    }
+#endif
     float y = fn(x);
     memcpy(&output, &y, 4);
     got = output;
@@ -79,15 +119,30 @@ static int expv_call(uint64_t raw, uint64_t result, unsigned flags,
       got_mode != mode) {
     fprintf(stderr,
             "exponent mismatch width%u input %016" PRIx64 " result %016" PRIx64
-            "/%016" PRIx64 " flags%x/%x errno%d/%d mode%d/%d\n",
-            width, raw, got, result, got_flags, incoming | native, got_errno,
-            error, got_mode, mode);
+            "/%016" PRIx64
+            " implementation %s flags%x/%x errno%d/%d mode%d/%d\n",
+            width, raw, got, result, reference ? "prior" : "current", got_flags,
+            incoming | native, got_errno, error, got_mode, mode);
     return 1;
   }
   /* Portable result/order digest: actual flags/errno/mode were asserted above.
    * Incoming flag merges differ across machines; do not encode assumed states.
    */
   *hash = gmath_fnv_u64(*hash, got);
+  return 0;
+}
+static int expv_call(uint64_t raw, uint64_t result, unsigned flags,
+                     unsigned width, int mode, int seed, int error,
+                     uint64_t * hash) {
+  if (expv_invoke(raw, result, flags, width, mode, seed, error, hash, 0)) {
+    return 1;
+  }
+#ifdef GMATH_LOGB_REFERENCE
+  uint64_t ignored = GMATH_FNV_BASIS;
+  if (expv_invoke(raw, result, flags, width, mode, seed, error, &ignored, 1)) {
+    return 1;
+  }
+#endif
   return 0;
 }
 static int expv_metadata(const char * line, uint64_t * entries) {
@@ -140,6 +195,10 @@ static int expv_probe(const char * directory, unsigned width, int verbose) {
   const char * name = width == 64 ? "logb" : "logbf";
   if (snprintf(path, sizeof path, "%s/%s-special.corpus", directory, name) >=
       (int)sizeof path) {
+    goto done;
+  }
+  if (expv_reference_alias()) {
+    fputs("exponent reference aliases current function\n", stderr);
     goto done;
   }
   file = fopen(path, "rb");
