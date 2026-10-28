@@ -83,3 +83,7 @@ fn remquo_quotient c83d811fbc46c08e 100316
 fn remquof_quotient c20a236a8b4a2bb5 27049
 fn nearbyint 181c93ddf14441bf 33997
 fn nearbyintf c75989a801b50444 6990
+fn lrint 472e8d420d2337c2 17739
+fn lrintf 1d43cc9f8126755f 4861
+fn llrint 472e8d420d2337c2 17739
+fn llrintf 1d43cc9f8126755f 4861
