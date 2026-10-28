@@ -2500,3 +2500,25 @@ source/state controls and paired timing evidence are documented in
 calls improve in the measured contexts, while some specials regress and
 Double wide-gap remquo remains about 4.1 times host. No workload/platform or
 general nonregression claim follows.
+
+
+## Current-mode nearby-integer APIs
+
+The nearby pair uses raw binary fields and exact integer rounding to support all
+four standard current modes without introducing inexact. It deliberately does
+not alias or change the deterministic old rint pair. Native GNU arithmetic-control
+readers on the six emulated hardware targets preserve standard flags/controls;
+explicit and other-port fenv queries may require a platform runtime. Coherent
+nontrapping standard C controls are the compatibility boundary. Signed zero,
+NaN/sNaN, special cases, query errno preservation and architectural test masks
+are specified and independently checked.
+
+[nearby-integer.md](nearby-integer.md) records the integer proof, independent
+Fraction/MPFR targets, 80-set preservation, 24 raw profiles, fresh/larger evidence,
+initial failed validation attempts and all 576 paired benchmark records as 288
+case envelopes. Most new API timing ranges remain slower than host libm; the
+ordinary paired medians span about 2.24–4.09 across recorded formats/contexts.
+This is added standard coverage, without an overall performance claim. Consumer
+migration, long-double/complex, broader errno/fenv and unrun platforms remain
+separate. Earlier failed partial Valgrind scopes and force-only IX witness gaps
+are unchanged.

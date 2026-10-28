@@ -136,6 +136,21 @@ library in the shape family runs in `make test`.
 
 ### How the accuracy is checked
 
+Some large mixed grids use compact storage. Literal seeded answers remain in
+`nearbyint-seeded.corpus` (2000 words).
+Complete-file SHA256 anchors retain the original deterministic grids.
+`make prepare-grid-corpora` reconstructs missing full files with exact rational
+arithmetic, verifies every retained seed, and requires byte-identical independent
+pinned references. Existing corrupt caches fail rather than being silently
+repaired. `make test`, direct Make unit/hash checks and `make corpus-hash-update`
+prepare caches automatically; no container is needed for per-input tests.
+Pinned oracle checks still regenerate complete grids independently. `make clean`
+removes generated caches, not literal seeds. Other small corpora remain
+committed. Raw benchmark outputs are not committed; Markdown retains the
+summaries and case tables. Directly compiled cross probes need preparation
+before copying the tree into environments without Python.
+
+
 `tests/corpus/` holds the oracle's answers for every function: 19,431 inputs each for
 `sin`, `cos` and `tan` and 7,798 to 15,544 for the others, with the correctly rounded
 result and the exact value's distance from it (for `sqrt`, the rounding functions and the exponent

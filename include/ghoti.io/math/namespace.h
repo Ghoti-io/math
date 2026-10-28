@@ -104,6 +104,8 @@
 #define gmath_pow GHOTIIO_MATH(gmath_pow)
 #define gmath_result_string GHOTIIO_MATH(gmath_result_string)
 #define gmath_rint GHOTIIO_MATH(gmath_rint)
+#define gmath_nearbyint GHOTIIO_MATH(gmath_nearbyint)
+#define gmath_nearbyintf GHOTIIO_MATH(gmath_nearbyintf)
 #define gmath_lround GHOTIIO_MATH(gmath_lround)
 #define gmath_lroundf GHOTIIO_MATH(gmath_lroundf)
 #define gmath_llround GHOTIIO_MATH(gmath_llround)

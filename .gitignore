@@ -12,3 +12,11 @@ docs
 # Python
 **/__pycache__
 *.pyc
+
+# Deterministic grids are materialized natively and checked against full pins.
+/tests/corpus/nearbyint-special.corpus
+/tests/corpus/nearbyint.corpus
+/tests/corpus/currentint64-special.corpus
+/tests/corpus/fdim64-special.corpus
+/tests/corpus/fdim.corpus
+/tests/corpus/.grid-cache-*

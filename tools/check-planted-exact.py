@@ -88,7 +88,7 @@ CORPUS = Path("tests/corpus")
 SOURCES = ("elem_common.h", "hypot_table.h", "sqrt_impl.h", "sqrt.c", "round.c", "scale.c", "hypot.c")
 # The objects built from the staged copy; the Makefile's own objects stand in for the others.
 STAGED_OBJECTS = ("sqrt", "round", "scale", "hypot")
-OTHER_OBJECTS = ("explog", "atan2", "remainder", "extrema", "cbrt", "floatbasic", "floattrig", "intround", "float_scale", "adjacent", "fraction_split", "exponent_value", "long_scale", "float_cbrt", "ieee_remainder")
+OTHER_OBJECTS = ("explog", "atan2", "remainder", "extrema", "cbrt", "floatbasic", "floattrig", "intround", "float_scale", "adjacent", "fraction_split", "exponent_value", "long_scale", "float_cbrt", "ieee_remainder", "nearby")
 CORPUS_TEST = "Basic.CorpusIsExact"
 VARIANT_TEST = "Basic.SqrtVariantsAgreeWithEachOtherAndWithTheExactSquareRoot"
 
