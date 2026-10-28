@@ -227,6 +227,22 @@ GMATH_API float gmath_exp2f(float x);
 GMATH_API double gmath_cbrt(double x);
 
 /**
+ * @brief Real Float cube root, within one Float ULP under nearest rounding.
+ *
+ * Signed zeros and infinities preserve their bits without new exceptions.
+ * NaNs canonicalize; signaling NaNs require invalid only. Every finite nonzero
+ * result is normal and finite. Binary powers whose input exponent is divisible
+ * by three return exactly without new flags. All other finite nonzero inputs
+ * require inexact only, including other exact cubes such as 27 and 125.
+ * errno, rounding mode and incoming flags are preserved. General correct
+ * rounding, directed numerical accuracy and libm errno semantics are not
+ * promised. The existing Double cube-root kernel remains unchanged.
+ * @param x The Float argument, of either sign.
+ * @return The real cube root as a Float.
+ */
+GMATH_API float gmath_cbrtf(float x);
+
+/**
  * @brief The natural logarithm of @p x.
  *
  * Within 1 ulp of the true value for every positive finite @p x, subnormals

@@ -71,6 +71,7 @@
 #define gmath_copysignf GHOTIIO_MATH(gmath_copysignf)
 #define gmath_sqrtf GHOTIIO_MATH(gmath_sqrtf)
 #define gmath_cbrt GHOTIIO_MATH(gmath_cbrt)
+#define gmath_cbrtf GHOTIIO_MATH(gmath_cbrtf)
 #define gmath_exp2 GHOTIIO_MATH(gmath_exp2)
 #define gmath_exp2f GHOTIIO_MATH(gmath_exp2f)
 #define gmath_fabs GHOTIIO_MATH(gmath_fabs)

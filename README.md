@@ -5,6 +5,13 @@ Deterministic elementary functions that give the same bits on every host. It is 
 
 ## What is implemented
 
+`gmath_cbrtf(float)` supplies the Float cube root through the unchanged own
+Double kernel: one Float ULP under nearest, canonical raw NaNs, exact signed
+zeros/infinities and exact binary powers with exponents divisible by three.
+Every other finite nonzero input requires inexact, including other exact cubes.
+General correct rounding and directed numerical accuracy are not promised.
+
+
 `gmath_sin`, `gmath_cos`, `gmath_tan`, `gmath_atan2`, `gmath_exp`, `gmath_log`, `gmath_pow` and
 `gmath_hypot` on `double` (`ghoti.io/math/elementary.h`): within 1 ulp of the true value
 (measured at most 0.57 ulp, apart from results in the subnormal range of `exp`, `pow` and

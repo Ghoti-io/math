@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -1828,3 +1828,37 @@ $(LONG_SCALE_BENCH): tools/bench-long-scale.c $(APP_DIR)/$(STATIC_TARGET) $(FLAG
 .PHONY: bench-long-scale
 bench-long-scale: $(LONG_SCALE_BENCH)
 	@$(LONG_SCALE_BENCH)
+
+# Float cube-root wrapper and independently cube-certified references.
+CBRTF_PROBE := $(APP_DIR)/tools/probe-cbrtf$(EXE_EXTENSION)
+$(CBRTF_PROBE): tools/probe-cbrtf.c tests/cbrtf_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: check-cbrtf check-cbrtf-oracle check-planted-cbrtf
+check-cbrtf: $(CBRTF_PROBE)
+	@python3 tools/check-cbrtf.py --probe $(CBRTF_PROBE) --corpus $(CORPUS_DIR) --controls
+check-cbrtf-oracle: check-cbrtf $(CBRTF_PROBE) $(APP_DIR)/testCbrtf$(EXE_EXTENSION)
+	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(APP_DIR)/testCbrtf$(EXE_EXTENSION) --gtest_brief=1
+	@rc=0; seed=$${GMATH_ORACLE_SEED:-$$(python3 -c 'import secrets;print(secrets.randbits(63))')}; \
+	 echo "cbrtf fresh seed $$seed count 1000"; \
+	 $(ORACLE) fresh-cbrtf --out $(BUILD_DIR)/oracle-cbrtf --seed $$seed --count 1000 || rc=$$?; \
+	 if [ $$rc -eq 0 ]; then \
+	   $(ORACLE) cbrtf --out $(BUILD_DIR)/cbrtf-committed --seed 20261028 --count 1000 && \
+	   cmp tests/corpus/cbrtf.corpus $(BUILD_DIR)/cbrtf-committed/cbrtf.corpus && \
+	   cmp tests/corpus/cbrtf-special.corpus $(BUILD_DIR)/cbrtf-committed/cbrtf-special.corpus && \
+	   python3 tools/check-cbrtf.py --fresh --seed $$seed --count 1000 --probe $(CBRTF_PROBE) --corpus $(BUILD_DIR)/oracle-cbrtf --unit $(APP_DIR)/testCbrtf$(EXE_EXTENSION); \
+	 elif [ $$rc -eq 3 ]; then echo 'cbrtf oracle: SKIPPED optional pinned generation'; else exit $$rc; fi
+	@python3 tools/check-cbrtf-oracle.py --work $(BUILD_DIR)/cbrtf-oracle-controls --probe $(CBRTF_PROBE)
+check-planted-cbrtf: $(APP_DIR)/$(STATIC_TARGET) $(OBJ_DIR)/tests/test_cbrtf.o $(CBRTF_PROBE)
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_RAW_LDFLAGS='$(LDFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_cbrtf.o' \
+	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_WORK='$(BUILD_DIR)/planted-cbrtf' \
+	 python3 tools/check-planted-cbrtf.py
+CBRTF_BENCH := $(APP_DIR)/tools/bench-cbrtf$(EXE_EXTENSION)
+$(CBRTF_BENCH): tools/bench-cbrtf.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: bench-cbrtf
+bench-cbrtf: $(CBRTF_BENCH)
+	@$(CBRTF_BENCH)

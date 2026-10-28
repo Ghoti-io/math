@@ -100,6 +100,7 @@ static double llround_widened(double x) {return (double)gmath_llround(x);}
 static double lroundf_widened(double x) {return (double)gmath_lroundf((float)x);}
 static double llroundf_widened(double x) {return (double)gmath_llroundf((float)x);}
 
+static double cbrtf_widened(double x) {return (double)gmath_cbrtf((float)x);}
 static double atanf_widened(double x) {
   return (double)gmath_atanf((float)x);
 }
@@ -221,6 +222,7 @@ static const struct {
   {"lroundf", "lroundf", K_D_D, 0, NULL, lroundf_widened, NULL, NULL},
   {"llroundf", "lroundf", K_D_D, 0, NULL, llroundf_widened, NULL, NULL},
   {"atanf", "atanf", K_D_D, 0, NULL, atanf_widened, NULL, NULL},
+  {"cbrtf", "cbrtf", K_D_D, 0, NULL, cbrtf_widened, NULL, NULL},
   {"atan2f", "atan2f", K_DD_D, 0, NULL, NULL, atan2f_widened, NULL},
   {"exp", "exp", K_D_D, 1, NULL, gmath_exp, NULL, NULL},
   {"log", "log", K_D_D, 1, NULL, gmath_log, NULL, NULL},

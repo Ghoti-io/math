@@ -74,3 +74,4 @@ fn logb e0aa81ad34f8834b 32318
 fn logbf bb32234cb185f773 6296
 fn scalbln 47ab6ee726681988 48194
 fn scalblnf ef95ceda283f36cc 17604
+fn cbrtf 9062b0d1bd1deb80 74650

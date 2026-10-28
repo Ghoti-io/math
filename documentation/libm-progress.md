@@ -4,12 +4,19 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 25 verified phases add 45 APIs, four performance optimizations
-and certificate maintenance. Classic real-function name coverage is 65/171;
-49 Float/Double additions remain, or 106 including long double. The phase
+Current snapshot: 26 verified phases add 46 APIs, four performance optimizations
+and certificate maintenance. Classic real-function name coverage is 66/171;
+48 Float/Double additions remain, or 105 including long double. The phase
 sections below retain historical counts and measurements.
 
 ## Completed capabilities
+
+- Binary32 cube root: `gmath_cbrtf`, using the unchanged Double kernel with
+  raw Float special dispatch and nearest one-Float-ULP accuracy. Exact binary
+  powers whose exponents are divisible by three are exceptionless; other
+  finite nonzero inputs require IX, including other exact cubes. Caller state
+  is preserved. General correct/directed rounding is not promised. Common
+  ranges remain slower than host libm; evidence and limits follow.
 
 - Native-long power-of-two scaling: `gmath_scalbln` and `gmath_scalblnf`,
   using safe long comparisons before narrowing and unchanged existing kernels.
@@ -191,12 +198,135 @@ sections below retain historical counts and measurements.
    rounding/remainder families. Adjacent Float overhead is now reduced by the
    verified direction optimization; exact modf/modff is now supplied.
    Exact `logb`/`logbf` and native-long `scalbln`/`scalblnf` are now supplied.
-   Audit the remaining basic Float gaps; `cbrtf` is a possible next cohesive
-   family after investigating accuracy and exception contracts.
+   `cbrtf` is now supplied. Investigate a result-preserving dedicated Float
+   cube-root path to address its measured wrapper overhead, then re-audit
+   remaining basic Float/real gaps before selecting another family.
    Keep accuracy, exception behavior and performance separate.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
+
+## Float cube-root validation
+
+`gmath_cbrtf` uses raw special dispatch, the unchanged own Double cube-root
+kernel and one Float narrowing. Its public target is one Float ULP under
+nearest. General correct rounding and directed numerical accuracy are not
+promised. Signed zeros/infinities are exact and exceptionless; NaNs canonicalize,
+invalid only for signaling inputs. Binary powers with exponents divisible by
+three return exactly without new flags in every mode. All other finite nonzero
+inputs require IX only, including exact cubes such as 27 and 125. Every finite nonzero input has
+a normal, finite root. errno, mode and incoming flags are preserved.
+`design.md` gives the composition/boundary proof. No other libm implementation
+source was read or copied; own-project kernels and mathematical cube comparisons
+supply the implementation and independent validation.
+
+A read-only audit of 14,046 C/C++ source/header files found no direct cbrtf
+calls within its exclusions. This addition intentionally advances broader
+coverage; consumers remain unmigrated. Classic real-function name coverage is
+66/171: 33 Double, 33 Float and zero long double. Missing 24 Double + 24 Float
+means 48 Float/Double additions, or 105 including 57 long-double names. Complex
+adds another 66. Counts are names, not full behavioral parity, and exclude
+fenv/macros/vendor extensions.
+
+Full default GCC14.2/GCC16.2 commands return zero with persisted actual child
+statuses. Each main unit sequence has 223 tests in 31 binaries; Clang passes
+those counts unit-only. Five focused ASan/UBSan tests pass with the sanitizer
+runtime first in load order; an initial launch stopped before tests with a
+runtime load-order diagnostic. The final certificate-control strengthening
+landed after the GCC16 full run began, so the affected current checker target
+was explicitly rerun there; the later GCC14 full run includes it. Independent
+mathematical, blind and follow-up reviews resolve the implementation findings.
+
+The selected Valgrind 3.24 corpus test exits 1 at input `00000001`: result
+`26a14518` matches native, but required IX is absent. Memcheck reports zero
+memory errors/leaks. The probe stops early, so memory coverage is partial and
+the other four tests were not run under Valgrind. The existing independent
+plain-arithmetic reproducer establishes missing UF/IX in this instrumenter;
+broader attribution remains an inference. No assertions were weakened and no
+passing Valgrind suite is claimed; the external follow-up remains recorded.
+
+Pinned MPFR and independent mpmath agree, and exact rational cube inequalities
+certify both nearest target and rounded signed-error cells. Committed references
+have 74,696 raw and 74,650 widened entries. All 22 single-bit signaling payloads and
+the maximum signaling payload retain both signs in raw probes; 46 signaling
+inputs alone are excluded from generic widening. Both complete files have
+mandatory SHA256/LF gates; pinned regeneration is byte-identical. The new
+portable result set is `cbrtf 9062b0d1bd1deb80` over 74,650 rows. All 71 old
+sets and legacy `f5fa269eb60ee34f` over 292,711 rows remain unchanged; every
+old runtime module and table is byte-identical.
+
+Raw nearest result/flag-class hash `b56d6fe265757f09` covers 74,696 inputs.
+The probe separately asserts 840,360 all-mode/incoming-state calls, two errno
+seeds and actual merged incoming flags. Selected/power/nonfinite rows request
+all 32 subsets. Hashes do not encode every hardware-state observation. The
+conservative closed-cell sampled maximum is 0.499889389 ULP against a 0.51
+regression cap; this does not prove general correct rounding. The separate
+nearest seam unit checks scaling across all normal Float binades, 64 table
+seams/neighbors and both signs, without claiming independent exhaustive accuracy.
+
+Three fresh raw populations of 73,841, 74,694 and 78,679 entries pass complete
+requested seed/count, exact certificates, widened reconstruction, standalone
+path and actual C++ unit-path checks. A larger sample has 123,716 raw/123,670
+widened entries; its hash is `a87ac9a06273e289`, with 1,401,904 state calls and
+maximum 0.499983355 ULP. A real former-family unit-directory typo is detected
+even with a valid equal-sized fallback of 74,696 rows; caller evidence is never
+renamed or replaced by the control.
+
+Six emulated targets agree on all 72 numerical sets default/portable and 24
+new raw O0/O2/default/forced-Double-loop profiles. The larger raw sample agrees
+on six O2/default profiles. These are emulated probes, not physical-host/full
+cross-target GoogleTest claims. Windows, exhaustive input/environment coverage,
+physical-target and application timing remain unrun.
+
+Twelve actual source/state plants fail in both C++ and C17, with a passing
+control. Observable IX loss is detected, but deleting only the final IX force
+escapes both sampled probes; that narrow witness coverage remains unverified
+and the production force remains. Earlier expf/exp2f/atanf force-only gaps are
+unchanged. Twenty-one loader negatives, four exact-certificate/population
+corruptions, a disabled-certificate counterfactual and nine output/process
+faults pass. Certificate negatives require their specific failure layer, so a
+later raw/widened mismatch cannot masquerade as certificate rejection. Both
+actual complete-file checksum corruptions detect. Seven actual oracle faults
+fail before publication; ignored seed/count generator faults are rejected by
+complete-population verification. Both real wrapper dispatch commands and
+optional/required absence paths have recording-engine controls even without
+a numerical engine; those controls are accounting evidence only. The unchanged
+publisher supplies exception rollback, not crash atomicity.
+
+Two predeclared final paired runs per native compiler use eight paired warmups,
+401 alternating pairs of 4,096 identical inputs, nine ranges and clean/preseeded
+UF/IX states: 18 cases per run. Integer timestamps precede floating timing
+arithmetic. Untimed bit/class and coarse host-Double numerical guards are timing
+controls; independent certified-reference accuracy checks remain separate.
+Own batch flags/errno/mode are checked exactly; host new flags, exceptional errno
+and NaN payloads may differ. Both contexts use one fixed logical processor,
+without CPU isolation or governor changes. Exact compiler/library flags, target,
+runtime-libm identity, source and binary hashes accompany the measurements.
+Context differences are not attributed solely to compiler choice.
+
+Absolute columns are independent min–max envelopes of median ns/call across
+two runs and two entry states (gmath / host). Ratio columns enclose paired
+median gmath/host ratios; brackets enclose each case's paired p10 through p90.
+Absolute envelope endpoints are not paired samples.
+
+| Range | GCC14 absolute ns (gmath / host) | GCC14 ratio [p10–p90] | GCC16 absolute ns (gmath / host) | GCC16 ratio [p10–p90] |
+| --- | --- | --- | --- | --- |
+| normal | 10.556–11.509 / 3.427–3.746 | 3.047–3.085 [2.820–3.217] | 8.462–8.961 / 3.274–3.481 | 2.556–2.562 [2.478–2.740] |
+| binary-powers | 2.934–3.063 / 3.415–3.563 | 0.856–0.859 [0.839–0.871] | 3.190–3.267 / 3.476–3.582 | 0.914–0.920 [0.904–1.003] |
+| other-exact-cubes | 9.255–9.597 / 3.376–3.490 | 2.739–2.744 [2.656–2.860] | 9.104–9.484 / 3.376–3.515 | 2.694–2.696 [2.548–2.833] |
+| subnormal | 9.727–9.966 / 4.199–4.305 | 2.314–2.319 [2.216–2.454] | 9.094–9.311 / 4.219–4.312 | 2.154–2.158 [2.036–2.276] |
+| wide | 10.034–10.412 / 3.496–3.582 | 2.869–2.894 [2.777–3.028] | 9.114–9.293 / 3.602–3.662 | 2.536–2.542 [2.433–2.651] |
+| zero | 1.027–1.141 / 1.651–1.831 | 0.621–0.623 [0.617–0.711] | 1.353–1.437 / 2.118–2.254 | 0.637–0.639 [0.634–0.703] |
+| infinity | 1.025–1.123 / 1.812–1.979 | 0.556–0.624 [0.555–0.686] | 1.350–1.431 / 2.121–2.248 | 0.636–0.637 [0.631–0.639] |
+| quiet-NaN | 1.206–1.338 / 1.612–2.005 | 0.668–0.748 [0.665–0.765] | 1.575–1.609 / 2.165–2.213 | 0.726–0.728 [0.686–0.742] |
+| signaling-NaN | 1.254–1.472 / 1.881–2.008 | 0.667–0.750 [0.665–0.984] | 1.577–1.743 / 2.167–2.354 | 0.727–0.728 [0.721–0.745] |
+
+Ordinary, wide, subnormal and other exact-cube cases remain substantially slower
+than host libm. Binary powers and special values are faster on the measured
+host. Call/loop/checksum/timestamp work and first-exception amortization are
+included. No overall, application, shared-library, vector, other-compiler or
+cross-platform speed win is claimed. A dedicated Float kernel is a future
+performance investigation; the wrapper supplies verified capability first.
 
 ## Native-long scaling validation
 

@@ -2252,3 +2252,64 @@ SSE arithmetic flags on i686. Normalize its two output lines by stripping the
 lines from `tests/corpus/long_scale-special.hash`. Emulation establishes probe
 coverage, not physical-host/full cross-target GoogleTest or application timing.
 Actual validation and benchmark scope is recorded in `libm-progress.md`.
+
+### Float cube root
+
+`gmath_cbrtf` reuses the existing own-project Double cube-root kernel and narrows
+its result once to Float. Raw binary32 zero/infinity/NaN dispatch occurs before
+widening, so signaling payloads are inspected without an accidental conversion.
+Signed zeros/infinities preserve their bits; all NaNs become canonical positive
+quiet NaN, invalid only for signaling inputs. The old Double source and tables
+remain byte-identical. No other libm implementation source was consulted.
+
+For nonzero finite binary32 input, the real root lies strictly between
+`2^-50` and `2^43` in magnitude. Widening is exact, every intermediate in the
+existing normalized Double kernel is safe, and the final Float result is normal
+and finite. Thus the wrapper adds no invalid, divide-by-zero, underflow or
+overflow on finite input. Binary powers with exponent divisible by three enter
+the Double kernel's exact raw-power path and narrow exactly in every mode.
+Every other finite nonzero input explicitly forces IX using a discarded volatile
+normal Double addition. This includes exact cubes such as 27 and 125; the old
+Double contract already permits IX for those inputs. The Float policy makes it
+required, rather than promising exceptionless results for every exact cube.
+The addition does not change errno, rounding mode or incoming flags.
+
+The public accuracy target is one Float ULP under nearest. Within one Float
+binade, Double's one-ULP error is at most `2^-29` of the Float spacing; nearest
+narrowing adds at most half that Float spacing. If a Double approximation crosses
+a Float binade boundary, both values are within a Double ULP of that boundary;
+Float narrowing returns the boundary itself, with an error far below one Float
+ULP. This establishes the public target without assuming general correct
+rounding. Double rounding can select an adjacent Float result near a midpoint.
+Directed numerical accuracy and full libm errno semantics are not promised.
+
+References are independently computed by pinned MPFR and mpmath. Exact rational
+cubes then certify both the nearest Float target and its signed Float error word:
+the cube function is globally monotone, so cube comparisons locate the exact
+input within each candidate's midpoint interval. Error-cell cube comparisons
+certify the error's rounding as well. No runtime kernel/table contributes to
+those reference values. The 0.51 ULP test cap is a tighter sampled implementation
+regression guard, not a general correct-rounding claim. Complete SHA256 gates
+and LF attributes protect both raw and widened payloads. Raw signaling inputs
+are excluded only from generic widening; the raw probe retains them.
+
+The shared C17/C++ loader bounds provenance/metadata/rows, rejects malformed
+framing including NUL and missing final LF, enforces ordered unique raw inputs,
+and checks numerical error plus actual flags/errno/mode. Every raw row runs four
+modes and two errno seeds; selected/power/nonfinite rows request all 32 incoming
+flag subsets, capturing the actual merged state. Nearest result/flag-class
+hashes supplement accuracy checks; state is asserted before hashing and is not
+represented as a hardware flag-bit digest. A separate nearest-only seam test
+checks scaling invariance across all normal Float exponent fields and both
+signs. Neither that test nor emulation establishes exhaustive accuracy/flags.
+
+Reproduce with `make check-cbrtf`, `make check-planted-cbrtf`,
+`make check-cbrtf-oracle` and `make bench-cbrtf`. Fresh references bind the full
+requested input population, widened values and path; the C++ unit's printed
+population/path is checked as well as the standalone probe. Oracle seeds can
+be supplied through `GMATH_ORACLE_SEED` and are printed before dispatch. Missing
+optional oracle engines still run committed integrity, numerical/state and unit
+checks. Recording-engine dispatch controls are accounting evidence only. The
+unchanged exception-rollback publisher is reused; it is not crash-atomic.
+Numerical/benchmark evidence and pending platform/tool coverage are recorded in
+`libm-progress.md`.
