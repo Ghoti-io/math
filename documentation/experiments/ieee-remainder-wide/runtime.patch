@@ -1,0 +1,81 @@
+--- a/src/elementary/ieee_remainder.c
++++ b/src/elementary/ieee_remainder.c
+@@ -66,8 +66,77 @@
+   if(quo)*quo=((xb^yb)&sign_bit)?-(int)q:(int)q;
+   return sign|irq_pack(r,e,p,bias);
+ }
++/* Nonzero normalized divisor; the cold path admits at least 16 low zeros. */
++static inline unsigned irq_twos(uint64_t m) {
++#if (defined(__GNUC__)||defined(__clang__)) && ULLONG_MAX==UINT64_MAX && !defined(GMATH_IEEE_REMAINDER_PORTABLE_BITS)
++  return (unsigned)__builtin_ctzll((unsigned long long)m);
++#else
++  unsigned k=0;while(!(m&1u)){m>>=1;++k;}return k;
++#endif
++}
++/* Keep the ordinary core above unchanged. This cold copy retains its special
++ * prefix and negative-gap behavior; only admitted finite wide states factor.
++ * Source-linked checks keep the two cores coupled outside that transformation.
++ */
++#if defined(__GNUC__)||defined(__clang__)
++__attribute__((cold,noinline))
++#endif
++static uint64_t irq_wide_word(uint64_t xb,uint64_t yb,unsigned p,unsigned eb,int bias,int *quo) {
++  uint64_t sign_bit=UINT64_C(1)<<(p+eb),sign=xb&sign_bit;
++  uint64_t inf=((UINT64_C(1)<<eb)-1)<<p,quiet=UINT64_C(1)<<(p-1);
++  uint64_t ax=xb&(sign_bit-1),ay=yb&(sign_bit-1);
++  if(quo)*quo=0;
++  if(ax>inf||ay>inf) {
++    if((ax>inf&&!(ax&quiet))||(ay>inf&&!(ay&quiet)))(void)gmath_invalid();
++    return inf|quiet;
++  }
++  if(ax==inf||!ay){(void)gmath_invalid();return inf|quiet;}
++  if(!ax||ay==inf)return xb;
++  int ex,ey;uint64_t mx=irq_significand(ax,p,bias,&ex),my=irq_significand(ay,p,bias,&ey);
++  int gap=ex-ey,e=ey;uint64_t q,r;
++  if(gap<0) {
++    if(gap<-1||mx<=my)return xb; /* Includes exact half: quotient0 is even. */
++    r=2*my-mx;e=ex;q=1;sign^=sign_bit;
++  } else {
++    /* Both normalized significands are in [2^p,2^(p+1)): q is 0 or 1. */
++    q=(mx>=my);r=mx-(q?my:0);
++    /* GMATH_WIDE_FACTOR_BEGIN */
++    unsigned step=63u-p;
++    /* Float gaps are <=276; gap>=512 can only be Double here. Align exactly
++     * k positions so the residual and divisor share 2^k, then rebase units.
++     */
++    if(gap>=512&&r&&!(my&UINT64_C(65535))) {
++      unsigned k=irq_twos(my);int align=(int)k;
++      while(align>0&&r) {
++        unsigned s=align>11?11u:(unsigned)align;
++        uint64_t t=r<<s;q=((q<<s)+t/my)&127u;r=t%my;
++        gap-=(int)s;align-=(int)s;
++      }
++      /* r!=0 implies alignment completed and the reduced divisor exceeds 1.
++       * Its top bit is p-k, so step=63-(p-k)<=63 bounds r<<step below 2^64.
++       */
++      if(r){r>>=k;my>>=k;e+=(int)k;step+=k;}
++    }
++    /* GMATH_WIDE_FACTOR_END */
++    while(gap>0&&r) {
++      unsigned s=gap>(int)step?step:(unsigned)gap;
++      uint64_t t=r<<s;q=((q<<s)+t/my)&127u;r=t%my;gap-=(int)s;
++    }
++    /* A zero residual still appends the remaining quotient zero bits. */
++    if(gap>0)q=gap>=7?0:(q<<(unsigned)gap)&127u;
++    if(2*r>my||(2*r==my&&(q&1u))) {r=my-r;q=(q+1u)&127u;sign^=sign_bit;}
++  }
++  if(quo)*quo=((xb^yb)&sign_bit)?-(int)q:(int)q;
++  return sign|irq_pack(r,e,p,bias);
++}
+ double gmath_remquo(double x,double y,int *quo) {
+-  return gmath_double(irq_word(gmath_bits(x),gmath_bits(y),52,11,1023,quo));
++  uint64_t xb=gmath_bits(x),yb=gmath_bits(y);
++  /* Magnitudes are <2^63, so adding 2^61 cannot wrap. Finite admission
++   * implies a normalized exponent gap >=512; specials use the copied prefix.
++   */
++  if((xb&UINT64_C(0x7fffffffffffffff))>=(yb&UINT64_C(0x7fffffffffffffff))+(UINT64_C(512)<<52))
++    return gmath_double(irq_wide_word(xb,yb,52,11,1023,quo));
++  return gmath_double(irq_word(xb,yb,52,11,1023,quo));
+ }
+ double gmath_remainder(double x,double y) {return gmath_remquo(x,y,NULL);}
+ float gmath_remquof(float x,float y,int *quo) {

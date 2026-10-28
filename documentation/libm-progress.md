@@ -9,6 +9,21 @@ and certificate maintenance. Classic real-function name coverage is 70/171;
 44 Float/Double additions remain, or 101 including long double. The phase
 sections below retain historical counts and measurements.
 
+## Rejected wide-remainder investigation
+
+A numerically compatible common-factor prototype improved measured Double wide
+inputs about 4.4 times, but failed its predeclared ordinary 5% ceiling: nine of 144
+ordinary medians exceed it, reaching 1.086; selected special cases reach 1.477.
+The entire runtime/test/tool change was rejected and restored to 860e771. No API,
+optimization or shipped test coverage is added. The completed capability counts
+above remain unchanged. Independent reviewers reconciled all 1,248 records and 312
+table rows. Candidate native gates passed after a stale-header rerun; all 78
+result sets and six-target emulated probes also agree (SPARC needed an extended
+wall bound). That numerical evidence does
+not justify accepting the performance regressions. Experimental sources, proof,
+validation limits and complete timing envelopes are retained in
+[the rejection report](ieee-remainder-wide-performance.md).
+
 ## Completed capabilities
 
 - Exact nearest-quotient remainder and seven signed quotient bits:
@@ -199,28 +214,15 @@ sections below retain historical counts and measurements.
 
 ## Next work
 
-1. The audited production Float gap (`atanf`) and tool-used integer rounding
-   gap (`lround`) are now provided; consumer migration remains deferred.
-   Recheck usage before choosing further project-used APIs. Continue broader
-   float/double coverage, including remaining basic decomposition and
-   rounding/remainder families. Adjacent Float overhead is now reduced by the
-   verified direction optimization; exact modf/modff is now supplied.
-   Exact `logb`/`logbf` and native-long `scalbln`/`scalblnf` are now supplied.
-   `cbrtf` now has a verified result-preserving seed optimization. Exact
-   IEEE remainder/quotient families (`remainder`/`remquo` and Float forms)
-   are now supplied. A scoped read-only 4,821-file source/header audit found
-   four lexical matches, all comments and no direct calls; this intentionally
-   advances broader standard coverage. Investigate any remaining measured
-   remainder cost before selecting another basic capability from a fresh audit.
-   The initial normalized division now has a verified compare/subtract
-   replacement. Next investigate the repeated Double wide-gap divisions,
-   including whether an exact common-factor reduction can enlarge chunks;
-   that proposal remains unimplemented and requires independent bounds and
-   actual-prior measurements. Keep Float unchanged unless gains justify it.
-   Keep accuracy, exception behavior and performance separate.
-2. Broader real-function coverage: inverse trig, hyperbolic functions,
-   cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
-   integer conversions, followed by special functions as justified.
+Investigate broader basic real coverage, beginning with `nearbyint`/`nearbyintf`:
+review current-rounding-mode semantics, no-new-inexact behavior, signed zeros,
+NaNs and caller-state preservation before selecting an implementation. Do not
+alias the existing deterministic nearest/even `rint` behavior without checking
+those contracts. A scoped read-only candidate scan of 4,693 project source/header
+files found only independent test references, comments and CSS strings for the
+scanned missing families; no new production need is assumed. Keep those host
+references independent and consumer migration deferred. Broader inverse trig,
+hyperbolic, `log1p`/`expm1`, integer conversions and special functions remain.
 
 ## Initial remainder division optimization
 
