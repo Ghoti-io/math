@@ -94,15 +94,68 @@ static uint64_t ci_float_bits(float x) {
   memcpy(&word, &x, sizeof word);
   return word;
 }
+/* Admit only finite normal inputs with a valid result in every mode.
+ * Keep invalid cases in the old kernel: no masked exception-priority premise
+ * is needed. Signed32 uses a deliberately conservative 2^30 bound; signed64
+ * inputs near 2^63 are already integral in both supported input formats.
+ * Subnormal fallback also preserves behavior under DAZ without control writes.
+ */
+#if (defined(__GNUC__) || defined(__clang__)) && defined(__SSE2__) &&           \
+    (defined(__i386__) || defined(__x86_64__)) && GMATH_NEARBY_QUERY_NATIVE && \
+    !defined(GMATH_CURRENTINT_PORTABLE)
+#define GMATH_CURRENTINT_NATIVE_LONG 1
+#if defined(__x86_64__)
+#define GMATH_CURRENTINT_NATIVE_LL 1
+#endif
+#endif
+static inline int ci_native_admit(uint64_t word, unsigned p, unsigned eb,
+    unsigned bias, unsigned cap) {
+  uint64_t minimum = UINT64_C(1) << p;
+  uint64_t a = word & ((UINT64_C(1) << (p + eb)) - 1);
+  /* Unsigned underflow rejects zero and subnormal encodings. */
+  return a - minimum < ((uint64_t)(bias + cap) << p) - minimum;
+}
 long gmath_lrint(double x) {
-  return (long)ci_round(gmath_bits(x), 52, 11, 1023, LONG_MAX);
+  uint64_t word = gmath_bits(x);
+#if defined(GMATH_CURRENTINT_NATIVE_LONG)
+  if (ci_native_admit(word, 52, 11, 1023, LONG_MAX == INT32_MAX ? 30u : 63u)) {
+    long result;
+    __asm__ volatile("cvtsd2si {%1,%0|%0,%1}" : "=r"(result) : "x"(x) : "memory");
+    return result;
+  }
+#endif
+  return (long)ci_round(word, 52, 11, 1023, LONG_MAX);
 }
 long gmath_lrintf(float x) {
-  return (long)ci_round(ci_float_bits(x), 23, 8, 127, LONG_MAX);
+  uint64_t word = ci_float_bits(x);
+#if defined(GMATH_CURRENTINT_NATIVE_LONG)
+  if (ci_native_admit(word, 23, 8, 127, LONG_MAX == INT32_MAX ? 30u : 63u)) {
+    long result;
+    __asm__ volatile("cvtss2si {%1,%0|%0,%1}" : "=r"(result) : "x"(x) : "memory");
+    return result;
+  }
+#endif
+  return (long)ci_round(word, 23, 8, 127, LONG_MAX);
 }
 long long gmath_llrint(double x) {
-  return (long long)ci_round(gmath_bits(x), 52, 11, 1023, LLONG_MAX);
+  uint64_t word = gmath_bits(x);
+#if defined(GMATH_CURRENTINT_NATIVE_LL)
+  if (ci_native_admit(word, 52, 11, 1023, 63u)) {
+    long long result;
+    __asm__ volatile("cvtsd2si {%1,%0|%0,%1}" : "=r"(result) : "x"(x) : "memory");
+    return result;
+  }
+#endif
+  return (long long)ci_round(word, 52, 11, 1023, LLONG_MAX);
 }
 long long gmath_llrintf(float x) {
-  return (long long)ci_round(ci_float_bits(x), 23, 8, 127, LLONG_MAX);
+  uint64_t word = ci_float_bits(x);
+#if defined(GMATH_CURRENTINT_NATIVE_LL)
+  if (ci_native_admit(word, 23, 8, 127, 63u)) {
+    long long result;
+    __asm__ volatile("cvtss2si {%1,%0|%0,%1}" : "=r"(result) : "x"(x) : "memory");
+    return result;
+  }
+#endif
+  return (long long)ci_round(word, 23, 8, 127, LLONG_MAX);
 }

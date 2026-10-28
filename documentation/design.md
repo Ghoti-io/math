@@ -2541,3 +2541,20 @@ paths/contexts), so this phase is a verified portable coverage baseline and a
 reference for separately proved native optimization, without an overall speed
 claim. Source/state/corpus hashes and exact current-mode contracts must survive
 any later optimization. No consumer migration or other-library edit occurs.
+
+## Native current-mode integer conversion
+
+The four current-mode integer-return APIs admit proved-valid normal x86 inputs
+to legacy scalar SSE conversions, using current MXCSR direction without control
+writes. All other cases retain the reviewed exact integer kernel. Signed32
+uses |x|<2^30, signed64 uses |x|<2^63 with integral near-boundary inputs; zero,
+subnormal, nonfinite and boundary cases stay in fallback. Explicit query and
+portable configurations keep the kernel. No public contract or reference bytes
+change. The old mode reader and every other runtime module remain unchanged.
+
+The proof, exact own-project baseline construction, validation scope and all
+176 timing envelope rows are in [current-integer-performance.md](current-integer-performance.md);
+2,816 individual final records are retained beside it. Ordinary calls improve
+about 4.5–9.6 times versus the separately compiled prior public implementation,
+but still trail host libm. Some fallback paths regress within an explicitly
+predeclared absolute allowance. No net workload or cross-platform win follows.

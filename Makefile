@@ -259,7 +259,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-currentint-baseline-controls check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -1916,7 +1916,7 @@ OBJCOPY ?= objcopy
 CBRTF_BASELINE_DIR ?= $(BUILD_DIR)/cbrtf-baseline
 .PHONY: build-cbrtf-baseline
 build-cbrtf-baseline: $(FLAGS_STAMP) | $(LIBVER_GEN)
-	@python3 tools/build-cbrtf-baseline.py --out "$(CBRTF_BASELINE_DIR)" --cc='$(CC)' --flags='$(LIB_CFLAGS) $(INCLUDE)' --nm='$(NM)' --objcopy='$(OBJCOPY)'
+	@python3 tools/build-cbrtf-baseline.py --out "$(CBRTF_BASELINE_DIR)" --cc='$(CC)' --flags='$(LIB_CFLAGS) $(INCLUDE)' --nm='$(if $(strip $(NM)),$(NM),nm)' --objcopy='$(if $(strip $(OBJCOPY)),$(OBJCOPY),objcopy)'
 
 CBRTF_BOUNDARY_PROBE := $(APP_DIR)/tools/probe-cbrtf-boundaries$(EXE_EXTENSION)
 $(CBRTF_BOUNDARY_PROBE): tools/probe-cbrtf-boundaries.c tests/cbrtf_probe.h src/elementary/float_cbrt.c src/elementary/cbrt_table.h src/elementary/elem_common.h $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(CBRTF_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) cbrtf-reference-force
@@ -1988,7 +1988,7 @@ IEEE_REMAINDER_BASELINE_DIR ?= $(BUILD_DIR)/ieee-remainder-baseline
 .PHONY: build-ieee-remainder-baseline ieee-remainder-reference-force
 ieee-remainder-reference-force:
 build-ieee-remainder-baseline: $(FLAGS_STAMP) | $(LIBVER_GEN)
-	@python3 tools/build-ieee-remainder-baseline.py --out "$(IEEE_REMAINDER_BASELINE_DIR)" --cc='$(CC)' --flags='$(LIB_CFLAGS) $(INCLUDE)' --nm='$(NM)' --objcopy='$(OBJCOPY)'
+	@python3 tools/build-ieee-remainder-baseline.py --out "$(IEEE_REMAINDER_BASELINE_DIR)" --cc='$(CC)' --flags='$(LIB_CFLAGS) $(INCLUDE)' --nm='$(if $(strip $(NM)),$(NM),nm)' --objcopy='$(if $(strip $(OBJCOPY)),$(OBJCOPY),objcopy)'
 IEEE_REMAINDER_PRIOR_PROBE := $(APP_DIR)/tools/probe-ieee-remainder-prior$(EXE_EXTENSION)
 IEEE_REMAINDER_PRIOR_BENCH := $(APP_DIR)/tools/bench-ieee-remainder-prior$(EXE_EXTENSION)
 $(IEEE_REMAINDER_PRIOR_PROBE): tools/probe-ieee-remainder.c tests/ieee_remainder_initial.h tests/ieee_remainder_probe.h tests/ieee_remainder_prior.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(IEEE_REMAINDER_REFERENCE_OBJECT) $(IEEE_REMAINDER_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) ieee-remainder-reference-force
@@ -2077,7 +2077,7 @@ check-nearby-mode-plants:
 	@MODE_CC='$(CC)' MODE_FLAGS='$(LIB_CFLAGS) $(INCLUDE)' MODE_WORK='$(BUILD_DIR)/nearby-mode-plants' python3 tools/check-nearby-mode-plants.py
 
 CURRENTINT_PROBE := $(APP_DIR)/tools/probe-currentint$(EXE_EXTENSION)
-$(CURRENTINT_PROBE): tools/probe-currentint.c tests/current_ir_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+$(CURRENTINT_PROBE): tools/probe-currentint.c tests/current_ir_probe.h tests/current_ir_prior.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
 .PHONY: check-currentint check-currentint-oracle oracle-currentint
@@ -2121,7 +2121,7 @@ check-currentint-link: $(CURRENTINT_LINK) $(CURRENTINT_PLATFORM_LINK)
 check-currentint-oracle-controls:
 	@python3 tools/check-currentint-oracle.py --work $(BUILD_DIR)/currentint-oracle-controls
 CURRENTINT_BENCH := $(APP_DIR)/tools/bench-currentint$(EXE_EXTENSION)
-$(CURRENTINT_BENCH): tools/bench-currentint.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+$(CURRENTINT_BENCH): tools/bench-currentint.c tests/current_ir_prior.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
 .PHONY: bench-currentint
@@ -2131,3 +2131,38 @@ bench-currentint: $(CURRENTINT_BENCH)
 check-currentint-bench-controls: $(APP_DIR)/$(STATIC_TARGET)
 	@BENCH_CC='$(CC)' BENCH_CFLAGS='$(CFLAGS) $(INCLUDE)' BENCH_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' \
 	 BENCH_LDFLAGS='$(LDFLAGS)' BENCH_WORK='$(BUILD_DIR)/currentint-bench-controls' python3 tools/check-currentint-bench.py
+
+# Explicit actual-prior conversion tools need no Git history in default builds.
+CURRENTINT_REFERENCE_OBJECT ?=
+CURRENTINT_REFERENCE_METADATA ?= $(if $(strip $(CURRENTINT_REFERENCE_OBJECT)),$(CURRENTINT_REFERENCE_OBJECT).json)
+CURRENTINT_REFERENCE_REVISION ?= 68e71f73a26360700f529db886d332def2dc0f41
+.PHONY: currentint-reference-force
+currentint-reference-force:
+CURRENTINT_REFERENCE_PROBE := $(APP_DIR)/tools/probe-currentint-prior$(EXE_EXTENSION)
+$(CURRENTINT_REFERENCE_PROBE): tools/probe-currentint.c tests/current_ir_probe.h tests/current_ir_prior.h $(APP_DIR)/$(STATIC_TARGET) $(CURRENTINT_REFERENCE_OBJECT) $(CURRENTINT_REFERENCE_METADATA) $(FLAGS_STAMP) currentint-reference-force tools/currentint_baseline.py
+	@test -n "$(CURRENTINT_REFERENCE_OBJECT)" || { echo 'currentint prior probe requires CURRENTINT_REFERENCE_OBJECT' >&2; exit 1; }
+	@mkdir -p $(dir $@)
+	@python3 tools/currentint_baseline.py "$(CURRENTINT_REFERENCE_OBJECT)" "$(CURRENTINT_REFERENCE_METADATA)" --cc='$(CC)' --flags='$(LIB_CFLAGS) $(INCLUDE)' --expected-revision='$(CURRENTINT_REFERENCE_REVISION)' --header "$@.identity.h"
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CURRENTINT_REFERENCE -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CURRENTINT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+CURRENTINT_REFERENCE_BENCH := $(APP_DIR)/tools/bench-currentint-prior$(EXE_EXTENSION)
+$(CURRENTINT_REFERENCE_BENCH): tools/bench-currentint.c tests/current_ir_prior.h $(APP_DIR)/$(STATIC_TARGET) $(CURRENTINT_REFERENCE_OBJECT) $(CURRENTINT_REFERENCE_METADATA) $(FLAGS_STAMP) currentint-reference-force tools/currentint_baseline.py
+	@test -n "$(CURRENTINT_REFERENCE_OBJECT)" || { echo 'currentint prior benchmark requires CURRENTINT_REFERENCE_OBJECT' >&2; exit 1; }
+	@mkdir -p $(dir $@)
+	@python3 tools/currentint_baseline.py "$(CURRENTINT_REFERENCE_OBJECT)" "$(CURRENTINT_REFERENCE_METADATA)" --cc='$(CC)' --flags='$(LIB_CFLAGS) $(INCLUDE)' --expected-revision='$(CURRENTINT_REFERENCE_REVISION)' --header "$@.identity.h"
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CURRENTINT_REFERENCE -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CURRENTINT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+.PHONY: check-currentint-prior bench-currentint-prior
+check-currentint-prior: $(CURRENTINT_REFERENCE_PROBE)
+	@$(CURRENTINT_REFERENCE_PROBE) --control-cases
+	@$(CURRENTINT_REFERENCE_PROBE) --baseline-identify
+	@python3 tools/check-currentint.py --probe $(CURRENTINT_REFERENCE_PROBE)
+bench-currentint-prior: $(CURRENTINT_REFERENCE_BENCH)
+	@$(CURRENTINT_REFERENCE_BENCH)
+
+.PHONY: check-currentint-baseline-controls
+check-currentint-baseline-controls:
+	@python3 tools/check-currentint-baseline.py --cc='$(CC)' --flags='$(LIB_CFLAGS) $(INCLUDE)'
+
+CURRENTINT_BASELINE_DIR ?= $(BUILD_DIR)/currentint-baseline
+.PHONY: build-currentint-baseline
+build-currentint-baseline: $(FLAGS_STAMP) | $(LIBVER_GEN)
+	@python3 tools/build-currentint-baseline.py --out "$(CURRENTINT_BASELINE_DIR)" --cc='$(CC)' --flags='$(LIB_CFLAGS) $(INCLUDE)' --revision='$(CURRENTINT_REFERENCE_REVISION)' --nm='$(if $(strip $(NM)),$(NM),nm)' --objcopy='$(if $(strip $(OBJCOPY)),$(OBJCOPY),objcopy)'

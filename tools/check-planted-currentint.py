@@ -15,7 +15,8 @@ def main():
   if p.returncode!=status:raise RuntimeError(label+' unexpected status '+str(p.returncode)+' '+p.stderr[-300:])
   return p
  source=Path('src/elementary/current_intround.c').read_text();helper=Path('src/elementary/nearby_mode.h').read_text()
- def build(label,text,expected=(1,1),header=helper,extra=[]):
+ def build(label,text,expected=(1,1),header=helper,extra=None,portable=False,control_cases=False):
+  extra=list(extra or [])+(['-DGMATH_CURRENTINT_PORTABLE'] if portable else [])
   file=work/(label+'.c');obj=work/(label+'.o');raw=work/(label+'-raw');unit=work/(label+'-unit')
   file.write_text('#include <errno.h>\n#include <fenv.h>\n'+text);(work/'nearby_mode.h').write_text(header)
   run(words('PLANT_CC')+words('PLANT_CFLAGS')+extra+['-Isrc/elementary','-c',str(file),'-o',str(obj)],label+'-compile')
@@ -24,9 +25,13 @@ def main():
   for width,filt,want in [(64,'CurrentInteger.PinnedDouble',expected[0]),(32,'CurrentInteger.PinnedFloat',expected[1])]:
    p=run([str(raw),'tests/corpus',str(width)],label+'-C'+str(width),want)
    if want and not any(d in p.stderr for d in ['currentint mismatch','currentint control-state mismatch']):raise RuntimeError('fault failed outside numerical/state layer')
-   if want and label in ['control-bit','x87-control-bit'] and 'currentint control-state mismatch' not in p.stderr:raise RuntimeError('control fault escaped intended layer')
+   if want and label in ['control-bit','x87-control-bit','native-control-bit'] and 'currentint control-state mismatch' not in p.stderr:raise RuntimeError('control fault escaped intended layer')
    run([str(unit),'--gtest_filter='+filt,'--gtest_brief=1'],label+'-CPP'+str(width),want)
- build('control',source,(0,0));build('fenv-control',source,(0,0),extra=['-DGMATH_NEARBY_FENV_QUERY'])
+  if control_cases:
+   p=run([str(raw),'--control-cases'],label+'-control-cases',1)
+   if 'currentint mismatch' not in p.stderr:raise RuntimeError('DAZ admission fault failed outside numerical/state layer')
+   run([str(unit),'--gtest_filter=CurrentInteger.PreservesPriorSubnormalBehaviorUnderDazAndFtz','--gtest_brief=1'],label+'-CPP-control-cases',1)
+ build('control',source,(0,0));build('portable-control',source,(0,0),portable=True);build('fenv-control',source,(0,0),extra=['-DGMATH_NEARBY_FENV_QUERY'])
  faults=[('fixed-nearest','int mode = nearby_mode();','int mode = 0;'),
  ('ties-away','(fraction == halfway && (magnitude & 1))','(fraction == halfway)'),
  ('direction','if (mode == 2)','if (mode == 1)'),
@@ -46,20 +51,20 @@ def main():
   ('round-mode','(void)fesetround(FE_TONEAREST);')]:faults.append((name,marker,operation+'\n  '+marker))
  for name,old,new in faults:
   if source.count(old)!=1:raise RuntimeError('currentint mutation anchor '+name)
-  build(name,source.replace(old,new,1))
+  build('portable-'+name,source.replace(old,new,1),portable=True)
  for name,old,new,expected in [
-  ('double-alias','return (long)ci_round(gmath_bits(x), 52, 11, 1023, LONG_MAX);','return gmath_lround(x);',(1,0)),
-  ('float-alias','return (long)ci_round(ci_float_bits(x), 23, 8, 127, LONG_MAX);','return gmath_lroundf(x);',(0,1)),
-  ('wide-double-range','return (long long)ci_round(gmath_bits(x), 52, 11, 1023, LLONG_MAX);','return (long long)ci_round(gmath_bits(x), 52, 11, 1023, INT32_MAX);',(1,0)),
-  ('wide-float-range','return (long long)ci_round(ci_float_bits(x), 23, 8, 127, LLONG_MAX);','return (long long)ci_round(ci_float_bits(x), 23, 8, 127, INT32_MAX);',(0,1))]:
+  ('double-alias','return (long)ci_round(word, 52, 11, 1023, LONG_MAX);','(void)word; return gmath_lround(x);',(1,0)),
+  ('float-alias','return (long)ci_round(word, 23, 8, 127, LONG_MAX);','(void)word; return gmath_lroundf(x);',(0,1)),
+  ('wide-double-range','return (long long)ci_round(word, 52, 11, 1023, LLONG_MAX);','return (long long)ci_round(word, 52, 11, 1023, INT32_MAX);',(1,0)),
+  ('wide-float-range','return (long long)ci_round(word, 23, 8, 127, LLONG_MAX);','return (long long)ci_round(word, 23, 8, 127, INT32_MAX);',(0,1))]:
   if source.count(old)!=1:raise RuntimeError('format anchor')
-  build(name,source.replace(old,new,1),expected)
- macros=run(words('PLANT_CC')+words('PLANT_CFLAGS')+['-dM','-E','-include','src/elementary/nearby_mode.h','-x','c','/dev/null'],'macros').stdout
+  build('portable-'+name,source.replace(old,new,1),expected,portable=True)
+ macros=run(words('PLANT_CC')+words('PLANT_CFLAGS')+['-dM','-E','src/elementary/current_intround.c'],'macros').stdout
  if '__SSE__' in macros:
   operation='uint32_t control;__asm__ volatile("stmxcsr %0":"=m"(control)::"memory");control^=UINT32_C(0x8000);__asm__ volatile("ldmxcsr %0"::"m"(control):"memory");'
-  build('control-bit',source.replace(marker,operation+'\n  '+marker,1))
+  build('control-bit',source.replace(marker,operation+'\n  '+marker,1),portable=True)
   operation='uint16_t cw;__asm__ volatile("fnstcw %0":"=m"(cw)::"memory");cw=(uint16_t)((cw&~0x300u)|((cw&0x300u)==0x300u?0x200u:0x300u));__asm__ volatile("fldcw %0"::"m"(cw):"memory");'
-  build('x87-control-bit',source.replace(marker,operation+'\n  '+marker,1))
+  build('x87-control-bit',source.replace(marker,operation+'\n  '+marker,1),portable=True)
   print('currentint two actual SSE/x87 control faults detected',flush=True)
  else:print('currentint SSE/x87 control faults SKIPPED: compiler target lacks SSE',flush=True)
  if '#define __SIZEOF_LONG__ 4' in macros:
@@ -68,10 +73,32 @@ def main():
    ('long32-narrow','magnitude > maximum + sign','(maximum == INT32_MAX ? (uint16_t)magnitude : magnitude) > maximum + sign',(1,1)),
    ('long32-premature-ix','  if (magnitude > maximum + sign) {','  if (fraction) {ci_inexact();}\n  if (magnitude > maximum + sign) {',(1,0))]:
    if source.count(old)!=1:raise RuntimeError('native32 anchor')
-   build(name,source.replace(old,new,1),expected)
+   build('portable-'+name,source.replace(old,new,1),expected,portable=True)
   print('currentint native-long32 equality/narrowing/premature-IX controls detect',flush=True)
  else:print('currentint native-long32 controls SKIPPED: equivalent/inapplicable signed64-long variants',flush=True)
- print('currentint18 shared faults and4 format/wide-range faults detect with native/fenv controls in C17/C++',flush=True)
+ if '#define GMATH_CURRENTINT_NATIVE_LONG 1' in macros:
+  for opcode,wrong,expected in [('cvtsd2si','cvttsd2si',(1,0)),('cvtss2si','cvttss2si',(0,1))]:
+   if source.count('"'+opcode+' {%1,%0|%0,%1}"')!=2:raise RuntimeError('native instruction anchor')
+   build('native-'+opcode+'-truncate',source.replace('"'+opcode+' {%1,%0|%0,%1}"','"'+wrong+' {%1,%0|%0,%1}"'),expected)
+  # Hardware IX loss is observable on normal fractions; portable force-only
+  # deletion remains a separate actual subnormal witness.
+  old='    return result;'
+  if source.count(old)!=4:raise RuntimeError('native return anchor')
+  build('native-inexact-loss',source.replace(old,'    (void)feclearexcept(FE_INEXACT);\n'+old))
+  # Native control corruption must be caught on the hardware path itself.
+  operation='uint32_t control;__asm__ volatile("stmxcsr %0":"=m"(control)::"memory");control^=UINT32_C(0x8000);__asm__ volatile("ldmxcsr %0"::"m"(control):"memory");'
+  build('native-control-bit',source.replace(old,'    '+operation+'\n'+old))
+  # With DAZ disabled, some CPUs produce identical subnormal conversions.
+  # The real DAZ fixtures establish why the lower admission fence matters.
+  fence='return a - minimum < ((uint64_t)(bias + cap) << p) - minimum;'
+  if source.count(fence)!=1:raise RuntimeError('native admission fence anchor')
+  capabilities=run([str((work/'control-raw').resolve()),'--control-cases'],'native-control-fixtures')
+  if 'daz1 ' in capabilities.stdout:
+   build('native-subnormal-admission',source.replace(fence,'(void)minimum; return a < ((uint64_t)(bias + cap) << p);',1),(0,0),control_cases=True)
+  else:print('currentint DAZ-admission fault SKIPPED: CPU does not advertise DAZ support',flush=True)
+  print('currentint native instruction/IX/control/DAZ-admission faults detect',flush=True)
+ else:print('currentint native-conversion faults SKIPPED: actual production configuration has no native path',flush=True)
+ print('currentint18 portable shared faults and4 portable format/wide-range faults detect with native/portable/query controls in C17/C++',flush=True)
 if __name__=='__main__':
  try:main()
  except (OSError,RuntimeError,subprocess.SubprocessError) as e:raise SystemExit('currentint plants: FAIL: '+str(e))
