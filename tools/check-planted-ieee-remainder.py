@@ -30,6 +30,10 @@ def main():
  source=Path('src/elementary/ieee_remainder.c').read_text()
  if build(source,'control')!=(0,0,0,0):raise RuntimeError('valid source control failed')
  faults=[
+ ('initial-equality-zero-sign','q=(mx>=my);','q=(mx>my);',1),
+ ('initial-direction','q=(mx>=my);','q=(mx<my);',1),
+ ('initial-quotient','q=(mx>=my);','q=0;',1),
+ ('initial-residual','r=mx-(q?my:0);','r=mx;',1),
  ('return-input','return sign|irq_pack(r,e,p,bias);','(void)r;(void)e;(void)sign;return xb;',1),
  ('ties-always','(q&1u)','1u',1),('ties-never','(q&1u)','0u',1),
  ('three-bit-quotient','&127u','&7u',3),

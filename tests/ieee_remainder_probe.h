@@ -12,6 +12,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "corpus_hash.h"
+#ifdef GMATH_IEEE_REMAINDER_PRIOR
+#include "ieee_remainder_prior.h"
+#endif
 #define IR_PROVENANCE "# Pinned oracle: ieee_remainder MPFR 4.2.2 gmpy2 2.3.2"
 typedef struct {uint64_t x,y,r;int q,invalid;} ir_row;
 static int ir_line(FILE *f,char *s,size_t cap) {
@@ -54,6 +57,23 @@ static int ir_call(ir_row row,unsigned width,int mode,int subset,int error,int k
  int actual_errno=errno,actual_flags=fetestexcept(FE_ALL_EXCEPT),actual_mode=fegetround();
  if(kind==1)*quotient=q;
  int ok=*output==row.r&&(kind!=1||q==row.q)&&actual_errno==error&&actual_flags==(incoming|(row.invalid?FE_INVALID:0))&&actual_mode==mode;
+#ifdef GMATH_IEEE_REMAINDER_PRIOR
+ if(ok) {
+  int prior_q=INT_MIN;uint64_t prior_output=0;
+  if(fesetround(mode)||feclearexcept(FE_ALL_EXCEPT)||feraiseexcept(incoming))return 0;
+  int prior_incoming=fetestexcept(FE_ALL_EXCEPT);errno=error;
+  if(width==64) {
+   double x,y,r;memcpy(&x,&row.x,8);memcpy(&y,&row.y,8);
+   r=kind==0?gmath_ieee_prior_remainder(x,y):gmath_ieee_prior_remquo(x,y,kind==1?&prior_q:NULL);memcpy(&prior_output,&r,8);
+  } else {
+   uint32_t a=(uint32_t)row.x,b=(uint32_t)row.y,v;float x,y,r;memcpy(&x,&a,4);memcpy(&y,&b,4);
+   r=kind==0?gmath_ieee_prior_remainderf(x,y):gmath_ieee_prior_remquof(x,y,kind==1?&prior_q:NULL);memcpy(&v,&r,4);prior_output=v;
+  }
+  int prior_errno=errno,prior_flags=fetestexcept(FE_ALL_EXCEPT),prior_mode=fegetround();
+  ok=prior_output==*output&&(kind!=1||prior_q==q)&&prior_incoming==incoming&&prior_errno==actual_errno&&prior_flags==actual_flags&&prior_mode==actual_mode;
+  if(!ok)fprintf(stderr,"IEEE actual-prior mismatch width%u kind%d input%016" PRIx64 ",%016" PRIx64 " result%016" PRIx64 "/%016" PRIx64 " quotient%d/%d flags%x/%x errno%d/%d mode%d/%d\n",width,kind,row.x,row.y,prior_output,*output,prior_q,q,prior_flags,actual_flags,prior_errno,actual_errno,prior_mode,actual_mode);
+ }
+#endif
  if(!ok)fprintf(stderr,"IEEE remainder width%u kind%d input%016" PRIx64 ",%016" PRIx64 " mode%d subset%d result%016" PRIx64 "/%016" PRIx64 " quotient%d/%d flags%x/%x errno%d/%d mode%d/%d\n",width,kind,row.x,row.y,mode,subset,*output,row.r,q,row.q,actual_flags,incoming|(row.invalid?FE_INVALID:0),actual_errno,error,actual_mode,mode);
  return ok;
 }

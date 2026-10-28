@@ -53,7 +53,8 @@ static uint64_t irq_word(uint64_t xb,uint64_t yb,unsigned p,unsigned eb,int bias
     if(gap<-1||mx<=my)return xb; /* Includes exact half: quotient0 is even. */
     r=2*my-mx;e=ex;q=1;sign^=sign_bit;
   } else {
-    q=mx/my;r=mx%my;
+    /* Both normalized significands are in [2^p,2^(p+1)): q is 0 or 1. */
+    q=(mx>=my);r=mx-(q?my:0);
     while(gap>0&&r) {
       unsigned s=gap>(int)(63u-p)?63u-p:(unsigned)gap;
       uint64_t t=r<<s;q=((q<<s)+t/my)&127u;r=t%my;gap-=(int)s;

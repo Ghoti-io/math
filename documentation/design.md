@@ -2488,3 +2488,15 @@ ordinary remainder and quotient-output ranges are faster on the measured host,
 but Double wide-gap remquo remains about 4.1 times host. Fixed logical affinity,
 static-call overhead and amortized initial exceptions limit generalization;
 no workload/platform speed win is inferred. Consumers remain unmigrated.
+
+The normalized initial quotient now uses compare/subtract: both significands
+are at least 2^p and below 2^(p+1), so integer quotient is zero or one. The
+replacement produces the exact former q/r with no unsigned underflow; all
+subsequent reduction/packing and caller-state behavior is unchanged. Equality
+is essential for the exact-zero sign, not merely quotient parity. All 78 sets
+and legacy aggregate remain fixed. Full gates, actual-prior comparisons,
+source/state controls and paired timing evidence are documented in
+[Initial IEEE remainder division](ieee-remainder-performance.md). Ordinary
+calls improve in the measured contexts, while some specials regress and
+Double wide-gap remquo remains about 4.1 times host. No workload/platform or
+general nonregression claim follows.

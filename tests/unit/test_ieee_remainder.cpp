@@ -63,4 +63,8 @@ TEST(IeeeRemainder,EnvironmentRestoresAfterFatalAssertion){
  EXPECT_FATAL_FAILURE(ir_fatal_under_guard(),"deliberate guarded assertion");
  EXPECT_EQ(fegetround(),FE_UPWARD);EXPECT_EQ(fetestexcept(FE_ALL_EXCEPT),flags);EXPECT_EQ(errno,733);
 }
+#include "../ieee_remainder_initial.h"
+TEST(IeeeRemainder,NormalizedInitialDivisionRelations){
+ IrEnvironment guard;ASSERT_TRUE(guard.good);EXPECT_EQ(ir_initial_check(64,0),0);EXPECT_EQ(ir_initial_check(32,0),0);
+}
 int main(int argc,char **argv){testing::InitGoogleTest(&argc,argv);return RUN_ALL_TESTS();}

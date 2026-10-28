@@ -257,7 +257,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -1978,3 +1978,41 @@ check-planted-ieee-remainder-portable: $(APP_DIR)/$(STATIC_TARGET) $(OBJ_DIR)/te
 	 PLANT_RAW_LDFLAGS='$(LDFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_ieee_remainder.o' \
 	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_WORK='$(BUILD_DIR)/planted-ieee-remainder-portable' PLANT_EXPECT_PORTABLE='1' \
 	 python3 tools/check-planted-ieee-remainder.py
+
+# Actual prior IEEE remainder builds are optional, with caller-declared identity.
+IEEE_REMAINDER_REFERENCE_OBJECT ?=
+IEEE_REMAINDER_REFERENCE_METADATA ?= $(if $(strip $(IEEE_REMAINDER_REFERENCE_OBJECT)),$(IEEE_REMAINDER_REFERENCE_OBJECT).json)
+IEEE_REMAINDER_BASELINE_DIR ?= $(BUILD_DIR)/ieee-remainder-baseline
+.PHONY: build-ieee-remainder-baseline ieee-remainder-reference-force
+ieee-remainder-reference-force:
+build-ieee-remainder-baseline: $(FLAGS_STAMP) | $(LIBVER_GEN)
+	@python3 tools/build-ieee-remainder-baseline.py --out "$(IEEE_REMAINDER_BASELINE_DIR)" --cc='$(CC)' --flags='$(LIB_CFLAGS) $(INCLUDE)' --nm='$(NM)' --objcopy='$(OBJCOPY)'
+IEEE_REMAINDER_PRIOR_PROBE := $(APP_DIR)/tools/probe-ieee-remainder-prior$(EXE_EXTENSION)
+IEEE_REMAINDER_PRIOR_BENCH := $(APP_DIR)/tools/bench-ieee-remainder-prior$(EXE_EXTENSION)
+$(IEEE_REMAINDER_PRIOR_PROBE): tools/probe-ieee-remainder.c tests/ieee_remainder_initial.h tests/ieee_remainder_probe.h tests/ieee_remainder_prior.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(IEEE_REMAINDER_REFERENCE_OBJECT) $(IEEE_REMAINDER_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) ieee-remainder-reference-force
+	@test -n "$(IEEE_REMAINDER_REFERENCE_OBJECT)" || { echo 'IEEE remainder probe requires IEEE_REMAINDER_REFERENCE_OBJECT' >&2; exit 1; }
+	@mkdir -p $(dir $@)
+	@python3 tools/adjacent_baseline.py "$(IEEE_REMAINDER_REFERENCE_OBJECT)" "$(IEEE_REMAINDER_REFERENCE_METADATA)" --family ieee_remainder --expected-revision a54cfbacafa735c0bc7fd1a56af869b8877fa501 --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_IEEE_REMAINDER_PRIOR -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(IEEE_REMAINDER_REFERENCE_OBJECT) $(LDFLAGS) -lm
+$(IEEE_REMAINDER_PRIOR_BENCH): tools/bench-ieee-remainder.c tests/ieee_remainder_probe.h tests/corpus_hash.h tests/ieee_remainder_prior.h $(APP_DIR)/$(STATIC_TARGET) $(IEEE_REMAINDER_REFERENCE_OBJECT) $(IEEE_REMAINDER_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) ieee-remainder-reference-force
+	@test -n "$(IEEE_REMAINDER_REFERENCE_OBJECT)" || { echo 'IEEE remainder benchmark requires IEEE_REMAINDER_REFERENCE_OBJECT' >&2; exit 1; }
+	@mkdir -p $(dir $@)
+	@python3 tools/adjacent_baseline.py "$(IEEE_REMAINDER_REFERENCE_OBJECT)" "$(IEEE_REMAINDER_REFERENCE_METADATA)" --family ieee_remainder --expected-revision a54cfbacafa735c0bc7fd1a56af869b8877fa501 --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_IEEE_REMAINDER_PRIOR -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(IEEE_REMAINDER_REFERENCE_OBJECT) $(LDFLAGS) -lm
+.PHONY: check-ieee-remainder-prior bench-ieee-remainder-prior
+check-ieee-remainder-prior: $(IEEE_REMAINDER_PRIOR_PROBE)
+	@python3 tools/check-ieee-remainder-prior.py $(IEEE_REMAINDER_PRIOR_PROBE) --metadata "$(IEEE_REMAINDER_REFERENCE_METADATA)" --corpus $(CORPUS_DIR)
+bench-ieee-remainder-prior: $(IEEE_REMAINDER_PRIOR_BENCH)
+	@$(IEEE_REMAINDER_PRIOR_BENCH)
+
+.PHONY: check-ieee-remainder-prior-driver
+check-ieee-remainder-prior-driver:
+	@python3 tools/check-ieee-remainder-prior.py --calibrate
+
+.PHONY: check-ieee-remainder-prior-controls
+check-ieee-remainder-prior-controls: $(APP_DIR)/$(STATIC_TARGET) $(IEEE_REMAINDER_REFERENCE_OBJECT) $(IEEE_REMAINDER_REFERENCE_METADATA)
+	@test -n "$(IEEE_REMAINDER_REFERENCE_OBJECT)" || { echo 'IEEE native controls require IEEE_REMAINDER_REFERENCE_OBJECT' >&2; exit 1; }
+	@NATIVE_CC='$(CC)' NATIVE_CFLAGS='$(CFLAGS) $(INCLUDE)' NATIVE_LIB_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 NATIVE_LDFLAGS='$(LDFLAGS)' NATIVE_LIBRARY='$(APP_DIR)/$(STATIC_TARGET)' NATIVE_REFERENCE='$(IEEE_REMAINDER_REFERENCE_OBJECT)' \
+	 NATIVE_NM='$(NM)' NATIVE_OBJCOPY='$(OBJCOPY)' NATIVE_METADATA='$(IEEE_REMAINDER_REFERENCE_METADATA)' NATIVE_CORPUS='$(CORPUS_DIR)' NATIVE_WORK='$(BUILD_DIR)/ieee-remainder-prior-controls' \
+	 python3 tools/check-ieee-remainder-prior-controls.py

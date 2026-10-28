@@ -4,7 +4,7 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 28 verified phases add 50 APIs, five performance optimizations
+Current snapshot: 29 verified phases add 50 APIs, six performance optimizations
 and certificate maintenance. Classic real-function name coverage is 70/171;
 44 Float/Double additions remain, or 101 including long double. The phase
 sections below retain historical counts and measurements.
@@ -212,13 +212,55 @@ sections below retain historical counts and measurements.
    four lexical matches, all comments and no direct calls; this intentionally
    advances broader standard coverage. Investigate any remaining measured
    remainder cost before selecting another basic capability from a fresh audit.
-   A possible first experiment replaces the normalized initial divide/modulus
-   with a compare/subtract (quotient can only be zero or one); this is not
-   implemented or measured and does not address repeated wide-gap divisions.
+   The initial normalized division now has a verified compare/subtract
+   replacement. Next investigate the repeated Double wide-gap divisions,
+   including whether an exact common-factor reduction can enlarge chunks;
+   that proposal remains unimplemented and requires independent bounds and
+   actual-prior measurements. Keep Float unchanged unless gains justify it.
    Keep accuracy, exception behavior and performance separate.
 2. Broader real-function coverage: inverse trig, hyperbolic functions,
    cancellation-safe `log1p`/`expm1`, remainder families, adjacent values and
    integer conversions, followed by special functions as justified.
+
+## Initial remainder division optimization
+
+This phase adds no API. The only runtime change replaces the initial normalized
+integer division/modulus with compare/subtract: both significands lie in
+[2^p,2^(p+1)), so their initial quotient is exactly zero or one. Identical q/r
+reach the unchanged reduction, tie, sign and packing code. No other runtime,
+table, reference payload or committed hash changes. Both native compilers emit
+one fewer integer divide site; old / and % already shared one operation.
+
+Final full GCC14.2/GCC16.2 commands return zero: 233 main tests in 32 binaries.
+Clang passes those counts unit-only; nine focused ASan/UBSan tests pass.
+Affected current GCC14 checks and final strengthened native controls were
+rerun after review changes; the later GCC16 full includes the test plumbing.
+Independent mathematical/blind reviews close all findings, with no deferred
+implementation issues. All 78 sets and legacy f5fa269eb60ee34f/292711 remain.
+Six emulated targets agree on 12 numeric and 24 actual-prior raw configurations;
+raw corpus observations retain their prior hashes/state checks, with 6624
+focused all-mode observations added separately. These are emulated probes,
+not physical/full cross-target GoogleTest or exhaustive pair/state claims.
+
+The actual prior module from a54cfbacafa735c0bc7fd1a56af869b8877fa501 is separately
+compiled with identical library arguments and only four public symbols renamed.
+Identity, actual older-object relinking, source/state and separate benchmark
+comparator counterfactuals pass. Individual benchmark inputs check exact NaN
+bits, all quotient bits and seeded state before batch timing. Three retained
+fresh corpora and larger data also pass actual-prior comparisons on both
+native compilers. Valgrind was not rerun; its earlier failed partial scope
+and prior force-only IX witness gaps remain unchanged.
+
+Two final runs per compiler/runtime context and comparison yield 768 timing
+records. Ordinary paired current/prior medians are 0.873–0.937 Double and
+0.854–0.918 Float: about 6–15% lower call times across the three paths. Some
+specials regress, reaching 1.164 for a GCC14 NaN/domain case (3.760 versus
+3.133 amortized median ns/call). Double wide medians are 1.002–1.004 versus
+prior and still 4.103–4.181 versus host remquo; that bottleneck remains.
+These are retained measured tradeoffs, without a general nonregression or
+net/application/platform win claim. Fixed affinity is not CPU isolation.
+[Complete proof, validation accounting, reproducible prior build and all
+absolute/paired timing envelopes](ieee-remainder-performance.md).
 
 ## Exact IEEE remainder and quotient validation
 

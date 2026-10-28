@@ -51,7 +51,7 @@ def load(path):
 
 
 def identity_line(metadata,family='adjacent'):
-    if family not in ('adjacent','exponent','cbrtf'):raise RuntimeError('unsupported baseline family')
+    if family not in ('adjacent','exponent','cbrtf','ieee_remainder'):raise RuntimeError('unsupported baseline family')
     return family+'.baseline declared_revision %s object_sha256 %s flags_sha256 %s compiler_sha256 %s\n'%tuple(metadata[name] for name in FIELDS)
 
 
@@ -75,7 +75,7 @@ def write_header(path,metadata,family='adjacent'):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('object',type=Path);parser.add_argument('metadata',type=Path)
-    parser.add_argument('--family',choices=('adjacent','exponent','cbrtf'),default='adjacent')
+    parser.add_argument('--family',choices=('adjacent','exponent','cbrtf','ieee_remainder'),default='adjacent')
     parser.add_argument('--flags',required=True);parser.add_argument('--cc',required=True);parser.add_argument('--header',type=Path,required=True)
     parser.add_argument('--expected-revision')
     args=parser.parse_args();metadata=load(args.metadata)
