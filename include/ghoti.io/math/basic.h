@@ -282,6 +282,40 @@ GMATH_API float gmath_nearbyintf(float x);
 
 
 /**
+ * @brief Convert to a native signed long using the current standard mode.
+ *
+ * Exact in nearest/ties-even, downward, upward and toward-zero modes. Valid
+ * integral inputs add no flags; valid fractional inputs add inexact only,
+ * including subnormals and results rounded to zero. Any NaN, infinity or
+ * rounded out-of-range value returns LONG_MIN with invalid only. Range checks
+ * precede new inexact. errno, mode and incoming C flags are preserved under
+ * the coherent, nontrapping control-reader scope of ::gmath_nearbyint; explicit
+ * query ports may require the platform fenv runtime. Native long must be signed
+ * 32/64 bits. An incoming invalid flag cannot distinguish valid MIN from a new
+ * invalid result; clear/check FE_INVALID when that distinction is needed.
+ * Full libm errno, unsupported modes and long-double semantics are unpromised.
+ * @param x The binary64 input.
+ * @return The rounded integer, or LONG_MIN for invalid conversion.
+ */
+GMATH_API long gmath_lrint(double x);
+/** @brief Binary32 counterpart of ::gmath_lrint with the same contract.
+ * @param x The binary32 input.
+ * @return The rounded integer, or LONG_MIN for invalid conversion.
+ */
+GMATH_API long gmath_lrintf(float x);
+/** @brief Signed64 long-long counterpart of ::gmath_lrint.
+ * @param x The binary64 input.
+ * @return The rounded integer, or LLONG_MIN for invalid conversion.
+ */
+GMATH_API long long gmath_llrint(double x);
+/** @brief Binary32 counterpart of ::gmath_llrint.
+ * @param x The binary32 input.
+ * @return The rounded integer, or LLONG_MIN for invalid conversion.
+ */
+GMATH_API long long gmath_llrintf(float x);
+
+
+/**
  * @brief The magnitude of @p x.  A NaN gives the library's NaN.
  *
  * @param x The argument.

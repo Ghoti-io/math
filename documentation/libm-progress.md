@@ -4,10 +4,70 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 30 verified phases add 52 APIs, six performance optimizations
-and certificate maintenance. Classic real-function name coverage is 72/171;
-42 Float/Double additions remain, or 99 including long double. The phase
+Current snapshot: 31 verified phases add 56 APIs, six performance optimizations
+and certificate maintenance. Classic real-function name coverage is 76/171;
+38 Float/Double additions remain, or 95 including long double. The phase
 sections below retain historical counts and measurements.
+
+## Current-mode integer conversion
+
+Added `lrint`/`lrintf` and `llrint`/`llrintf`. Exact current-mode integer rounding
+uses signed32/64 long and signed64 long long. Valid integral inputs add nothing;
+valid fractions require IX only, including tiny inputs rounded to zero. Any NaN,
+infinity or rounded destination-range failure returns MIN with invalid only;
+range checks precede new IX. Caller errno/mode/incoming C flags survive under
+the reviewed nearby reader's coherent nontrapping scope. Every old runtime
+module and that reader remain byte-identical. A read-only scan found only audio's
+independent host test lrint reference, which remains untouched.
+
+Confirmed sequential full GCC14.2/GCC16.2 `make test` commands return zero.
+Each main run invokes 242 tests/34 binaries: 241 pass and one native32-long unit
+skips explicitly on LP64. Clang has the same counts unit-only. Five focused
+ASan/UBSan tests give four passes/one skip; explicit-query gates/units pass.
+All 80 old function sets and legacy `f5fa269eb60ee34f`/292711 remain unchanged;
+new four sets bring total 84. Double forms hash `472e8d420d2337c2`/17739 each,
+Float forms `1d43cc9f8126755f`/4861 each over common signed32-valid subsets.
+Raw 34184/7042 rows contain all four-mode signed32/64 targets and drive 1145696 calls
+per profile; actual flags/errno/mode/controls are asserted separately from
+portable result/flag-class hashes. Seven complete SHA/LF gates and independent
+Fraction/struct-decoded pinned MPFR rint targets agree; regeneration is identical.
+Publication has ordinary exception rollback, not crash atomicity.
+
+Six emulated targets match 84 sets default/portable and 24 O0/O2 native/query raw
+profiles; twelve native clients link/run without libm. Native32 equality,
+narrowing and premature-IX faults detect on i686/PowerPC32; LP64 runners skip
+equivalent variants honestly. Real Python validation of compiled 32-bit probes
+passes, and the old host-width counterfactual fails. The i686 raw caller lacks
+fldl/flds argument loads. These are probes, not physical/full cross-target
+GoogleTest claims. Three fresh complete 34184/7042 populations and larger 72184/
+45041 populations pass both native compilers, including actual C++ path and
+all 84-set overlays; larger has 3335824 state calls. No larger cross-target run.
+Windows/LLP64, numerical soft-float, physical hosts, exhaustive input/environment
+space and application timing remain unrun.
+
+Independent mathematical/blind source reviews and follow-ups resolve findings.
+The first full14 was deliberately interrupted for review, actual -2, never
+passing; subsequent frozen full runs pass. Seventy loader/value negatives,
+seven SHA corruptions, nine output/process faults, twelve hash/count/omission
+controls, eighteen shared/four format-wide source/state faults plus conditional
+SSE/x87/native32 controls and actual oracle/request/dispatch faults detect.
+For this family, real force-only IX deletion witnesses preserve result bits but
+lose IX. Earlier expf/exp2f/atanf/cbrtf narrow witness gaps remain unchanged.
+
+Valgrind 3.24's five-test attempt exits 1 with four fenv failures/one skip and zero
+reported memory errors/leaks; corpus early stops mean partial Memcheck scope.
+Independent no-gmath volatile addition/division reproduces identical bits but
+missing instrumented IX/IV; broader attribution remains inference. No assertions
+weakened or passing Valgrind claim.
+
+Four predeclared final runs retain 1408 cases, with 8 warmups / 401 alternating pairs
+of 4096 equal inputs, integer timestamps, untimed per-input guards and checked
+timed checksums. Ordinary own/host medians span 7.868–13.865 Double and 7.819–11.965
+Float across GCC14 paths/modes/states, and 6.901–12.314 /7.081–10.805 GCC16.
+Other ranges also trail. This exact portable baseline has a substantial measured
+performance gap; no overall/application/platform win is claimed. Full proof,
+failed-attempt history, limits, all case envelopes and machine-readable records
+are in [current-integer-rounding.md](current-integer-rounding.md).
 
 ## Current-mode nearby integer rounding
 
@@ -257,21 +317,19 @@ validation limits and complete timing envelopes are retained in
 
 ## Next work
 
-Investigate current-mode integer-return rounding: `lrint`/`lrintf` and
-`llrint`/`llrintf` if practical. Define native destination widths, exact rounded
-range checks, invalid sentinels, inexact and caller-state contracts before
-implementation; do not alias the existing deterministic nearest/even rint.
-The new nearby pair supplies a reviewed rounding-control reader, but its
-floating-result/no-inexact contract differs from integer conversion.
+Investigate a bounded native-conversion optimization for the current-mode integer
+family, using the committed portable implementation as an actual-prior baseline.
+The measured ordinary gap is substantial. Hardware conversion must match exact
+rounded results and invalid-versus-inexact priority, preserve incoming state and
+handle tiny/denormal controls through a proved fallback. No fast path is admitted
+without independent architectural proof, real prior comparisons and paired gains.
+Keep portable/query configurations meaningful and preserve every old hash.
 
-Nearby timing also exposes a concrete performance gap. Any later optimization
-must preserve current-mode bits and exact state contracts, compare actual prior
-functions, and retain honest host measurements. No unproven fast path is admitted
-here. A prior scoped read-only scan of 4,693 source/header files found no new
-production use for the scanned missing families. Recheck current project usage
-before selecting broader work; keep independent host test references and defer
-consumer migration. Inverse trig, hyperbolic, `log1p`/`expm1`, long-double,
-complex and special functions remain broader gaps.
+If no safe meaningful improvement is found, retain the verified baseline and
+select another cohesive basic capability after a read-only usage audit. `fdim`/
+`fdimf` are possible gaps; do not assume production use or full errno semantics.
+Broader inverse trig, hyperbolic, `log1p`/`expm1`, long-double, complex and special
+functions remain. Independent host references and consumers remain untouched.
 
 ## Initial remainder division optimization
 

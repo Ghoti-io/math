@@ -2522,3 +2522,22 @@ This is added standard coverage, without an overall performance claim. Consumer
 migration, long-double/complex, broader errno/fenv and unrun platforms remain
 separate. Earlier failed partial Valgrind scopes and force-only IX witness gaps
 are unchanged.
+
+
+## Exact current-mode integer conversion
+
+The lrint/llrint family uses integer field decoding with an unchanged shared
+mode reader, checking the rounded destination range before any new inexact.
+Valid fractional inputs require IX-only; invalid NaN/infinity/out-of-range
+conversion returns destination MIN with IV-only. Exact MIN is admitted without
+undefined negation or premature narrowing. All previous runtime modules and
+80 prior result sets remain unchanged; the four new portable subsets bring 84.
+
+[current-integer-rounding.md](current-integer-rounding.md) records the proof,
+independent Fraction/MPFR targets, width-aware raw and state evidence, native32
+counterfactuals, failed partial Valgrind scope and complete performance limits.
+The ordinary measured gap is large (roughly 6.9–13.9 times host across current
+paths/contexts), so this phase is a verified portable coverage baseline and a
+reference for separately proved native optimization, without an overall speed
+claim. Source/state/corpus hashes and exact current-mode contracts must survive
+any later optimization. No consumer migration or other-library edit occurs.

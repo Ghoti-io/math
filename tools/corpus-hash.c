@@ -72,6 +72,10 @@ static double frexp_fraction(double x, int * e) {
   return gmath_frexp(x, e);
 }
 
+static double lrint_widened(double x) {return (double)gmath_lrint(x);}
+static double lrintf_widened(double x) {return (double)gmath_lrintf((float)x);}
+static double llrint_widened(double x) {return (double)gmath_llrint(x);}
+static double llrintf_widened(double x) {return (double)gmath_llrintf((float)x);}
 static double nearbyintf_widened(double x){return (double)gmath_nearbyintf((float)x);}
 
 /* Float corpus values are stored as exactly widened doubles. */
@@ -252,6 +256,10 @@ static const struct {
   {"sqrt_hardware", "sqrt", K_D_D, 0, "sqrt", gmath_sqrt_hardware, NULL, NULL},
   {"ldexp", "scalbn", K_DN_D, 0, "scalbn", NULL, NULL, gmath_ldexp},
   /* Supplemental functions preserve the legacy aggregate hash. */
+  {"lrint", "lrint", K_D_D, 0, NULL, lrint_widened, NULL, NULL},
+  {"lrintf", "lrintf", K_D_D, 0, NULL, lrintf_widened, NULL, NULL},
+  {"llrint", "llrint", K_D_D, 0, NULL, llrint_widened, NULL, NULL},
+  {"llrintf", "llrintf", K_D_D, 0, NULL, llrintf_widened, NULL, NULL},
   {"nearbyint", "nearbyint", K_D_D, 0, NULL, gmath_nearbyint, NULL, NULL},
   {"nearbyintf", "nearbyintf", K_D_D, 0, NULL, nearbyintf_widened, NULL, NULL},
   {"remainder", "remainder", K_DD_D, 0, NULL, NULL, gmath_remainder, NULL},

@@ -65,3 +65,8 @@ tests/corpus/remainderf_quotient.corpus text eol=lf
 
 # Complete nearby integer reference bytes have mandatory SHA gates.
 tests/corpus/nearby* text eol=lf
+
+# Current-mode integer-return reference bytes are complete-file pinned.
+tests/corpus/currentint* text eol=lf
+tests/corpus/lrint*.corpus text eol=lf
+tests/corpus/llrint*.corpus text eol=lf

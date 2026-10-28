@@ -259,7 +259,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -2075,3 +2075,59 @@ check-nearby-link: $(NEARBY_PLATFORM_PROBE)
 .PHONY: check-nearby-mode-plants
 check-nearby-mode-plants:
 	@MODE_CC='$(CC)' MODE_FLAGS='$(LIB_CFLAGS) $(INCLUDE)' MODE_WORK='$(BUILD_DIR)/nearby-mode-plants' python3 tools/check-nearby-mode-plants.py
+
+CURRENTINT_PROBE := $(APP_DIR)/tools/probe-currentint$(EXE_EXTENSION)
+$(CURRENTINT_PROBE): tools/probe-currentint.c tests/current_ir_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: check-currentint check-currentint-oracle oracle-currentint
+check-currentint: $(CURRENTINT_PROBE)
+	@python3 tools/check-currentint.py --probe $(CURRENTINT_PROBE)
+oracle-currentint:
+	@$(ORACLE) currentint --out $(CORPUS_DIR) --seed 20261028 --count 2000
+check-currentint-oracle: check-currentint $(APP_DIR)/testCurrentint$(EXE_EXTENSION) $(HASH_PROBE)
+	@seed=$$(od -An -N4 -tu4 /dev/urandom | tr -d ' '); rc=0; \
+	 $(ORACLE) fresh-currentint --out $(BUILD_DIR)/oracle-currentint --seed $$seed --count 2000 || rc=$$?; \
+	 if [ $$rc -eq 3 ]; then echo 'currentint fresh: SKIPPED optional engine'; \
+	 elif [ $$rc -ne 0 ]; then exit $$rc; \
+	 else $(ORACLE) currentint --out $(BUILD_DIR)/currentint-committed --seed 20261028 --count 2000 && \
+	   for f in currentint64-special.corpus currentint32-special.corpus currentint-special.hash lrint.corpus lrintf.corpus llrint.corpus llrintf.corpus; do \
+	     cmp $(CORPUS_DIR)/$$f $(BUILD_DIR)/currentint-committed/$$f || exit 1; \
+	   done && python3 tools/check-currentint.py --probe $(CURRENTINT_PROBE) --unit $(APP_DIR)/testCurrentint$(EXE_EXTENSION) \
+	     --numeric $(HASH_PROBE) --fresh --directory $(BUILD_DIR)/oracle-currentint --seed $$seed --count 2000; \
+	 fi
+.PHONY: check-planted-currentint
+check-planted-currentint: $(OBJ_DIR)/tests/test_currentint.o $(APP_DIR)/$(STATIC_TARGET)
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_currentint.o' \
+	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_LDFLAGS='$(LDFLAGS)' \
+	 PLANT_UNIT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' PLANT_WORK='$(BUILD_DIR)/planted-currentint' \
+	 python3 tools/check-planted-currentint.py
+.PHONY: check-currentint-controls check-currentint-link
+check-currentint-controls: $(CURRENTINT_PROBE)
+	@python3 tools/check-currentint-controls.py --probe $(CURRENTINT_PROBE)
+CURRENTINT_LINK := $(APP_DIR)/tools/probe-currentint-link$(EXE_EXTENSION)
+$(CURRENTINT_LINK): tools/probe-currentint-link.c src/elementary/nearby_mode.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(LIB_CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET)
+CURRENTINT_PLATFORM_LINK := $(APP_DIR)/tools/probe-currentint-platform$(EXE_EXTENSION)
+$(CURRENTINT_PLATFORM_LINK): tools/probe-currentint-link.c src/elementary/nearby_mode.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(LIB_CFLAGS) $(INCLUDE) -DGMATH_CURRENTINT_LINK_ALLOW_FENV -o $@ $< $(APP_DIR)/$(STATIC_TARGET) -lm
+check-currentint-link: $(CURRENTINT_LINK) $(CURRENTINT_PLATFORM_LINK)
+	@$(CURRENTINT_LINK)
+	@$(CURRENTINT_PLATFORM_LINK)
+.PHONY: check-currentint-oracle-controls
+check-currentint-oracle-controls:
+	@python3 tools/check-currentint-oracle.py --work $(BUILD_DIR)/currentint-oracle-controls
+CURRENTINT_BENCH := $(APP_DIR)/tools/bench-currentint$(EXE_EXTENSION)
+$(CURRENTINT_BENCH): tools/bench-currentint.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+.PHONY: bench-currentint
+bench-currentint: $(CURRENTINT_BENCH)
+	@$(CURRENTINT_BENCH)
+.PHONY: check-currentint-bench-controls
+check-currentint-bench-controls: $(APP_DIR)/$(STATIC_TARGET)
+	@BENCH_CC='$(CC)' BENCH_CFLAGS='$(CFLAGS) $(INCLUDE)' BENCH_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' \
+	 BENCH_LDFLAGS='$(LDFLAGS)' BENCH_WORK='$(BUILD_DIR)/currentint-bench-controls' python3 tools/check-currentint-bench.py
