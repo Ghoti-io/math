@@ -265,7 +265,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 # check-symbols is right to reject in a shipping library.
 PRODUCTION_LINK_GATE := $(if $(filter Linux,$(OS_NAME)),check-production-link)
 X87_ROUNDING_GATE := $(if $(filter Linux,$(OS_NAME)),check-x87-rounding)
-TEST_GATES ?= check-grid-cache $(X87_ROUNDING_GATE) $(PRODUCTION_LINK_GATE) check-positive-difference-bench-controls check-positive-difference-oracle-controls check-positive-difference check-positive-difference-harness check-positive-difference-controls check-planted-positive-difference check-positive-difference-oracle check-currentint-baseline-controls check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-grid-cache $(X87_ROUNDING_GATE) $(PRODUCTION_LINK_GATE) check-atan-cache check-atan-bench-controls check-atan-oracle-controls check-atan-controls check-atan-harness check-planted-atan check-atan check-atan-oracle check-positive-difference-bench-controls check-positive-difference-oracle-controls check-positive-difference check-positive-difference-harness check-positive-difference-controls check-planted-positive-difference check-positive-difference-oracle check-currentint-baseline-controls check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -2231,6 +2231,71 @@ check-positive-difference-bench-controls: $(APP_DIR)/$(STATIC_TARGET)
 	 BENCH_LDFLAGS='$(TEST_LINK_FLAGS)' BENCH_WORK='$(BUILD_DIR)/positive-difference-bench-controls' \
 	 python3 tools/check-positive-difference-bench.py --controls
 
+ATAN_PROBE := $(APP_DIR)/tools/probe-atan$(EXE_EXTENSION)
+$(ATAN_PROBE): tools/probe-atan.c tests/atan_probe.h tests/atan_corpus.h tests/fp_controls.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
+.PHONY: check-atan oracle-atan check-atan-oracle
+check-atan: $(ATAN_PROBE) tools/oracle/check_atan_budget.py
+	@python3 tools/check-atan.py --probe $(ATAN_PROBE)
+oracle-atan:
+	@$(ORACLE) atan --out $(CORPUS_DIR) --seed 20261028 --count 2000
+check-atan-oracle: check-atan $(APP_DIR)/testAtan$(EXE_EXTENSION) $(HASH_PROBE)
+	@seed=$$(od -An -N4 -tu4 /dev/urandom | tr -d ' '); rc=0; \
+	 $(ORACLE) fresh-atan --out $(BUILD_DIR)/oracle-atan --seed $$seed --count 2000 || rc=$$?; \
+	 if [ $$rc -eq 3 ]; then echo 'atan fresh: SKIPPED optional engine'; \
+	 elif [ $$rc -ne 0 ]; then exit $$rc; \
+	 else $(ORACLE) budget-atan && $(ORACLE) atan --out $(BUILD_DIR)/atan-committed --seed 20261028 --count 2000 && \
+	   for f in atan-special.corpus atan.corpus; do \
+	     cmp $(CORPUS_DIR)/$$f $(BUILD_DIR)/atan-committed/$$f || exit 1; \
+	   done && python3 tools/check-atan.py --probe $(ATAN_PROBE) --unit $(APP_DIR)/testAtan$(EXE_EXTENSION) \
+	     --numeric $(HASH_PROBE) --fresh --directory $(BUILD_DIR)/oracle-atan --seed $$seed --count 2000; \
+	 fi
+
+.PHONY: check-planted-atan
+check-planted-atan: $(OBJ_DIR)/tests/test_atan.o $(APP_DIR)/$(STATIC_TARGET)
+	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_atan.o' \
+	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS)' \
+	 PLANT_UNIT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' PLANT_WORK='$(BUILD_DIR)/planted-atan' \
+	 python3 tools/check-planted-atan.py
+
+.PHONY: check-atan-harness
+check-atan-harness: $(APP_DIR)/$(STATIC_TARGET)
+	@HARNESS_CC='$(CC)' HARNESS_CFLAGS='$(CFLAGS) $(INCLUDE)' \
+	 HARNESS_CXX='$(CXX)' HARNESS_CXXFLAGS='$(CXXFLAGS) $(INCLUDE)' \
+	 HARNESS_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' HARNESS_LDFLAGS='$(TEST_LINK_FLAGS)' \
+	 HARNESS_WORK='$(BUILD_DIR)/atan-harness' python3 tools/check-atan-harness.py
+
+.PHONY: check-atan-controls
+check-atan-controls: $(ATAN_PROBE) $(APP_DIR)/testAtan$(EXE_EXTENSION) $(HASH_PROBE)
+	@CONTROL_CC='$(CC)' CONTROL_CFLAGS='$(CFLAGS) $(INCLUDE)' \
+	 CONTROL_CXX='$(CXX)' CONTROL_CXXFLAGS='$(CXXFLAGS) $(INCLUDE)' \
+	 CONTROL_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' CONTROL_LDFLAGS='$(TEST_LINK_FLAGS)' \
+	 CONTROL_UNIT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' CONTROL_WORK='$(BUILD_DIR)/atan-controls' \
+	 python3 tools/check-atan-controls.py --probe $(ATAN_PROBE) --unit $(APP_DIR)/testAtan$(EXE_EXTENSION) --numeric $(HASH_PROBE)
+
+.PHONY: check-atan-oracle-controls
+check-atan-oracle-controls:
+	@python3 tools/check-atan-oracle.py --work $(BUILD_DIR)/atan-oracle-controls
+
+ATAN_BENCH := $(APP_DIR)/tools/bench-atan$(EXE_EXTENSION)
+$(ATAN_BENCH): tools/bench-atan.c tests/atan_corpus.h tests/atan_probe.h tests/fp_controls.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
+
+ATAN_BENCH_OUT ?= $(BUILD_DIR)/atan-benchmark
+ATAN_BENCH_RUNS ?= 1
+.PHONY: bench-atan check-atan-bench-controls
+bench-atan: $(ATAN_BENCH)
+	@python3 tools/run-atan-benchmark.py --binary $(ATAN_BENCH) --archive $(APP_DIR)/$(STATIC_TARGET) \
+	 --cc '$(CC)' --flags '$(CFLAGS) $(INCLUDE)' --library-flags '$(LIB_CFLAGS) $(INCLUDE)' \
+	 --out '$(ATAN_BENCH_OUT)' --runs '$(ATAN_BENCH_RUNS)'
+check-atan-bench-controls: $(APP_DIR)/$(STATIC_TARGET)
+	@BENCH_CC='$(CC)' BENCH_CFLAGS='$(CFLAGS) $(INCLUDE)' BENCH_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' \
+	 BENCH_LDFLAGS='$(TEST_LINK_FLAGS)' BENCH_WORK='$(BUILD_DIR)/atan-bench-controls' \
+	 python3 tools/check-atan-bench.py --controls
+
 .PHONY: check-production-link
 check-production-link: $(APP_DIR)/$(TARGET) $(APP_DIR)/$(STATIC_TARGET)
 	@LINK_CC='$(CC)' LINK_CXX='$(CXX)' LINK_CFLAGS='$(CFLAGS) $(INCLUDE)' \
@@ -2244,6 +2309,20 @@ X87_RUNNER ?=
 check-x87-rounding: $(LIBVER_GEN) tools/check-x87-rounding.py tools/probe-x87-rounding.c src/elementary/nearby_mode.h
 	@X87_CC='$(X87_CC)' X87_DEFAULT_CC='$(CC)' X87_RUNNER='$(X87_RUNNER)' X87_FLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
 	 X87_WORK='$(BUILD_DIR)/x87-rounding' python3 tools/check-x87-rounding.py
+
+.PHONY: prepare-atan-corpus check-atan-cache clean-atan-corpus
+prepare-atan-corpus:
+	@python3 tools/prepare-atan-corpus.py --directory '$(CORPUS_DIR)'
+check-atan-cache: prepare-atan-corpus
+	@python3 tools/check-atan-cache.py --directory '$(CORPUS_DIR)' --prefix '$(PREFIX)'
+
+# Order every default gate, direct hash client and unit execution after cache
+# preparation. Existing corrupt files fail; only absent files are materialized.
+$(TEST_GATES) test test-asan test-valgrind test-valgrind-quiet $(HASH_PROBE) $(APP_DIR)/testAtan$(EXE_EXTENSION) $(ASAN_APP_DIR)/testAtan$(EXE_EXTENSION) bench-atan check-atan check-planted-atan check-atan-controls check-atan-harness check-atan-oracle-controls check-atan-bench-controls: | prepare-atan-corpus
+
+clean: clean-atan-corpus
+clean-atan-corpus:
+	@rm -f -- '$(CORPUS_DIR)/atan.corpus' '$(CORPUS_DIR)/atan-special.corpus'
 
 .PHONY: prepare-grid-corpora check-grid-cache clean-grid-corpora
 prepare-grid-corpora:

@@ -1,0 +1,2 @@
+# Observed implementation compatibility, not an independent oracle target
+atan64 raw 281c70e9008ebb61 rows 28382 state f2dc44556cd9a171 calls 464640 generic ec6946b8a9e1891b rows 28278

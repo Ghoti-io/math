@@ -78,6 +78,12 @@ tests/corpus/fdim.corpus text eol=lf
 tests/corpus/fdimf.corpus text eol=lf
 tests/corpus/fdim-special.hash text eol=lf
 
+# Binary64 unary arctangent reference and observed compatibility payloads.
+tests/corpus/atan.corpus text eol=lf
+tests/corpus/atan-special.corpus text eol=lf
+tests/corpus/atan-special.hash text eol=lf
+tests/corpus/atan-seeded.corpus text eol=lf
+
 # Literal seeded answers and compact complete-grid anchors.
 tests/corpus/*-seeded.corpus text eol=lf
 tests/corpus/grid-payloads.sha256 text eol=lf

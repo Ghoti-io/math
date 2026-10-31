@@ -236,6 +236,7 @@ static const struct {
   {"llround", "lround", K_D_D, 0, NULL, llround_widened, NULL, NULL},
   {"lroundf", "lroundf", K_D_D, 0, NULL, lroundf_widened, NULL, NULL},
   {"llroundf", "lroundf", K_D_D, 0, NULL, llroundf_widened, NULL, NULL},
+  {"atan", "atan", K_D_D, 0, NULL, gmath_atan, NULL, NULL},
   {"atanf", "atanf", K_D_D, 0, NULL, atanf_widened, NULL, NULL},
   {"cbrtf", "cbrtf", K_D_D, 0, NULL, cbrtf_widened, NULL, NULL},
   {"atan2f", "atan2f", K_DD_D, 0, NULL, NULL, atan2f_widened, NULL},

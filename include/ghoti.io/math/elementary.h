@@ -354,6 +354,23 @@ GMATH_API float gmath_log2f(float x);
 GMATH_API double gmath_pow(double x, double y);
 
 /**
+ * @brief Binary64 unary arctangent, within one ulp under nearest rounding.
+ *
+ * General accuracy inherits the existing atan2 kernel's measured contract;
+ * no complete global error proof or general correct-rounding claim is made.
+ * Signed zeros are exact. Nonzero magnitudes below 2^-30 return input bits
+ * in every standard mode; magnitudes at least 2^54 and infinities return
+ * nearest signed pi/2. Other numerical accuracy assumes nearest rounding.
+ * NaNs canonicalize; invalid is added only for signaling NaNs. Every valid
+ * nonzero input requires inexact, plus underflow exactly for subnormal inputs.
+ * Preserve errno, mode and incoming standard flags. Full directed/errno libm
+ * semantics and long-double behavior are not promised.
+ * @param x The tangent of the angle.
+ * @return The principal angle in [-pi/2, pi/2].
+ */
+GMATH_API double gmath_atan(double x);
+
+/**
  * @brief The angle of the point (@p x, @p y), in radians, in (-pi, pi].
  *
  * Within 1 ulp of the true value: measured at most 0.56 ulp.  Follows C99 Annex F.9.1.4: the quadrant is

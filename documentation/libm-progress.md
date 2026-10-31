@@ -1,5 +1,20 @@
 # Libm gap closure
 
+## Binary64 unary arctangent
+
+The guarded gmath_atan wrapper adds a binary64 unary capability beside atanf.
+It preserves the existing binary kernel/table/helper and all 86 earlier sets,
+adding `atan ec6946b8a9e1891b / 28278` as the 87th set. Independent target cells,
+explicit raw/state and source/loader/oracle defects, focused compiler/sanitizer
+checks, six-target emulation and fresh/larger overlays accompany the API.
+All 88 predeclared paired timing records are retained as Markdown envelopes;
+ordinary calls trail host libm and no general/application speed win is claimed.
+The failed partial Valgrind scope remains failed. Native test preparation keeps
+2,000 literal seeded answers and reconstructs only the ignored deterministic
+grid, accepting exact independently pinned bytes. Mathematical, blind and final
+evidence reviews distinguish these measurements from a global accuracy proof.
+See [unary-arctangent.md](unary-arctangent.md) for contracts, results and limits.
+
 ## Exact positive difference
 
 The new gmath_fdim/fdimf family has completed full GCC14/GCC16, Clang unit-only,
@@ -36,9 +51,10 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 33 verified phases add 58 APIs, seven performance optimizations
-and certificate maintenance. Classic real-function name coverage is 78/171;
-36 Float/Double additions remain, or 93 including long double. The phase
+Current snapshot: 34 verified phases add 59 APIs, seven performance optimizations
+and certificate maintenance. Classic real-function name coverage is 79/171
+(40 Double, 39 Float, no long double); 35 Float/Double additions remain, or 92
+including long double. The phase
 sections below retain historical counts and measurements.
 
 ## Current-mode integer conversion

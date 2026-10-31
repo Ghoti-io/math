@@ -174,6 +174,22 @@ polynomials (`src/elementary/trig_tables.h`, `trig_kernel_table.h`, `explog_tabl
 `make corpus-hash-update` regenerate the corpus and its hash after a deliberate
 change.
 
+The binary64 arctangent grid is stored compactly: `atan-seeded.corpus` keeps
+all 2,000 seeded per-input answers, `atan-special.hash` pins observed result/state
+compatibility, and complete-file SHA256 anchors pin the independent numerical
+references. `make prepare-atan-corpus` reconstructs the deterministic rows with
+Decimal half-angle reduction and an alternating series, accepting only the exact
+MPFR/mpmath-certified bytes. `make test` prepares this ignored cache before its
+per-input checks, without a container; every failing input is still named.
+Existing corrupt caches fail rather than being silently repaired. `make clean`
+removes these two generated grids. `make check-atan-oracle` independently
+regenerates them with the pinned container and compares complete bytes; native
+reconstruction is not an additional proof of transcendental accuracy.
+Directly compiled corpus probes also need these prepared files. Run
+`make prepare-atan-corpus` before copying the tree into a cross environment
+without Python; version-header generation alone does not prepare test data.
+The SDK itself does not depend on the test cache.
+
 The remainder corpus has a separate, container-free oracle:
 `tools/oracle/gen_corpus_remainder.py` uses exact rational arithmetic to compute
 `x - trunc(x/y)*y`, and verifies that the result is exactly representable.

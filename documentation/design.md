@@ -2572,3 +2572,13 @@ The positive-difference verification and all retained timing envelopes are in
 [positive-difference.md](positive-difference.md). Finite outputs are exact
 nearest/ties-even in every mode, with integer-derived flags and exact tiny
 differences. Existing runtime modules and earlier result sets remain unchanged.
+
+## Binary64 unary arctangent
+
+A new raw-dispatched wrapper reuses the unchanged binary atan2 kernel only on
+2^-30 <= |x| < 2^54, with proved-nearest tiny/large guards and explicit flags.
+General nearest accuracy inherits the old measured one-ULP kernel contract,
+not a newly proved global approximation bound. Literal seeded answers and
+compact whole-file SHA anchors reconstruct the deterministic grid without a
+container, preserving every per-input check. Verification and remaining limits
+are in [unary-arctangent.md](unary-arctangent.md).

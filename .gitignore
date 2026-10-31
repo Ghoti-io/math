@@ -13,6 +13,12 @@ docs
 **/__pycache__
 *.pyc
 
+# Deterministic atan grids are reconstructed from compact pinned anchors and
+# literal seeded answers before tests; full reference outputs stay generated.
+/tests/corpus/atan.corpus
+/tests/corpus/atan-special.corpus
+/tests/corpus/.atan-cache-*
+
 # Deterministic grids are materialized natively and checked against full pins.
 /tests/corpus/nearbyint-special.corpus
 /tests/corpus/nearbyint.corpus
