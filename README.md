@@ -228,6 +228,15 @@ make install PREFIX="$PWD/.local"
 Dependencies are found by pkg-config and nothing else; a missing one is an
 error that names the fix. The libraries this one needs: cutil.
 
+The production library and examples link through the C compiler without `-lm`
+or a C++ runtime. `make check-production-link` checks Linux link commands and
+ELF dependencies, then links and runs C clients against the entire archive and
+the shared library without either dependency. Host-libm comparisons and platform
+floating-point-environment tests use separate test link flags, which are not
+exported by the package metadata. Explicitly forced or unsupported-port fenv
+query configurations can still require the platform fenv runtime; the native
+backend checks do not establish a universal result for those configurations.
+
 Determinism is a requirement, not a hope: every `double` stage builds with
 `-ffp-contract=off` and no x87, and elementary functions come from `math`, not
 libm. `make check-gates` shows each of those rules failing on a planted

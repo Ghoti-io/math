@@ -218,7 +218,11 @@ endif
 LIB_CFLAGS := $(CFLAGS) -fvisibility=hidden -DGMATH_BUILD $(EXTRA_CFLAGS)
 # C++ callers must see the library query backend selected through C flags.
 override CXXFLAGS += $(filter -DGMATH_NEARBY_FENV_QUERY%,$(LIB_CFLAGS))
-LDFLAGS := -L /usr/lib -lstdc++ -lm $(EXTRA_LDFLAGS)
+# The production library and examples are C and must not inherit host libm
+# or a C++ runtime. Host-reference/fenv test programs name their own support.
+LDFLAGS := $(EXTRA_LDFLAGS)
+TEST_PLATFORM_LIBS := -lm
+TEST_LINK_FLAGS = $(LDFLAGS) $(TEST_PLATFORM_LIBS)
 ifdef PREFIX
 LDFLAGS += -Wl,-rpath,$(LIB_INSTALL_PATH)/$(SUITE)
 ifeq ($(OS_NAME), Windows)
@@ -259,7 +263,8 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 
 # coverage clears this: --coverage links the gcov runtime, whose mangle_path
 # check-symbols is right to reject in a shipping library.
-TEST_GATES ?= check-grid-cache check-positive-difference-bench-controls check-positive-difference-oracle-controls check-positive-difference check-positive-difference-harness check-positive-difference-controls check-planted-positive-difference check-positive-difference-oracle check-currentint-baseline-controls check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+PRODUCTION_LINK_GATE := $(if $(filter Linux,$(OS_NAME)),check-production-link)
+TEST_GATES ?= check-grid-cache $(PRODUCTION_LINK_GATE) check-positive-difference-bench-controls check-positive-difference-oracle-controls check-positive-difference check-positive-difference-harness check-positive-difference-controls check-planted-positive-difference check-positive-difference-oracle check-currentint-baseline-controls check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-symbols check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -333,7 +338,7 @@ $(OBJ_DIR)/%.o: src/%.c $(FLAGS_STAMP) | $(LIBVER_GEN)
 
 $(APP_DIR)/$(TARGET): $(LIBOBJECTS)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -shared -o $@ $^ $(LDFLAGS) $(AS_NEEDED) $(DEP_LIBS) $(OS_SPECIFIC_LIBRARY_NAME_FLAG)
+	$(CC) $(LIB_CFLAGS) -shared -o $@ $^ $(LDFLAGS) $(AS_NEEDED) $(DEP_LIBS) $(OS_SPECIFIC_LIBRARY_NAME_FLAG)
 ifeq ($(OS_NAME), Linux)
 	@ln -f -s $(TARGET) $(APP_DIR)/$(SO_NAME)
 	@ln -f -s $(SO_NAME) $(APP_DIR)/$(BASE_NAME)
@@ -364,7 +369,7 @@ TEST_OBJ_$1 := $(OBJ_DIR)/tests/$(basename $(notdir $1)).o
 $(APP_DIR)/$2$(EXE_EXTENSION): $$(TEST_OBJ_$1) $(TEST_HELPER_OBJ) \
 		$(APP_DIR)/$(STATIC_TARGET) | $(APP_DIR)/$(TARGET)
 	@mkdir -p $$(@D)
-	$(CXX) $(CXXFLAGS) -o $$@ $$(TEST_OBJ_$1) $(TEST_HELPER_OBJ) $(LDFLAGS) $(TEST_LDFLAGS) $(SELF_LIBRARY) $(DEP_LIBS) $(TESTFLAGS)
+	$(CXX) $(CXXFLAGS) -o $$@ $$(TEST_OBJ_$1) $(TEST_HELPER_OBJ) $(TEST_LINK_FLAGS) $(TEST_LDFLAGS) $(SELF_LIBRARY) $(DEP_LIBS) $(TESTFLAGS)
 endef
 
 $(foreach pair,$(TEST_PAIRS),\
@@ -511,7 +516,7 @@ GTEST_FLAGS := $(shell PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --li
 $(HASH_PROBE): tools/corpus-hash.c tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) \
 		$(FLAGS_STAMP) | $(APP_DIR)/$(TARGET) $(LIBVER_GEN)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 BENCH_PROBE := $(APP_DIR)/tools/bench-trig$(EXE_EXTENSION)
 BENCH_PROBE_ELEM := $(APP_DIR)/tools/bench-elementary$(EXE_EXTENSION)
@@ -526,11 +531,11 @@ FLOATTRIG_SPECIAL_PROBE := $(APP_DIR)/tools/probe-floattrig-special$(EXE_EXTENSI
 
 $(BENCH_PROBE_FLOATTRIG): tools/bench-floattrig.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 $(FLOATTRIG_SPECIAL_PROBE): tools/probe-floattrig-special.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 check-floattrig-special: $(FLOATTRIG_SPECIAL_PROBE) ## Check raw binary32 trig special values and floating state
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(FLOATTRIG_SPECIAL_PROBE)
@@ -539,11 +544,11 @@ BENCH_PROBE_EXP2F := $(APP_DIR)/tools/bench-exp2f$(EXE_EXTENSION)
 EXP2F_SPECIAL_PROBE := $(APP_DIR)/tools/probe-exp2f-special$(EXE_EXTENSION)
 $(BENCH_PROBE_EXP2F): tools/bench-exp2f.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 $(EXP2F_SPECIAL_PROBE): tools/probe-exp2f-special.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 .PHONY: check-exp2f-special
 check-exp2f-special: $(EXP2F_SPECIAL_PROBE) tests/corpus/exp2f-special.hash
@@ -555,11 +560,11 @@ BENCH_PROBE_EXPF := $(APP_DIR)/tools/bench-expf$(EXE_EXTENSION)
 EXPF_SPECIAL_PROBE := $(APP_DIR)/tools/probe-expf-special$(EXE_EXTENSION)
 $(BENCH_PROBE_EXPF): tools/bench-expf.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 $(EXPF_SPECIAL_PROBE): tools/probe-expf-special.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 .PHONY: check-expf-special
 check-expf-special: $(EXPF_SPECIAL_PROBE) tests/corpus/expf-special.hash
@@ -571,11 +576,11 @@ BENCH_PROBE_LOGF := $(APP_DIR)/tools/bench-logf$(EXE_EXTENSION)
 LOGF_SPECIAL_PROBE := $(APP_DIR)/tools/probe-logf-special$(EXE_EXTENSION)
 $(BENCH_PROBE_LOGF): tools/bench-logf.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 $(LOGF_SPECIAL_PROBE): tools/probe-logf-special.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 .PHONY: check-logf-special
 check-logf-special: $(LOGF_SPECIAL_PROBE) tests/corpus/logf-special.hash
@@ -587,11 +592,11 @@ BENCH_PROBE_LOG10F := $(APP_DIR)/tools/bench-log10f$(EXE_EXTENSION)
 LOG10F_SPECIAL_PROBE := $(APP_DIR)/tools/probe-log10f-special$(EXE_EXTENSION)
 $(BENCH_PROBE_LOG10F): tools/bench-log10f.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 $(LOG10F_SPECIAL_PROBE): tools/probe-log10f-special.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 .PHONY: check-log10f-special
 check-log10f-special: $(LOG10F_SPECIAL_PROBE) tests/corpus/log10f-special.hash
@@ -603,11 +608,11 @@ BENCH_PROBE_HYPOTF := $(APP_DIR)/tools/bench-hypotf$(EXE_EXTENSION)
 HYPOTF_SPECIAL_PROBE := $(APP_DIR)/tools/probe-hypotf-special$(EXE_EXTENSION)
 $(BENCH_PROBE_HYPOTF): tools/bench-hypotf.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 $(HYPOTF_SPECIAL_PROBE): tools/probe-hypotf-special.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 .PHONY: check-hypotf-special
 check-hypotf-special: $(HYPOTF_SPECIAL_PROBE) tests/corpus/hypotf-special.hash
@@ -627,24 +632,24 @@ $(ADJACENT_COMPARE): tools/compare-adjacent.c $(APP_DIR)/$(STATIC_TARGET) $(ADJA
 	@test -n "$(ADJACENT_REFERENCE_OBJECT)" || { echo 'compare-adjacent requires ADJACENT_REFERENCE_OBJECT from an actual prior build' >&2; exit 1; }
 	@mkdir -p $(@D)
 	@python3 tools/adjacent_baseline.py "$(ADJACENT_REFERENCE_OBJECT)" "$(ADJACENT_REFERENCE_METADATA)" --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
-	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_NEXTAFTER_REFERENCE=gmath_adjacent_prior_nextafter -DGMATH_NEXTAFTERF_REFERENCE=gmath_adjacent_prior_nextafterf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_NEXTAFTER_REFERENCE=gmath_adjacent_prior_nextafter -DGMATH_NEXTAFTERF_REFERENCE=gmath_adjacent_prior_nextafterf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(TEST_LINK_FLAGS)
 $(ADJACENT_REFERENCE_PROBE): tools/probe-adjacent.c tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(FLAGS_STAMP) adjacent-reference-force $(ADJACENT_REFERENCE_METADATA) tools/adjacent_baseline.py
 	@test -n "$(ADJACENT_REFERENCE_OBJECT)" || { echo 'probe-adjacent-prior requires ADJACENT_REFERENCE_OBJECT' >&2; exit 1; }
 	@mkdir -p $(@D)
 	@python3 tools/adjacent_baseline.py "$(ADJACENT_REFERENCE_OBJECT)" "$(ADJACENT_REFERENCE_METADATA)" --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
-	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_NEXTAFTER_REFERENCE=gmath_adjacent_prior_nextafter -DGMATH_NEXTAFTERF_REFERENCE=gmath_adjacent_prior_nextafterf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_NEXTAFTER_REFERENCE=gmath_adjacent_prior_nextafter -DGMATH_NEXTAFTERF_REFERENCE=gmath_adjacent_prior_nextafterf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(TEST_LINK_FLAGS)
 $(ADJACENT_REFERENCE_BENCH): tools/bench-adjacent.c $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(FLAGS_STAMP) adjacent-reference-force $(ADJACENT_REFERENCE_METADATA) tools/adjacent_baseline.py
 	@test -n "$(ADJACENT_REFERENCE_OBJECT)" || { echo 'bench-adjacent-prior requires ADJACENT_REFERENCE_OBJECT' >&2; exit 1; }
 	@mkdir -p $(@D)
 	@python3 tools/adjacent_baseline.py "$(ADJACENT_REFERENCE_OBJECT)" "$(ADJACENT_REFERENCE_METADATA)" --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
-	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_NEXTAFTER_BASELINE=gmath_adjacent_prior_nextafter -DGMATH_NEXTAFTERF_BASELINE=gmath_adjacent_prior_nextafterf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_NEXTAFTER_BASELINE=gmath_adjacent_prior_nextafter -DGMATH_NEXTAFTERF_BASELINE=gmath_adjacent_prior_nextafterf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(TEST_LINK_FLAGS)
 .PHONY: check-adjacent-compat-driver check-adjacent-compat bench-adjacent-prior check-adjacent-native-controls
 check-adjacent-compat-driver:
 	@python3 tools/check-adjacent-compat.py --calibrate
 check-adjacent-native-controls: $(APP_DIR)/$(STATIC_TARGET) $(ADJACENT_REFERENCE_OBJECT) $(ADJACENT_REFERENCE_METADATA)
 	@test -n "$(ADJACENT_REFERENCE_OBJECT)" || { echo 'native controls require ADJACENT_REFERENCE_OBJECT' >&2; exit 1; }
 	@NATIVE_CC='$(CC)' NATIVE_CFLAGS='$(CFLAGS) $(INCLUDE)' NATIVE_LIB_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 NATIVE_LDFLAGS='$(LDFLAGS)' NATIVE_LIBRARY='$(APP_DIR)/$(STATIC_TARGET)' \
+	 NATIVE_LDFLAGS='$(TEST_LINK_FLAGS)' NATIVE_LIBRARY='$(APP_DIR)/$(STATIC_TARGET)' \
 	 NATIVE_REFERENCE='$(ADJACENT_REFERENCE_OBJECT)' NATIVE_METADATA='$(ADJACENT_REFERENCE_METADATA)' \
 	 NATIVE_WORK='$(BUILD_DIR)/adjacent-native-controls' python3 tools/check-adjacent-native-controls.py
 check-adjacent-compat: $(ADJACENT_COMPARE) $(ADJACENT_REFERENCE_PROBE)
@@ -656,7 +661,7 @@ bench-adjacent-prior: $(ADJACENT_REFERENCE_BENCH)
 ADJACENT_PROBE := $(APP_DIR)/tools/probe-adjacent$(EXE_EXTENSION)
 $(ADJACENT_PROBE): tools/probe-adjacent.c tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: check-adjacent-special
 check-adjacent-special: $(ADJACENT_PROBE)
 	@$(ADJACENT_PROBE) > $(BUILD_DIR)/adjacent-special.actual && \
@@ -665,7 +670,7 @@ check-adjacent-special: $(ADJACENT_PROBE)
 FLOATSCALE_PROBE := $(APP_DIR)/tools/probe-float-scale$(EXE_EXTENSION)
 $(FLOATSCALE_PROBE): tools/probe-float-scale.c tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: check-floatscale-special
 check-floatscale-special: $(FLOATSCALE_PROBE)
 	@$(FLOATSCALE_PROBE) > $(BUILD_DIR)/floatscale-special.actual && \
@@ -674,12 +679,12 @@ check-floatscale-special: $(FLOATSCALE_PROBE)
 BENCH_PROBE_INTROUND := $(APP_DIR)/tools/bench-intround$(EXE_EXTENSION)
 $(BENCH_PROBE_INTROUND): tools/bench-intround.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 
 INTROUND_PROBE := $(APP_DIR)/tools/probe-intround$(EXE_EXTENSION)
 $(INTROUND_PROBE): tools/probe-intround.c tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: check-intround-special
 check-intround-special: $(INTROUND_PROBE)
 	@$(INTROUND_PROBE) > $(BUILD_DIR)/intround-special.actual && \
@@ -688,7 +693,7 @@ check-intround-special: $(INTROUND_PROBE)
 ATANF_COMPAT_PROBE := $(APP_DIR)/tools/compare-atanf$(EXE_EXTENSION)
 $(ATANF_COMPAT_PROBE): tools/compare-atanf.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: check-atanf-compat
 check-atanf-compat: $(ATANF_COMPAT_PROBE)
 	@python3 tools/check-atanf-compat.py $(ATANF_COMPAT_PROBE)
@@ -696,7 +701,7 @@ check-atanf-compat: $(ATANF_COMPAT_PROBE)
 ATANF_SPECIAL_PROBE := $(APP_DIR)/tools/probe-atanf-special$(EXE_EXTENSION)
 $(ATANF_SPECIAL_PROBE): tools/probe-atanf-special.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: check-atanf-special
 check-atanf-special: $(ATANF_SPECIAL_PROBE) tests/corpus/atanf-special.hash
 	@$(ATANF_SPECIAL_PROBE) > $(BUILD_DIR)/atanf-special.actual && \
@@ -706,7 +711,7 @@ check-atanf-special: $(ATANF_SPECIAL_PROBE) tests/corpus/atanf-special.hash
 BENCH_PROBE_ADJACENT := $(APP_DIR)/tools/bench-adjacent$(EXE_EXTENSION)
 $(BENCH_PROBE_ADJACENT): tools/bench-adjacent.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: bench-adjacent
 bench-adjacent: $(BENCH_PROBE_ADJACENT)
 	@$(BENCH_PROBE_ADJACENT)
@@ -714,7 +719,7 @@ bench-adjacent: $(BENCH_PROBE_ADJACENT)
 BENCH_PROBE_FLOATSCALE := $(APP_DIR)/tools/bench-floatscale$(EXE_EXTENSION)
 $(BENCH_PROBE_FLOATSCALE): tools/bench-floatscale.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: bench-floatscale
 bench-floatscale: $(BENCH_PROBE_FLOATSCALE)
 	@$(BENCH_PROBE_FLOATSCALE)
@@ -722,17 +727,17 @@ bench-floatscale: $(BENCH_PROBE_FLOATSCALE)
 BENCH_PROBE_ATANF := $(APP_DIR)/tools/bench-atanf$(EXE_EXTENSION)
 $(BENCH_PROBE_ATANF): tools/bench-atanf.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 
 BENCH_PROBE_ATAN2F := $(APP_DIR)/tools/bench-atan2f$(EXE_EXTENSION)
 ATAN2F_SPECIAL_PROBE := $(APP_DIR)/tools/probe-atan2f-special$(EXE_EXTENSION)
 $(BENCH_PROBE_ATAN2F): tools/bench-atan2f.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 $(ATAN2F_SPECIAL_PROBE): tools/probe-atan2f-special.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 .PHONY: check-atan2f-special
 check-atan2f-special: $(ATAN2F_SPECIAL_PROBE) tests/corpus/atan2f-special.hash
@@ -743,7 +748,7 @@ check-atan2f-special: $(ATAN2F_SPECIAL_PROBE) tests/corpus/atan2f-special.hash
 FLOATTRIG_WIDE_PROBE := $(APP_DIR)/tools/probe-floattrig-wide$(EXE_EXTENSION)
 $(FLOATTRIG_WIDE_PROBE): tools/probe-floattrig-wide.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP) | $(APP_DIR)/$(TARGET) $(LIBVER_GEN)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 .PHONY: check-floattrig-wide
 check-floattrig-wide: $(FLOATTRIG_WIDE_PROBE) ## Compare wide float trig results and state with the double baseline
@@ -753,44 +758,44 @@ FLOATBASIC_SPECIAL_PROBE := $(APP_DIR)/tools/probe-floatbasic-special$(EXE_EXTEN
 
 $(FLOATBASIC_SPECIAL_PROBE): tools/probe-floatbasic-special.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 check-floatbasic-special: $(FLOATBASIC_SPECIAL_PROBE) ## Check raw binary32 NaN, sign and exception contracts (also usable under emulation)
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(FLOATBASIC_SPECIAL_PROBE)
 
 $(BENCH_PROBE_FLOATBASIC): tools/bench-floatbasic.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 $(BENCH_PROBE_CBRT): tools/bench-cbrt.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 $(BENCH_PROBE_EXP2): tools/bench-exp2.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 $(BENCH_PROBE_LOGBASE): tools/bench-logbase.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 $(BENCH_PROBE_EXTREMA): tools/bench-extrema.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 $(BENCH_PROBE_REMAINDER): tools/bench-remainder.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 $(BENCH_PROBE): tools/bench-trig.c $(APP_DIR)/$(STATIC_TARGET) \
 		$(FLAGS_STAMP) | $(APP_DIR)/$(TARGET) $(LIBVER_GEN)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 $(BENCH_PROBE_ELEM): tools/bench-elementary.c $(APP_DIR)/$(STATIC_TARGET) \
 		$(FLAGS_STAMP) | $(APP_DIR)/$(TARGET) $(LIBVER_GEN)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS) $(SELF_LIBRARY) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(TEST_LINK_FLAGS) $(SELF_LIBRARY) -lm
 
 bench: $(BENCH_PROBE) $(BENCH_PROBE_ELEM) $(BENCH_PROBE_REMAINDER) $(BENCH_PROBE_EXTREMA) $(BENCH_PROBE_LOGBASE) $(BENCH_PROBE_EXP2) $(BENCH_PROBE_CBRT) $(BENCH_PROBE_FLOATBASIC) $(BENCH_PROBE_FLOATTRIG) ## Time math functions against host libm, per argument range (a measurement, not a test)
 	@LD_LIBRARY_PATH="$(TEST_LD_PATH)" $(BENCH_PROBE) $(BENCH_REPEATS)
@@ -812,14 +817,14 @@ corpus-hash-update: $(HASH_PROBE) ## Rewrite tests/corpus/trig.hash from this bu
 
 check-planted: check-planted-exact check-planted-decimal check-planted-remainder check-planted-extrema check-planted-logbase check-planted-exp2 check-planted-exp2f check-planted-expf check-planted-logf check-planted-log10f check-planted-hypotf check-planted-atan2f check-planted-cbrt check-planted-floatbasic check-planted-floattrig $(OBJ_DIR)/tests/test_trig.o $(OBJ_DIR)/tests/test_elementary.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect fails its tests and the control passes
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_trig.o' PLANT_PROBE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX_INCLUDE='$(INCLUDE) -Itests' \
 	 PLANT_PROBE='$(HASH_PROBE)' PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_DECIMAL_OBJS='$(filter $(OBJ_DIR)/decimal/%.o,$(LIBOBJECTS))' PLANT_WORK='$(BUILD_DIR)/planted' \
 	 PLANT_OTHER_OBJS='$(filter-out $(OBJ_DIR)/elementary/trig.o,$(filter $(OBJ_DIR)/elementary/%.o,$(LIBOBJECTS)))' \
 	 python3 tools/check-planted.py
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_elementary.o' PLANT_PROBE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX_INCLUDE='$(INCLUDE) -Itests' \
 	 PLANT_PROBE='$(HASH_PROBE)' PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_DECIMAL_OBJS='$(filter $(OBJ_DIR)/decimal/%.o,$(LIBOBJECTS))' PLANT_WORK='$(BUILD_DIR)/planted-elem' \
@@ -828,7 +833,7 @@ check-planted: check-planted-exact check-planted-decimal check-planted-remainder
 
 check-planted-decimal: $(OBJ_DIR)/tests/test_decimal.o $(LIBOBJECTS) ## Fail unless each planted defect in the decimal conversions fails testDecimal (and the corpus hash) and the control passes
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(DEP_LIBS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(DEP_LIBS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_decimal.o' PLANT_PROBE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
 	 PLANT_OTHER_OBJS='$(filter-out $(OBJ_DIR)/decimal/%.o,$(LIBOBJECTS))' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-decimal' \
@@ -836,7 +841,7 @@ check-planted-decimal: $(OBJ_DIR)/tests/test_decimal.o $(LIBOBJECTS) ## Fail unl
 
 check-planted-exact: $(OBJ_DIR)/tests/test_basic.o $(HASH_PROBE) $(LIBOBJECTS) ## Fail unless each planted defect in sqrt, the rounding and the exponent functions fails testBasic or the corpus hash
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_basic.o' PLANT_PROBE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX_INCLUDE='$(INCLUDE) -Itests' \
 	 PLANT_PROBE='$(HASH_PROBE)' PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_DECIMAL_OBJS='$(filter $(OBJ_DIR)/decimal/%.o,$(LIBOBJECTS))' PLANT_WORK='$(BUILD_DIR)/planted-exact' \
@@ -845,7 +850,7 @@ check-planted-exact: $(OBJ_DIR)/tests/test_basic.o $(HASH_PROBE) $(LIBOBJECTS) #
 
 check-planted-remainder: $(OBJ_DIR)/tests/test_remainder.o $(LIBOBJECTS) $(HASH_PROBE) ## Require each remainder mutation to fail and its control to pass
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_remainder.o' \
 	 PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-remainder' \
@@ -853,14 +858,14 @@ check-planted-remainder: $(OBJ_DIR)/tests/test_remainder.o $(LIBOBJECTS) $(HASH_
 
 check-planted-extrema: $(OBJ_DIR)/tests/test_extrema.o $(LIBOBJECTS) $(HASH_PROBE) ## Require each extrema mutation and supplemental hash corruption to fail
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_extrema.o' PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-extrema' \
 	 python3 tools/check-planted-extrema.py
 
 check-planted-logbase: $(OBJ_DIR)/tests/test_logbase.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove log-base implementation, oracle and hash defects fail
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_logbase.o' PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-logbase' \
 	 python3 tools/check-planted-logbase.py
@@ -873,47 +878,47 @@ oracle-logbase: ## Regenerate committed base-logarithm corpora in the pinned ima
 
 check-planted-exp2: $(OBJ_DIR)/tests/test_exp2.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove exp2 implementation, oracle and hash defects fail
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_exp2.o' PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-exp2' \
 	 python3 tools/check-planted-exp2.py
 
 check-planted-exp2f: $(OBJ_DIR)/tests/test_exp2f.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove exp2f implementation, oracle and hash defects fail
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_exp2f.o' PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-exp2f' \
 	 python3 tools/check-planted-exp2f.py
 check-planted-expf: $(OBJ_DIR)/tests/test_expf.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove expf implementation, oracle and hash defects fail
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_expf.o' PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-expf' \
 	 python3 tools/check-planted-expf.py
 check-planted-logf: $(OBJ_DIR)/tests/test_logf.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove logf implementation, oracle and hash defects fail
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_logf.o' PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-logf' \
 	 python3 tools/check-planted-logf.py
 
 check-planted-log10f: $(OBJ_DIR)/tests/test_log10f.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove log10f implementation, oracle and hash defects fail
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_log10f.o' PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-log10f' \
 	 python3 tools/check-planted-log10f.py
 
 check-planted-hypotf: $(OBJ_DIR)/tests/test_hypotf.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove hypotf implementation, oracle and hash defects fail
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_hypotf.o' PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-hypotf' \
 	 python3 tools/check-planted-hypotf.py
 
 check-planted-atan2f: $(OBJ_DIR)/tests/test_atan2f.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove atan2f implementation, oracle and hash defects fail
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_atan2f.o' PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-atan2f' \
 	 python3 tools/check-planted-atan2f.py
@@ -1068,7 +1073,7 @@ check-adjacent-oracle: $(APP_DIR)/testAdjacent$(EXE_EXTENSION) $(ADJACENT_PROBE)
 
 check-planted-adjacent: $(OBJ_DIR)/tests/test_adjacent.o $(LIBOBJECTS) $(ADJACENT_PROBE)
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_adjacent.o' PLANT_RAW_PROBE='$(ADJACENT_PROBE)' PLANT_WORK='$(BUILD_DIR)/planted-adjacent' \
 	 python3 tools/check-planted-adjacent.py
 
@@ -1095,7 +1100,7 @@ check-floatscale-oracle: $(APP_DIR)/testFloat_scale$(EXE_EXTENSION) $(FLOATSCALE
 
 check-planted-floatscale: $(OBJ_DIR)/tests/test_float_scale.o $(LIBOBJECTS) $(FLOATSCALE_PROBE)
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_float_scale.o' PLANT_RAW_PROBE='$(FLOATSCALE_PROBE)' PLANT_WORK='$(BUILD_DIR)/planted-floatscale' \
 	 python3 tools/check-planted-floatscale.py
 
@@ -1122,14 +1127,14 @@ check-intround-oracle: $(APP_DIR)/testIntround$(EXE_EXTENSION)
 
 check-planted-intround: $(OBJ_DIR)/tests/test_intround.o $(LIBOBJECTS) $(INTROUND_PROBE)
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_intround.o' PLANT_RAW_PROBE='$(INTROUND_PROBE)' PLANT_WORK='$(BUILD_DIR)/planted-intround' \
 	 python3 tools/check-planted-intround.py
 
 .PHONY: check-atanf-oracle oracle-atanf check-planted-atanf
 check-planted-atanf: $(OBJ_DIR)/tests/test_atanf.o $(LIBOBJECTS)
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_atanf.o' PLANT_WORK='$(BUILD_DIR)/planted-atanf' \
 	 python3 tools/check-planted-atanf.py
 
@@ -1175,7 +1180,7 @@ check-atan2f-oracle: $(APP_DIR)/testAtan2f$(EXE_EXTENSION) ## Check committed an
 
 check-planted-floattrig: $(OBJ_DIR)/tests/test_floattrig.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove floattrig implementation, oracle and hash defects fail
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_floattrig.o' PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_CXX_INCLUDE='$(INCLUDE) -Itests' \
 	 PLANT_TRIG_OBJ='$(OBJ_DIR)/elementary/trig.o' \
@@ -1207,7 +1212,7 @@ check-floattrig-oracle: $(APP_DIR)/testFloattrig$(EXE_EXTENSION) ## Check commit
 
 check-planted-floatbasic: $(OBJ_DIR)/tests/test_floatbasic.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove floatbasic implementation, oracle and hash defects fail
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_floatbasic.o' PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-floatbasic' \
 	 python3 tools/check-planted-floatbasic.py
@@ -1235,7 +1240,7 @@ check-floatbasic-oracle: $(APP_DIR)/testFloatbasic$(EXE_EXTENSION) ## Check comm
 
 check-planted-cbrt: $(OBJ_DIR)/tests/test_cbrt.o $(LIBOBJECTS) $(HASH_PROBE) ## Prove cbrt implementation, oracle and hash defects fail
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_cbrt.o' PLANT_PROBE='$(HASH_PROBE)' \
 	 PLANT_LD_PATH='$(TEST_LD_PATH)' PLANT_WORK='$(BUILD_DIR)/planted-cbrt' \
 	 python3 tools/check-planted-cbrt.py
@@ -1503,7 +1508,7 @@ ASAN_ARCHIVE := $(ASAN_APP_DIR)/$(STATIC_TARGET)
 ASAN_SELF_LIBRARY := -Wl,--whole-archive $(ASAN_ARCHIVE) -Wl,--no-whole-archive $(DEP_LIBS)
 ASAN_CFLAGS := $(CFLAGS) $(ASAN_UBSAN_FLAGS) -DGMATH_BUILD
 ASAN_CXXFLAGS := $(CXXFLAGS) $(ASAN_UBSAN_FLAGS)
-ASAN_LDFLAGS := $(LDFLAGS) $(ASAN_UBSAN_FLAGS)
+ASAN_LDFLAGS := $(TEST_LINK_FLAGS) $(ASAN_UBSAN_FLAGS)
 ifeq ($(UNAME_S), Linux)
 	ASAN_CFLAGS += -fPIC
 endif
@@ -1674,7 +1679,7 @@ help: ## Display this help
 
 $(FLAGS_STAMP): force-flags
 	@mkdir -p $(@D)
-	@printf '%s\n' '$(CC) $(CXX) $(LIB_CFLAGS) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $(INCLUDE) $(SELF_LIBRARY) $(DEP_LIBS) $(AS_NEEDED) $(TESTFLAGS) $(TEST_LDFLAGS) $(OS_SPECIFIC_LIBRARY_NAME_FLAG)' > $@.new
+	@printf '%s\n' '$(CC) $(CXX) $(LIB_CFLAGS) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $(TEST_PLATFORM_LIBS) $(TEST_LINK_FLAGS) $(INCLUDE) $(SELF_LIBRARY) $(DEP_LIBS) $(AS_NEEDED) $(TESTFLAGS) $(TEST_LDFLAGS) $(OS_SPECIFIC_LIBRARY_NAME_FLAG)' > $@.new
 	@cmp -s $@.new $@ 2>/dev/null && rm -f $@.new || mv -f $@.new $@
 
 $(ASAN_FLAGS_STAMP): force-flags
@@ -1686,14 +1691,14 @@ $(ASAN_FLAGS_STAMP): force-flags
 FRACTION_SPLIT_PROBE := $(APP_DIR)/tools/probe-fraction-split$(EXE_EXTENSION)
 $(FRACTION_SPLIT_PROBE): tools/probe-fraction-split.c tests/fraction_split_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: check-fraction-split check-planted-fraction-split oracle-fraction-split
 check-fraction-split: $(FRACTION_SPLIT_PROBE)
 	@python3 tools/check-fraction-split.py $(CORPUS_DIR)
 	@python3 tools/check-split-controls.py $(FRACTION_SPLIT_PROBE) --corpus $(CORPUS_DIR)
 check-planted-fraction-split: $(OBJ_DIR)/tests/test_fraction_split.o $(LIBOBJECTS) $(FRACTION_SPLIT_PROBE)
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' PLANT_CXX='$(CXX)' \
-	 PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_fraction_split.o' PLANT_WORK='$(BUILD_DIR)/planted-fraction-split' \
 	 python3 tools/check-planted-fraction-split.py
 oracle-fraction-split:
@@ -1701,7 +1706,7 @@ oracle-fraction-split:
 FRACTION_SPLIT_BENCH := $(APP_DIR)/tools/bench-fraction-split$(EXE_EXTENSION)
 $(FRACTION_SPLIT_BENCH): tools/bench-fraction-split.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: bench-fraction-split
 bench-fraction-split: $(FRACTION_SPLIT_BENCH)
 	@$(FRACTION_SPLIT_BENCH)
@@ -1721,7 +1726,7 @@ check-fraction-split-oracle: $(FRACTION_SPLIT_PROBE)
 EXPONENT_VALUE_PROBE := $(APP_DIR)/tools/probe-exponent-value$(EXE_EXTENSION)
 $(EXPONENT_VALUE_PROBE): tools/probe-exponent-value.c tests/exponent_value_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: check-exponent-value oracle-exponent-value
 check-exponent-value: $(EXPONENT_VALUE_PROBE)
 	@python3 tools/check-exponent-value.py $(CORPUS_DIR)
@@ -1731,7 +1736,7 @@ oracle-exponent-value:
 .PHONY: check-planted-exponent-value check-exponent-value-oracle
 check-planted-exponent-value: $(OBJ_DIR)/tests/test_exponent_value.o $(LIBOBJECTS) $(EXPONENT_VALUE_PROBE)
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
 	 PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_exponent_value.o' PLANT_WORK='$(BUILD_DIR)/planted-exponent-value' \
 	 python3 tools/check-planted-exponent-value.py
 check-exponent-value-oracle: $(EXPONENT_VALUE_PROBE) $(HASH_PROBE)
@@ -1746,7 +1751,7 @@ check-exponent-value-oracle: $(EXPONENT_VALUE_PROBE) $(HASH_PROBE)
 EXPONENT_VALUE_BENCH := $(APP_DIR)/tools/bench-exponent-value$(EXE_EXTENSION)
 $(EXPONENT_VALUE_BENCH): tools/bench-exponent-value.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: bench-exponent-value
 bench-exponent-value: $(EXPONENT_VALUE_BENCH)
 	@$(EXPONENT_VALUE_BENCH)
@@ -1764,17 +1769,17 @@ $(EXPONENT_DOMAIN_COMPARE): tools/compare-exponent-domain.c tests/exponent_value
 	@test -n "$(EXPONENT_REFERENCE_OBJECT)" || { echo 'exponent comparison requires an actual EXPONENT_REFERENCE_OBJECT' >&2; exit 1; }
 	@mkdir -p $(dir $@)
 	@python3 tools/adjacent_baseline.py "$(EXPONENT_REFERENCE_OBJECT)" "$(EXPONENT_REFERENCE_METADATA)" --family exponent --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
-	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_LOGB_REFERENCE=gmath_exponent_prior_logb -DGMATH_LOGBF_REFERENCE=gmath_exponent_prior_logbf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_LOGB_REFERENCE=gmath_exponent_prior_logb -DGMATH_LOGBF_REFERENCE=gmath_exponent_prior_logbf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(TEST_LINK_FLAGS)
 $(EXPONENT_REFERENCE_PROBE): tools/probe-exponent-value.c tests/exponent_value_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(EXPONENT_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) exponent-reference-force
 	@test -n "$(EXPONENT_REFERENCE_OBJECT)" || { echo 'exponent probe requires EXPONENT_REFERENCE_OBJECT' >&2; exit 1; }
 	@mkdir -p $(dir $@)
 	@python3 tools/adjacent_baseline.py "$(EXPONENT_REFERENCE_OBJECT)" "$(EXPONENT_REFERENCE_METADATA)" --family exponent --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
-	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_LOGB_REFERENCE=gmath_exponent_prior_logb -DGMATH_LOGBF_REFERENCE=gmath_exponent_prior_logbf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_LOGB_REFERENCE=gmath_exponent_prior_logb -DGMATH_LOGBF_REFERENCE=gmath_exponent_prior_logbf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(TEST_LINK_FLAGS)
 $(EXPONENT_REFERENCE_BENCH): tools/bench-exponent-value.c $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(EXPONENT_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) exponent-reference-force
 	@test -n "$(EXPONENT_REFERENCE_OBJECT)" || { echo 'exponent benchmark requires EXPONENT_REFERENCE_OBJECT' >&2; exit 1; }
 	@mkdir -p $(dir $@)
 	@python3 tools/adjacent_baseline.py "$(EXPONENT_REFERENCE_OBJECT)" "$(EXPONENT_REFERENCE_METADATA)" --family exponent --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
-	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_LOGB_BASELINE=gmath_exponent_prior_logb -DGMATH_LOGBF_BASELINE=gmath_exponent_prior_logbf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_LOGB_BASELINE=gmath_exponent_prior_logb -DGMATH_LOGBF_BASELINE=gmath_exponent_prior_logbf -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(TEST_LINK_FLAGS)
 .PHONY: check-exponent-prior bench-exponent-prior
 check-exponent-prior: $(EXPONENT_DOMAIN_COMPARE) $(EXPONENT_REFERENCE_PROBE)
 	@python3 tools/check-exponent-domain.py $(EXPONENT_DOMAIN_COMPARE) --baseline-metadata "$(EXPONENT_REFERENCE_METADATA)"
@@ -1790,7 +1795,7 @@ check-exponent-domain-driver:
 .PHONY: check-exponent-native-controls
 check-exponent-native-controls: $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE_OBJECT) $(EXPONENT_REFERENCE_METADATA)
 	@NATIVE_CC='$(CC)' NATIVE_CFLAGS='$(CFLAGS) $(INCLUDE)' NATIVE_LIB_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 NATIVE_LDFLAGS='$(LDFLAGS)' NATIVE_LIBRARY='$(APP_DIR)/$(STATIC_TARGET)' \
+	 NATIVE_LDFLAGS='$(TEST_LINK_FLAGS)' NATIVE_LIBRARY='$(APP_DIR)/$(STATIC_TARGET)' \
 	 NATIVE_REFERENCE='$(EXPONENT_REFERENCE_OBJECT)' NATIVE_METADATA='$(EXPONENT_REFERENCE_METADATA)' \
 	 NATIVE_CORPUS='$(CORPUS_DIR)' NATIVE_WORK='$(BUILD_DIR)/exponent-native-controls' python3 tools/check-exponent-native-controls.py
 
@@ -1798,7 +1803,7 @@ check-exponent-native-controls: $(APP_DIR)/$(STATIC_TARGET) $(EXPONENT_REFERENCE
 LONG_SCALE_PROBE := $(APP_DIR)/tools/probe-long-scale$(EXE_EXTENSION)
 $(LONG_SCALE_PROBE): tools/probe-long-scale.c tests/long_scale_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: check-long-scale check-planted-long-scale oracle-long-scale check-long-scale-oracle
 check-long-scale: $(LONG_SCALE_PROBE)
 	@python3 tools/check-long-scale.py $(CORPUS_DIR)
@@ -1820,13 +1825,13 @@ check-long-scale-oracle: $(LONG_SCALE_PROBE) $(HASH_PROBE)
 	 python3 tools/check-long-scale-oracle.py --work $(BUILD_DIR)/longscale-oracle-controls --probe $(LONG_SCALE_PROBE) --numeric-probe $(HASH_PROBE) --long-bits "$$longbits"
 check-planted-long-scale: $(OBJ_DIR)/tests/test_long_scale.o $(LIBOBJECTS) $(LONG_SCALE_PROBE)
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
-	 PLANT_RAW_LDFLAGS='$(LDFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_long_scale.o' PLANT_WORK='$(BUILD_DIR)/planted-long-scale' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
+	 PLANT_RAW_LDFLAGS='$(TEST_LINK_FLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_long_scale.o' PLANT_WORK='$(BUILD_DIR)/planted-long-scale' \
 	 python3 tools/check-planted-long-scale.py
 LONG_SCALE_BENCH := $(APP_DIR)/tools/bench-long-scale$(EXE_EXTENSION)
 $(LONG_SCALE_BENCH): tools/bench-long-scale.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: bench-long-scale
 bench-long-scale: $(LONG_SCALE_BENCH)
 	@$(LONG_SCALE_BENCH)
@@ -1835,7 +1840,7 @@ bench-long-scale: $(LONG_SCALE_BENCH)
 CBRTF_PROBE := $(APP_DIR)/tools/probe-cbrtf$(EXE_EXTENSION)
 $(CBRTF_PROBE): tools/probe-cbrtf.c tests/cbrtf_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: check-cbrtf check-cbrtf-oracle check-planted-cbrtf
 check-cbrtf: $(CBRTF_PROBE)
 	@python3 tools/check-cbrtf.py --probe $(CBRTF_PROBE) --corpus $(CORPUS_DIR) --controls
@@ -1853,14 +1858,14 @@ check-cbrtf-oracle: check-cbrtf $(CBRTF_PROBE) $(APP_DIR)/testCbrtf$(EXE_EXTENSI
 	@python3 tools/check-cbrtf-oracle.py --work $(BUILD_DIR)/cbrtf-oracle-controls --probe $(CBRTF_PROBE)
 check-planted-cbrtf: $(APP_DIR)/$(STATIC_TARGET) $(OBJ_DIR)/tests/test_cbrtf.o $(CBRTF_PROBE)
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
-	 PLANT_RAW_LDFLAGS='$(LDFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_cbrtf.o' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
+	 PLANT_RAW_LDFLAGS='$(TEST_LINK_FLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_cbrtf.o' \
 	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_WORK='$(BUILD_DIR)/planted-cbrtf' \
 	 python3 tools/check-planted-cbrtf.py
 CBRTF_BENCH := $(APP_DIR)/tools/bench-cbrtf$(EXE_EXTENSION)
 $(CBRTF_BENCH): tools/bench-cbrtf.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: bench-cbrtf
 bench-cbrtf: $(CBRTF_BENCH)
 	@$(CBRTF_BENCH)
@@ -1885,17 +1890,17 @@ $(CBRTF_COMPARE): tools/compare-cbrtf.c $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFE
 	@test -n "$(CBRTF_REFERENCE_OBJECT)" || { echo 'cbrtf comparison requires an actual CBRTF_REFERENCE_OBJECT' >&2; exit 1; }
 	@mkdir -p $(dir $@)
 	@python3 tools/adjacent_baseline.py "$(CBRTF_REFERENCE_OBJECT)" "$(CBRTF_REFERENCE_METADATA)" --family cbrtf --expected-revision 412417c7a0edc5b0066296e578400dd21d4685e4 --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
-	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CBRTF_REFERENCE=gmath_cbrtf_prior -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CBRTF_REFERENCE=gmath_cbrtf_prior -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(TEST_LINK_FLAGS)
 $(CBRTF_REFERENCE_PROBE): tools/probe-cbrtf.c tests/cbrtf_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(CBRTF_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) cbrtf-reference-force
 	@test -n "$(CBRTF_REFERENCE_OBJECT)" || { echo 'cbrtf probe requires CBRTF_REFERENCE_OBJECT' >&2; exit 1; }
 	@mkdir -p $(dir $@)
 	@python3 tools/adjacent_baseline.py "$(CBRTF_REFERENCE_OBJECT)" "$(CBRTF_REFERENCE_METADATA)" --family cbrtf --expected-revision 412417c7a0edc5b0066296e578400dd21d4685e4 --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
-	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CBRTF_REFERENCE=gmath_cbrtf_prior -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CBRTF_REFERENCE=gmath_cbrtf_prior -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(TEST_LINK_FLAGS)
 $(CBRTF_REFERENCE_BENCH): tools/bench-cbrtf.c $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(CBRTF_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) cbrtf-reference-force
 	@test -n "$(CBRTF_REFERENCE_OBJECT)" || { echo 'cbrtf benchmark requires CBRTF_REFERENCE_OBJECT' >&2; exit 1; }
 	@mkdir -p $(dir $@)
 	@python3 tools/adjacent_baseline.py "$(CBRTF_REFERENCE_OBJECT)" "$(CBRTF_REFERENCE_METADATA)" --family cbrtf --expected-revision 412417c7a0edc5b0066296e578400dd21d4685e4 --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
-	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CBRTF_BASELINE=gmath_cbrtf_prior -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CBRTF_BASELINE=gmath_cbrtf_prior -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(TEST_LINK_FLAGS)
 .PHONY: check-cbrtf-prior bench-cbrtf-prior
 check-cbrtf-prior: $(CBRTF_COMPARE) $(CBRTF_REFERENCE_PROBE)
 	@python3 tools/check-cbrtf-compat.py $(CBRTF_COMPARE) --baseline-metadata "$(CBRTF_REFERENCE_METADATA)"
@@ -1907,7 +1912,7 @@ bench-cbrtf-prior: $(CBRTF_REFERENCE_BENCH)
 check-cbrtf-native-controls: $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(CBRTF_REFERENCE_METADATA)
 	@test -n "$(CBRTF_REFERENCE_OBJECT)" || { echo 'native controls require CBRTF_REFERENCE_OBJECT' >&2; exit 1; }
 	@NATIVE_CC='$(CC)' NATIVE_CXX='$(CXX) $(CXXFLAGS)' NATIVE_CFLAGS='$(CFLAGS) $(INCLUDE)' \
-	 NATIVE_LIB_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' NATIVE_INCLUDE='$(INCLUDE)' NATIVE_LDFLAGS='$(LDFLAGS)' \
+	 NATIVE_LIB_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' NATIVE_INCLUDE='$(INCLUDE)' NATIVE_LDFLAGS='$(TEST_LINK_FLAGS)' \
 	 NATIVE_LIBRARY='$(APP_DIR)/$(STATIC_TARGET)' NATIVE_REFERENCE='$(CBRTF_REFERENCE_OBJECT)' NATIVE_METADATA='$(CBRTF_REFERENCE_METADATA)' \
 	 NATIVE_CORPUS='$(CORPUS_DIR)' NATIVE_WORK='$(BUILD_DIR)/cbrtf-native-controls' python3 tools/check-cbrtf-native-controls.py
 
@@ -1923,7 +1928,7 @@ $(CBRTF_BOUNDARY_PROBE): tools/probe-cbrtf-boundaries.c tests/cbrtf_probe.h src/
 	@test -n "$(CBRTF_REFERENCE_OBJECT)" || { echo 'boundary probe requires CBRTF_REFERENCE_OBJECT' >&2; exit 1; }
 	@mkdir -p $(dir $@)
 	@python3 tools/adjacent_baseline.py "$(CBRTF_REFERENCE_OBJECT)" "$(CBRTF_REFERENCE_METADATA)" --family cbrtf --expected-revision 412417c7a0edc5b0066296e578400dd21d4685e4 --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
-	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CBRTF_REFERENCE=gmath_cbrtf_prior -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CBRTF_REFERENCE=gmath_cbrtf_prior -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CBRTF_REFERENCE_OBJECT) $(TEST_LINK_FLAGS)
 .PHONY: check-cbrtf-boundaries
 check-cbrtf-boundaries: $(CBRTF_BOUNDARY_PROBE)
 	@$(CBRTF_BOUNDARY_PROBE)
@@ -1932,15 +1937,15 @@ check-cbrtf-boundaries: $(CBRTF_BOUNDARY_PROBE)
 IEEE_REMAINDER_PROBE := $(APP_DIR)/tools/probe-ieee-remainder$(EXE_EXTENSION)
 $(IEEE_REMAINDER_PROBE): tools/probe-ieee-remainder.c tests/ieee_remainder_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: check-ieee-remainder check-planted-ieee-remainder
 check-ieee-remainder: $(IEEE_REMAINDER_PROBE) $(APP_DIR)/testIeee_remainder$(EXE_EXTENSION) $(HASH_PROBE)
 	@python3 tools/check-ieee-remainder.py --probe $(IEEE_REMAINDER_PROBE) --corpus $(CORPUS_DIR) --unit $(APP_DIR)/testIeee_remainder$(EXE_EXTENSION) --controls
 	@python3 tools/check-ieee-remainder-numeric.py --probe $(HASH_PROBE) --corpus $(CORPUS_DIR) --controls
 check-planted-ieee-remainder: $(APP_DIR)/$(STATIC_TARGET) $(OBJ_DIR)/tests/test_ieee_remainder.o $(IEEE_REMAINDER_PROBE)
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
-	 PLANT_RAW_LDFLAGS='$(LDFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_ieee_remainder.o' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
+	 PLANT_RAW_LDFLAGS='$(TEST_LINK_FLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_ieee_remainder.o' \
 	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_WORK='$(BUILD_DIR)/planted-ieee-remainder' \
 	 python3 tools/check-planted-ieee-remainder.py
 .PHONY: check-ieee-remainder-reference-controls
@@ -1963,21 +1968,21 @@ check-ieee-remainder-oracle: $(IEEE_REMAINDER_PROBE) $(APP_DIR)/testIeee_remaind
 IEEE_REMAINDER_BENCH := $(APP_DIR)/tools/bench-ieee-remainder$(EXE_EXTENSION)
 $(IEEE_REMAINDER_BENCH): tools/bench-ieee-remainder.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: bench-ieee-remainder
 bench-ieee-remainder: $(IEEE_REMAINDER_BENCH)
 	@$(IEEE_REMAINDER_BENCH)
 IEEE_REMAINDER_PORTABLE_PROBE := $(APP_DIR)/tools/probe-ieee-remainder-portable$(EXE_EXTENSION)
 $(IEEE_REMAINDER_PORTABLE_PROBE): tools/probe-ieee-remainder.c tests/ieee_remainder_probe.h tests/corpus_hash.h src/elementary/ieee_remainder.c src/elementary/elem_common.h Makefile $(FLAGS_STAMP) | $(LIBVER_GEN)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -DGMATH_BUILD -DGMATH_IEEE_REMAINDER_PORTABLE_BITS -o $@ tools/probe-ieee-remainder.c src/elementary/ieee_remainder.c $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -DGMATH_BUILD -DGMATH_IEEE_REMAINDER_PORTABLE_BITS -o $@ tools/probe-ieee-remainder.c src/elementary/ieee_remainder.c $(TEST_LINK_FLAGS)
 .PHONY: check-ieee-remainder-portable check-planted-ieee-remainder-portable
 check-ieee-remainder-portable: $(IEEE_REMAINDER_PORTABLE_PROBE) check-planted-ieee-remainder-portable
 	@python3 tools/check-ieee-remainder.py --probe $(IEEE_REMAINDER_PORTABLE_PROBE) --corpus $(CORPUS_DIR)
 check-planted-ieee-remainder-portable: $(APP_DIR)/$(STATIC_TARGET) $(OBJ_DIR)/tests/test_ieee_remainder.o
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE) -DGMATH_IEEE_REMAINDER_PORTABLE_BITS' \
-	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' \
-	 PLANT_RAW_LDFLAGS='$(LDFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_ieee_remainder.o' \
+	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' \
+	 PLANT_RAW_LDFLAGS='$(TEST_LINK_FLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_ieee_remainder.o' \
 	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_WORK='$(BUILD_DIR)/planted-ieee-remainder-portable' PLANT_EXPECT_PORTABLE='1' \
 	 python3 tools/check-planted-ieee-remainder.py
 
@@ -1995,12 +2000,12 @@ $(IEEE_REMAINDER_PRIOR_PROBE): tools/probe-ieee-remainder.c tests/ieee_remainder
 	@test -n "$(IEEE_REMAINDER_REFERENCE_OBJECT)" || { echo 'IEEE remainder probe requires IEEE_REMAINDER_REFERENCE_OBJECT' >&2; exit 1; }
 	@mkdir -p $(dir $@)
 	@python3 tools/adjacent_baseline.py "$(IEEE_REMAINDER_REFERENCE_OBJECT)" "$(IEEE_REMAINDER_REFERENCE_METADATA)" --family ieee_remainder --expected-revision a54cfbacafa735c0bc7fd1a56af869b8877fa501 --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
-	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_IEEE_REMAINDER_PRIOR -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(IEEE_REMAINDER_REFERENCE_OBJECT) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_IEEE_REMAINDER_PRIOR -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(IEEE_REMAINDER_REFERENCE_OBJECT) $(TEST_LINK_FLAGS)
 $(IEEE_REMAINDER_PRIOR_BENCH): tools/bench-ieee-remainder.c tests/ieee_remainder_probe.h tests/corpus_hash.h tests/ieee_remainder_prior.h $(APP_DIR)/$(STATIC_TARGET) $(IEEE_REMAINDER_REFERENCE_OBJECT) $(IEEE_REMAINDER_REFERENCE_METADATA) tools/adjacent_baseline.py $(FLAGS_STAMP) ieee-remainder-reference-force
 	@test -n "$(IEEE_REMAINDER_REFERENCE_OBJECT)" || { echo 'IEEE remainder benchmark requires IEEE_REMAINDER_REFERENCE_OBJECT' >&2; exit 1; }
 	@mkdir -p $(dir $@)
 	@python3 tools/adjacent_baseline.py "$(IEEE_REMAINDER_REFERENCE_OBJECT)" "$(IEEE_REMAINDER_REFERENCE_METADATA)" --family ieee_remainder --expected-revision a54cfbacafa735c0bc7fd1a56af869b8877fa501 --flags='$(LIB_CFLAGS) $(INCLUDE)' --cc='$(CC)' --header "$@.identity.h"
-	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_IEEE_REMAINDER_PRIOR -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(IEEE_REMAINDER_REFERENCE_OBJECT) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_IEEE_REMAINDER_PRIOR -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(IEEE_REMAINDER_REFERENCE_OBJECT) $(TEST_LINK_FLAGS)
 .PHONY: check-ieee-remainder-prior bench-ieee-remainder-prior
 check-ieee-remainder-prior: $(IEEE_REMAINDER_PRIOR_PROBE)
 	@python3 tools/check-ieee-remainder-prior.py $(IEEE_REMAINDER_PRIOR_PROBE) --metadata "$(IEEE_REMAINDER_REFERENCE_METADATA)" --corpus $(CORPUS_DIR)
@@ -2015,14 +2020,14 @@ check-ieee-remainder-prior-driver:
 check-ieee-remainder-prior-controls: $(APP_DIR)/$(STATIC_TARGET) $(IEEE_REMAINDER_REFERENCE_OBJECT) $(IEEE_REMAINDER_REFERENCE_METADATA)
 	@test -n "$(IEEE_REMAINDER_REFERENCE_OBJECT)" || { echo 'IEEE native controls require IEEE_REMAINDER_REFERENCE_OBJECT' >&2; exit 1; }
 	@NATIVE_CC='$(CC)' NATIVE_CFLAGS='$(CFLAGS) $(INCLUDE)' NATIVE_LIB_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
-	 NATIVE_LDFLAGS='$(LDFLAGS)' NATIVE_LIBRARY='$(APP_DIR)/$(STATIC_TARGET)' NATIVE_REFERENCE='$(IEEE_REMAINDER_REFERENCE_OBJECT)' \
+	 NATIVE_LDFLAGS='$(TEST_LINK_FLAGS)' NATIVE_LIBRARY='$(APP_DIR)/$(STATIC_TARGET)' NATIVE_REFERENCE='$(IEEE_REMAINDER_REFERENCE_OBJECT)' \
 	 NATIVE_NM='$(NM)' NATIVE_OBJCOPY='$(OBJCOPY)' NATIVE_METADATA='$(IEEE_REMAINDER_REFERENCE_METADATA)' NATIVE_CORPUS='$(CORPUS_DIR)' NATIVE_WORK='$(BUILD_DIR)/ieee-remainder-prior-controls' \
 	 python3 tools/check-ieee-remainder-prior-controls.py
 
 NEARBY_PROBE := $(APP_DIR)/tools/probe-nearby$(EXE_EXTENSION)
 $(NEARBY_PROBE): tools/probe-nearby.c tests/nearby_probe.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: check-nearby oracle-nearby
 check-nearby: $(NEARBY_PROBE)
 	@python3 tools/check-nearby.py --probe $(NEARBY_PROBE)
@@ -2032,8 +2037,8 @@ oracle-nearby:
 check-planted-nearby: $(OBJ_DIR)/tests/test_nearby.o $(APP_DIR)/$(STATIC_TARGET)
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_nearby.o' \
-	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_LDFLAGS='$(LDFLAGS)' \
-	 PLANT_UNIT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' PLANT_WORK='$(BUILD_DIR)/planted-nearby' \
+	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS)' \
+	 PLANT_UNIT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' PLANT_WORK='$(BUILD_DIR)/planted-nearby' \
 	 python3 tools/check-planted-nearby.py
 .PHONY: check-nearby-controls check-nearby-oracle
 check-nearby-controls: $(NEARBY_PROBE) $(APP_DIR)/testNearby$(EXE_EXTENSION) $(HASH_PROBE)
@@ -2055,7 +2060,7 @@ check-nearby-oracle-controls:
 NEARBY_BENCH := $(APP_DIR)/tools/bench-nearby$(EXE_EXTENSION)
 $(NEARBY_BENCH): tools/bench-nearby.c $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: bench-nearby
 bench-nearby: $(NEARBY_BENCH)
 	@$(NEARBY_BENCH)
@@ -2079,7 +2084,7 @@ check-nearby-mode-plants:
 CURRENTINT_PROBE := $(APP_DIR)/tools/probe-currentint$(EXE_EXTENSION)
 $(CURRENTINT_PROBE): tools/probe-currentint.c tests/current_ir_probe.h tests/current_ir_prior.h tests/corpus_hash.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: check-currentint check-currentint-oracle oracle-currentint
 check-currentint: $(CURRENTINT_PROBE)
 	@python3 tools/check-currentint.py --probe $(CURRENTINT_PROBE)
@@ -2100,8 +2105,8 @@ check-currentint-oracle: check-currentint $(APP_DIR)/testCurrentint$(EXE_EXTENSI
 check-planted-currentint: $(OBJ_DIR)/tests/test_currentint.o $(APP_DIR)/$(STATIC_TARGET)
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_currentint.o' \
-	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_LDFLAGS='$(LDFLAGS)' \
-	 PLANT_UNIT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' PLANT_WORK='$(BUILD_DIR)/planted-currentint' \
+	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS)' \
+	 PLANT_UNIT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' PLANT_WORK='$(BUILD_DIR)/planted-currentint' \
 	 python3 tools/check-planted-currentint.py
 .PHONY: check-currentint-controls check-currentint-link
 check-currentint-controls: $(CURRENTINT_PROBE)
@@ -2123,14 +2128,14 @@ check-currentint-oracle-controls:
 CURRENTINT_BENCH := $(APP_DIR)/tools/bench-currentint$(EXE_EXTENSION)
 $(CURRENTINT_BENCH): tools/bench-currentint.c tests/current_ir_prior.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: bench-currentint
 bench-currentint: $(CURRENTINT_BENCH)
 	@$(CURRENTINT_BENCH)
 .PHONY: check-currentint-bench-controls
 check-currentint-bench-controls: $(APP_DIR)/$(STATIC_TARGET)
 	@BENCH_CC='$(CC)' BENCH_CFLAGS='$(CFLAGS) $(INCLUDE)' BENCH_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' \
-	 BENCH_LDFLAGS='$(LDFLAGS)' BENCH_WORK='$(BUILD_DIR)/currentint-bench-controls' python3 tools/check-currentint-bench.py
+	 BENCH_LDFLAGS='$(TEST_LINK_FLAGS)' BENCH_WORK='$(BUILD_DIR)/currentint-bench-controls' python3 tools/check-currentint-bench.py
 
 # Explicit actual-prior conversion tools need no Git history in default builds.
 CURRENTINT_REFERENCE_OBJECT ?=
@@ -2143,13 +2148,13 @@ $(CURRENTINT_REFERENCE_PROBE): tools/probe-currentint.c tests/current_ir_probe.h
 	@test -n "$(CURRENTINT_REFERENCE_OBJECT)" || { echo 'currentint prior probe requires CURRENTINT_REFERENCE_OBJECT' >&2; exit 1; }
 	@mkdir -p $(dir $@)
 	@python3 tools/currentint_baseline.py "$(CURRENTINT_REFERENCE_OBJECT)" "$(CURRENTINT_REFERENCE_METADATA)" --cc='$(CC)' --flags='$(LIB_CFLAGS) $(INCLUDE)' --expected-revision='$(CURRENTINT_REFERENCE_REVISION)' --header "$@.identity.h"
-	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CURRENTINT_REFERENCE -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CURRENTINT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CURRENTINT_REFERENCE -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CURRENTINT_REFERENCE_OBJECT) $(TEST_LINK_FLAGS)
 CURRENTINT_REFERENCE_BENCH := $(APP_DIR)/tools/bench-currentint-prior$(EXE_EXTENSION)
 $(CURRENTINT_REFERENCE_BENCH): tools/bench-currentint.c tests/current_ir_prior.h $(APP_DIR)/$(STATIC_TARGET) $(CURRENTINT_REFERENCE_OBJECT) $(CURRENTINT_REFERENCE_METADATA) $(FLAGS_STAMP) currentint-reference-force tools/currentint_baseline.py
 	@test -n "$(CURRENTINT_REFERENCE_OBJECT)" || { echo 'currentint prior benchmark requires CURRENTINT_REFERENCE_OBJECT' >&2; exit 1; }
 	@mkdir -p $(dir $@)
 	@python3 tools/currentint_baseline.py "$(CURRENTINT_REFERENCE_OBJECT)" "$(CURRENTINT_REFERENCE_METADATA)" --cc='$(CC)' --flags='$(LIB_CFLAGS) $(INCLUDE)' --expected-revision='$(CURRENTINT_REFERENCE_REVISION)' --header "$@.identity.h"
-	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CURRENTINT_REFERENCE -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CURRENTINT_REFERENCE_OBJECT) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -include "$@.identity.h" -DGMATH_CURRENTINT_REFERENCE -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(CURRENTINT_REFERENCE_OBJECT) $(TEST_LINK_FLAGS)
 .PHONY: check-currentint-prior bench-currentint-prior
 check-currentint-prior: $(CURRENTINT_REFERENCE_PROBE)
 	@$(CURRENTINT_REFERENCE_PROBE) --control-cases
@@ -2171,7 +2176,7 @@ build-currentint-baseline: $(FLAGS_STAMP) | $(LIBVER_GEN)
 POSITIVE_DIFFERENCE_PROBE := $(APP_DIR)/tools/probe-positive-difference$(EXE_EXTENSION)
 $(POSITIVE_DIFFERENCE_PROBE): tools/probe-positive-difference.c tests/positive_difference_probe.h tests/fp_controls.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: check-positive-difference oracle-positive-difference check-positive-difference-oracle
 check-positive-difference: $(POSITIVE_DIFFERENCE_PROBE)
 	@python3 tools/check-positive-difference.py --probe $(POSITIVE_DIFFERENCE_PROBE)
@@ -2192,8 +2197,8 @@ check-positive-difference-oracle: check-positive-difference $(APP_DIR)/testPosit
 check-planted-positive-difference: $(OBJ_DIR)/tests/test_positive_difference.o $(APP_DIR)/$(STATIC_TARGET)
 	@PLANT_CC='$(CC)' PLANT_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
 	 PLANT_CXX='$(CXX) $(CXXFLAGS)' PLANT_TEST_OBJ='$(OBJ_DIR)/tests/test_positive_difference.o' \
-	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_LDFLAGS='$(LDFLAGS)' \
-	 PLANT_UNIT_LDFLAGS='$(LDFLAGS) $(GTEST_FLAGS)' PLANT_WORK='$(BUILD_DIR)/planted-positive-difference' \
+	 PLANT_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' PLANT_LDFLAGS='$(TEST_LINK_FLAGS)' \
+	 PLANT_UNIT_LDFLAGS='$(TEST_LINK_FLAGS) $(GTEST_FLAGS)' PLANT_WORK='$(BUILD_DIR)/planted-positive-difference' \
 	 python3 tools/check-planted-positive-difference.py
 .PHONY: check-positive-difference-controls
 check-positive-difference-controls: $(POSITIVE_DIFFERENCE_PROBE) $(HASH_PROBE)
@@ -2202,7 +2207,7 @@ check-positive-difference-controls: $(POSITIVE_DIFFERENCE_PROBE) $(HASH_PROBE)
 check-positive-difference-harness: $(APP_DIR)/$(STATIC_TARGET)
 	@HARNESS_CC='$(CC)' HARNESS_CFLAGS='$(CFLAGS) $(INCLUDE)' \
 	 HARNESS_CXX='$(CXX)' HARNESS_CXXFLAGS='$(CXXFLAGS) $(INCLUDE)' \
-	 HARNESS_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' HARNESS_LDFLAGS='$(LDFLAGS)' \
+	 HARNESS_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' HARNESS_LDFLAGS='$(TEST_LINK_FLAGS)' \
 	 HARNESS_WORK='$(BUILD_DIR)/positive-difference-harness' python3 tools/check-positive-difference-harness.py
 
 .PHONY: check-positive-difference-oracle-controls
@@ -2211,7 +2216,7 @@ check-positive-difference-oracle-controls:
 POSITIVE_DIFFERENCE_BENCH := $(APP_DIR)/tools/bench-positive-difference$(EXE_EXTENSION)
 $(POSITIVE_DIFFERENCE_BENCH): tools/bench-positive-difference.c tests/fp_controls.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(LDFLAGS) -lm
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(APP_DIR)/$(STATIC_TARGET) $(TEST_LINK_FLAGS)
 .PHONY: bench-positive-difference
 POSITIVE_DIFFERENCE_BENCH_OUT ?= $(BUILD_DIR)/positive-difference-benchmark
 POSITIVE_DIFFERENCE_BENCH_RUNS ?= 1
@@ -2222,8 +2227,15 @@ bench-positive-difference: $(POSITIVE_DIFFERENCE_BENCH)
 .PHONY: check-positive-difference-bench-controls
 check-positive-difference-bench-controls: $(APP_DIR)/$(STATIC_TARGET)
 	@BENCH_CC='$(CC)' BENCH_CFLAGS='$(CFLAGS) $(INCLUDE)' BENCH_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' \
-	 BENCH_LDFLAGS='$(LDFLAGS)' BENCH_WORK='$(BUILD_DIR)/positive-difference-bench-controls' \
+	 BENCH_LDFLAGS='$(TEST_LINK_FLAGS)' BENCH_WORK='$(BUILD_DIR)/positive-difference-bench-controls' \
 	 python3 tools/check-positive-difference-bench.py --controls
+
+.PHONY: check-production-link
+check-production-link: $(APP_DIR)/$(TARGET) $(APP_DIR)/$(STATIC_TARGET)
+	@LINK_CC='$(CC)' LINK_CXX='$(CXX)' LINK_CFLAGS='$(CFLAGS) $(INCLUDE)' \
+	 python3 tools/check-production-link.py --shared $(APP_DIR)/$(TARGET) --archive $(APP_DIR)/$(STATIC_TARGET) \
+	 --examples $(APP_DIR)/examples --prefix '$(PREFIX)' --build-dir '$(BUILD_DIR)' \
+	 --work $(BUILD_DIR)/production-link
 
 .PHONY: prepare-grid-corpora check-grid-cache clean-grid-corpora
 prepare-grid-corpora:
