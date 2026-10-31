@@ -89,6 +89,11 @@ static uint64_t cr_controls(void) {
   uint16_t x87;
   __asm__ volatile("fnstcw %0" : "=m"(x87) : : "memory");
   return ((uint64_t)x87 << 32) | (raw & UINT32_C(0xffffffc0));
+#elif (defined(__GNUC__) || defined(__clang__)) &&                           \
+    (defined(__i386__) || defined(__x86_64__))
+  uint16_t raw;
+  __asm__ volatile("fnstcw %0" : "=m"(raw) : : "memory");
+  return (uint64_t)raw << 32;
 #elif (defined(__GNUC__) || defined(__clang__)) && defined(__aarch64__)
   uint64_t raw;
   __asm__ volatile("mrs %0, fpcr" : "=r"(raw) : : "memory");

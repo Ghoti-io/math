@@ -22,7 +22,7 @@
 #endif
 #if defined(GMATH_NEARBY_FENV_QUERY) ||                                        \
     !((defined(__GNUC__) || defined(__clang__)) &&                             \
-        ((defined(__SSE__) && (defined(__i386__) || defined(__x86_64__))) ||   \
+        ((defined(__i386__) || defined(__x86_64__)) ||                        \
             defined(__aarch64__) || defined(__s390x__) ||                      \
             defined(GMATH_NEARBY_PPC_NATIVE) ||                                \
             defined(GMATH_NEARBY_SPARC_NATIVE)))
@@ -49,6 +49,10 @@ static inline int nearby_mode(void) {
   uint32_t control;
   __asm__ volatile("stmxcsr %0" : "=m"(control) : : "memory");
   return (int)((control >> 13) & 3u);
+#elif defined(__i386__) || defined(__x86_64__)
+  uint16_t control;
+  __asm__ volatile("fnstcw %0" : "=m"(control) : : "memory");
+  return (int)((control >> 10) & 3u);
 #elif defined(__aarch64__)
   uint64_t control;
   __asm__ volatile("mrs %0, fpcr" : "=r"(control) : : "memory");

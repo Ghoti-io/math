@@ -20,10 +20,11 @@ All shifts are bounded by the format's significand width. Valid paths use only
 integer arithmetic and bit copies, so they cannot produce floating inexact or
 underflow from tiny arguments. Signaling NaNs explicitly raise invalid.
 
-GNU-compatible native readers cover x86 SSE, AArch64, s390x, PowerPC32/64 and
+GNU-compatible native readers cover x86 SSE and x87, AArch64, s390x, PowerPC32/64 and
 SPARC. They read rounding controls rather than modify them. The contract assumes
 coherent, nontrapping standard C environments. On x86 the selected arithmetic
-control is MXCSR; manually desynchronizing x87 and SSE is not a portable current
+control is MXCSR when SSE is enabled and the x87 control word otherwise;
+manually desynchronizing x87 and SSE is not a portable current
 mode. Instruction-specific overrides and unsupported rounding codes are outside
 the contract. SPARC STFSR/STXFSR may clear FTT trap-type status, which is not a
 standard C exception flag. No preservation of arbitrary trap diagnostics is
@@ -471,6 +472,39 @@ contains every case envelope.
 | 32 | sNaN | up | UF/IX | 2.356–2.403 | 2.119–2.126 | 1.104–1.108 | 1.112–1.113 | 1.122–1.135 |
 | 32 | sNaN | zero | clean | 2.293–2.480 | 2.063–2.232 | 1.105–1.107 | 1.112–1.113 | 1.116–1.220 |
 | 32 | sNaN | zero | UF/IX | 2.291–2.480 | 2.060–2.228 | 1.107–1.110 | 1.112–1.113 | 1.118–1.121 |
+
+## i686 without SSE
+
+The GNU x87 reader uses `fnstcw` and extracts rounding-control bits10..11,
+as specified by the [Intel architecture manual](https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-vol-1-manual.pdf). It
+reads controls without calling the platform fenv runtime or changing exception
+flags. `GMATH_NEARBY_FENV_QUERY` still explicitly selects the platform query.
+The deterministic `gmath_rint` family remains independent of the current mode.
+
+`make check-x87-rounding` builds a bare C client for nearby/rint/lrint/llrint,
+in both input formats, at O0 and O2. It tests four directions, all three valid
+x87 precision settings and three incoming flag states, including significand
+boundaries and large integral inputs. Wider binary64-only cases run at 53/64-bit
+precision; the 24-bit profile uses exactly representable inputs so caller
+argument/return conversions do not contaminate its flag checks. A planted fallback
+must fail the bare link with unresolved `fegetround`; an incorrect control-word
+shift must fail numerical checks. The explicit query override is also tested
+with its platform runtime. Existing complete nearby/current-integer raw probes
+run separately with test-only fenv support.
+
+Raw probe output must match the committed hash, count and state summary.
+A missing default 32-bit runtime is an explicit skip; a separately selected
+compiler or execution runner must work. Require a configured
+native or cross execution with:
+
+```sh
+GMATH_REQUIRE_X87=1 make check-x87-rounding \
+  X87_CC=i686-linux-gnu-gcc \
+  X87_RUNNER='qemu-i386 -L /usr/i686-linux-gnu'
+```
+
+This verifies these integer-rounding APIs; it does not establish general x87
+elementary-function accuracy or cross-architecture parity for other modules.
 
 ## Compact deterministic grids
 

@@ -292,6 +292,11 @@ ratio of separately aggregated absolute medians.
 | llrintf | finite-overflow | 1.868–1.958 | 0.905–0.948 | 2.034–2.062 | 2.065–2.069 | 2.069–2.692 |
 | llrintf | boundary32 | 6.004–6.584 | 0.886–0.946 | 5.371–6.717 | 6.754–6.840 | 6.874–7.404 |
 
+The shared GNU x86 mode reader also supports i686 without SSE through `fnstcw`
+(bits10..11). `make check-x87-rounding` checks bare no-libm links, all four modes
+and caller state; see [nearby-integer.md](nearby-integer.md#i686-without-sse).
+Explicit fenv-query overrides retain their platform runtime requirement.
+
 ## Compact deterministic grids
 
 `currentint64-special.corpus` are generated caches, not committed

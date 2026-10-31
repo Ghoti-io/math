@@ -86,6 +86,11 @@ static uint64_t nb_controls(void) {
   uint32_t raw;
   __asm__ volatile("stmxcsr %0" : "=m"(raw) : : "memory");
   return raw & UINT32_C(0xffffffc0);
+#elif (defined(__GNUC__) || defined(__clang__)) &&                           \
+    (defined(__i386__) || defined(__x86_64__))
+  uint16_t raw;
+  __asm__ volatile("fnstcw %0" : "=m"(raw) : : "memory");
+  return raw;
 #elif (defined(__GNUC__) || defined(__clang__)) && defined(__aarch64__)
   uint64_t raw;
   __asm__ volatile("mrs %0, fpcr" : "=r"(raw) : : "memory");

@@ -19,6 +19,7 @@ def main():
   print('nearby native direction plant: SKIPPED standard-fenv query configuration');return
  source=Path('src/elementary/nearby.c').read_text();helper=Path('src/elementary/nearby_mode.h').read_text()
  if '__SSE__' in macro:key='x86';old='(control >> 13) & 3u';new='(control >> 12) & 3u'
+ elif '__i386__' in macro or '__x86_64__' in macro:key='x87';old='(control >> 10) & 3u';new='(control >> 11) & 3u'
  elif '__aarch64__' in macro:key='aarch64';old='(control >> 22) & 3u';new='(control >> 23) & 3u'
  elif '__s390x__' in macro:key='s390';old='code == 1u ? 3 : code == 3u ? 1 : (int)code';new='(int)code'
  elif 'GMATH_NEARBY_PPC_NATIVE' in macro:key='powerpc';old='code == 1u ? 3 : code == 3u ? 1 : (int)code';new='(int)code'
