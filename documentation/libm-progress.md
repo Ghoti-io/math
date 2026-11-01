@@ -1,5 +1,17 @@
 # Libm gap closure
 
+## Inverse sine/cosine family
+
+The four gmath_asin/acos/asinf/acosf APIs complete Float/Double inverse circular
+names alongside the finished atan/atan2 family. Shared independently derived
+series and compensated half-angle reduction preserve all old runtime modules,
+tables, 87 result sets and the legacy aggregate. Compact directed MPFR/mpmath
+references and focused raw-state/defect checks accompany complete suite
+coverage: 104 gates and 259 main tests in 37 binaries, with 258 passes and one
+explicit native32-long skip. A header-rule interruption was resolved using
+compiled-code identity and a validated resumption. See [inverse-sine-cosine.md](inverse-sine-cosine.md) for contracts,
+mathematics, evidence and limits. Consumers remain unchanged.
+
 ## Binary64 unary arctangent
 
 The guarded gmath_atan wrapper adds a binary64 unary capability beside atanf.
@@ -51,9 +63,9 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 34 verified phases add 59 APIs, seven performance optimizations
-and certificate maintenance. Classic real-function name coverage is 79/171
-(40 Double, 39 Float, no long double); 35 Float/Double additions remain, or 92
+Current snapshot: 35 verified phases add 63 APIs, seven performance optimizations
+and certificate maintenance. Classic real-function name coverage is 83/171
+(42 Double, 41 Float, no long double); 31 Float/Double additions remain, or 88
 including long double. The phase
 sections below retain historical counts and measurements.
 
@@ -365,19 +377,19 @@ validation limits and complete timing envelopes are retained in
 
 ## Next work
 
-Investigate a bounded native-conversion optimization for the current-mode integer
-family, using the committed portable implementation as an actual-prior baseline.
-The measured ordinary gap is substantial. Hardware conversion must match exact
-rounded results and invalid-versus-inexact priority, preserve incoming state and
-handle tiny/denormal controls through a proved fallback. No fast path is admitted
-without independent architectural proof, real prior comparisons and paired gains.
-Keep portable/query configurations meaningful and preserve every old hash.
+Continue by coherent missing families, using the completed inverse circular
+family as the verification pattern. Paired log1p/expm1 in Float and Double or a
+hyperbolic family are candidates after checking the remaining inventory and
+usage. Functions in a family should share mathematical investigation, reference
+construction and focused numerical/state/defect checks. Run cheap integration
+checks early, then the full suite once the family is complete and reviewed.
 
-If no safe meaningful improvement is found, retain the verified baseline and
-select another cohesive basic capability after a read-only usage audit. `fdim`/
-`fdimf` are possible gaps; do not assume production use or full errno semantics.
-Broader inverse trig, hyperbolic, `log1p`/`expm1`, long-double, complex and special
-functions remain. Independent host references and consumers remain untouched.
+A failure can require further checks. Reuse a completed check only when its
+source and context remain valid, retain the original actual status, and record
+why reuse is justified. Shared-helper, ABI or build-system changes can require
+broader regression scope. Preserve every old runtime contract and result set;
+consumer migration, suite changes, long double and application timing remain
+separate work.
 
 ## Initial remainder division optimization
 

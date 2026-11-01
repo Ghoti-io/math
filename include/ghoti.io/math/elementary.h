@@ -354,6 +354,30 @@ GMATH_API float gmath_log2f(float x);
 GMATH_API double gmath_pow(double x, double y);
 
 /**
+ * @brief Principal inverse sine/cosine, within one result ulp in nearest mode.
+ *
+ * Shared positive-series and compensated half-angle evaluation. Numerical
+ * accuracy assumes nearest rounding; general correct/directed rounding and
+ * complete libm errno semantics are not promised. No rounding controls change.
+ * NaNs return canonical positive quiet NaNs, adding invalid only for signaling
+ * inputs. Magnitudes above one (including infinities) add invalid only.
+ * asin preserves signed zero; acos(+1) is exact +0. Every other valid call
+ * adds inexact, with underflow only for subnormal asin outputs. Preserve errno,
+ * rounding mode and incoming standard flags under coherent nontrapping controls.
+ * asin magnitudes below 2^-30 (Double) / 2^-12 (Float) return input bits in
+ * every mode. acos magnitudes below 2^-60 / 2^-28 return nearest pi/2;
+ * endpoint angles also use nearest constants in every mode.
+ * @param x Input in [-1,1].
+ * @return asin in [-pi/2,pi/2], or acos in [0,pi].
+ * @{
+ */
+GMATH_API double gmath_asin(double x);
+GMATH_API double gmath_acos(double x);
+GMATH_API float gmath_asinf(float x);
+GMATH_API float gmath_acosf(float x);
+/** @} */
+
+/**
  * @brief Binary64 unary arctangent, within one ulp under nearest rounding.
  *
  * General accuracy inherits the existing atan2 kernel's measured contract;

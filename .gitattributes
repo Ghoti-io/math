@@ -88,3 +88,7 @@ tests/corpus/atan-seeded.corpus text eol=lf
 tests/corpus/*-seeded.corpus text eol=lf
 tests/corpus/grid-payloads.sha256 text eol=lf
 tests/corpus/grid-seeds.sha256 text eol=lf
+
+# Shared inverse circular references have complete-byte SHA pins.
+tests/corpus/inverse-trig.corpus text eol=lf
+tests/corpus/inverse-trig.sha256 text eol=lf

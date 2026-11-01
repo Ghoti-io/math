@@ -373,6 +373,42 @@ static int hash_decimal(const char * dir, const char * fn, int parse, uint64_t *
   return 0;
 }
 
+/* Keep standalone cross probes independent of platform fenv runtimes and
+ * extra test headers. Numerical/state verification uses the separate family
+ * unit; this client hashes all four public results from the shared raw corpus.
+ */
+static int hash_inverse_trig(const char *directory) {
+  char path[4096],line[512];
+  if (snprintf(path,sizeof path,"%s/inverse-trig.corpus",directory)>=(int)sizeof path) return 1;
+  FILE *file=fopen(path,"rb");
+  if (!file) {fprintf(stderr,"corpus-hash: cannot open %s\n",path);return 1;}
+  uint64_t hashes[4]={UINT64_C(14695981039346656037),UINT64_C(14695981039346656037),
+                     UINT64_C(14695981039346656037),UINT64_C(14695981039346656037)};
+  unsigned long counts[4]={0,0,0,0};unsigned rows=0;
+  if (!fgets(line,sizeof line,file)||strncmp(line,"# inverse-trig-v1 seed=",23)||
+      !fgets(line,sizeof line,file)||strncmp(line,"# width input ",14)) {fclose(file);return 1;}
+  while (fgets(line,sizeof line,file)) {
+    gmath_inverse_row row;
+    if (++rows>100000||gmath_parse_inverse_row(line,&row)) {fclose(file);return 1;}
+    unsigned width=row.width;uint64_t word=row.input;
+    for (unsigned cosine=0;cosine<2;++cosine) {
+      unsigned index=(width==64?0:2)+cosine;double y;
+      if (width==64) y=cosine?gmath_acos(double_of(word)):gmath_asin(double_of(word));
+      else {
+        uint32_t raw=(uint32_t)word;float x;memcpy(&x,&raw,sizeof x);
+        y=(double)(cosine?gmath_acosf(x):gmath_asinf(x));
+      }
+      hashes[index]=gmath_fnv_double(hashes[index],y);++counts[index];
+    }
+  }
+  int status=ferror(file)||!counts[0]||!counts[2];fclose(file);
+  if (!status) {
+    const char *names[]={"asin","acos","asinf","acosf"};
+    for (unsigned i=0;i<4;++i) printf("math.%s.hash %016" PRIx64 "\nmath.%s.count %lu\n",names[i],hashes[i],names[i],counts[i]);
+  }
+  return status;
+}
+
 int main(int argc, char ** argv) {
   if (argc != 2) {
     fprintf(stderr, "usage: corpus-hash DIR\n");
@@ -511,5 +547,6 @@ int main(int argc, char ** argv) {
       }
     }
   }
+  if (hash_inverse_trig(argv[1])) status = 1;
   return status;
 }

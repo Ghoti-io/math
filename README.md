@@ -5,6 +5,11 @@ Deterministic elementary functions that give the same bits on every host. It is 
 
 ## What is implemented
 
+`gmath_asin`, `gmath_acos`, `gmath_asinf` and `gmath_acosf` complete the
+inverse circular family alongside atan/atan2. They share series and half-angle
+reduction, a one-result-ULP nearest target and explicit raw special-value/state
+contracts. See [inverse-sine-cosine.md](documentation/inverse-sine-cosine.md).
+
 `gmath_remainder`, `gmath_remainderf`, `gmath_remquo` and `gmath_remquof`
 supply exact nearest-quotient remainders, including subnormals, in every mode.
 Quotient ties go to even; remquo also provides seven signed quotient bits.
@@ -183,6 +188,10 @@ polynomials (`src/elementary/trig_tables.h`, `trig_kernel_table.h`, `explog_tabl
 `atan2_table.h`, `hypot_table.h`); `make oracle-corpus` and
 `make corpus-hash-update` regenerate the corpus and its hash after a deliberate
 change.
+
+The [inverse sine/cosine family](documentation/inverse-sine-cosine.md) shares a
+compact literal reference corpus for four APIs; no preparation is needed for
+that committed payload. `make check-inverse-trig` runs its focused checks.
 
 The binary64 arctangent grid is stored compactly: `atan-seeded.corpus` keeps
 all 2,000 seeded per-input answers, `atan-special.hash` pins observed result/state

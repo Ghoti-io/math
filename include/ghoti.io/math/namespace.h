@@ -48,6 +48,11 @@
 #define gmath_decimal_tier GHOTIIO_MATH(gmath_decimal_tier)
 
 /* Public functions. */
+#define gmath_asin GHOTIIO_MATH(gmath_asin)
+#define gmath_acos GHOTIIO_MATH(gmath_acos)
+#define gmath_asinf GHOTIIO_MATH(gmath_asinf)
+#define gmath_acosf GHOTIIO_MATH(gmath_acosf)
+
 #define gmath_atan GHOTIIO_MATH(gmath_atan)
 #define gmath_atan2 GHOTIIO_MATH(gmath_atan2)
 #define gmath_atanf GHOTIIO_MATH(gmath_atanf)
