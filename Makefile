@@ -244,7 +244,7 @@ INCLUDE := -I include/ -I $(GEN_DIR)/
 
 # libver-gen is here so that suite/tools/xarch/shape.sh can write the generated
 # header for a cross build without any dependency installed.
-DEPLESS_GOALS := docs docs-pdf clean fuzz-clean cloc help libver-gen
+DEPLESS_GOALS := docs docs-pdf clean fuzz-clean cloc help libver-gen prepare-corpora prepare-atan-corpus prepare-grid-corpora
 ifeq ($(filter-out $(DEPLESS_GOALS),$(or $(MAKECMDGOALS),all)),)
 SKIP_DEP_CHECK := 1
 endif
@@ -2343,3 +2343,8 @@ $(TEST_GATES) $(GRID_DIRECT_TARGETS): | prepare-grid-corpora
 clean: clean-grid-corpora
 clean-grid-corpora:
 	@python3 tools/prepare-grid-corpora.py --directory '$(CORPUS_DIR)' --clean
+
+# Stable entry point for standalone/native/cross corpus consumers. Future
+# generated corpus families belong here; callers need not track their names.
+.PHONY: prepare-corpora
+prepare-corpora: prepare-atan-corpus prepare-grid-corpora

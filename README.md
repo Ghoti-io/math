@@ -149,8 +149,18 @@ prepare caches automatically; no container is needed for per-input tests.
 Pinned oracle checks still regenerate complete grids independently. `make clean`
 removes generated caches, not literal seeds. Other small corpora remain
 committed. Raw benchmark outputs are not committed; Markdown retains the
-summaries and case tables. Directly compiled cross probes need preparation
-before copying the tree into environments without Python.
+summaries and case tables. Before compiling/running `tools/corpus-hash.c` outside `make test`, run:
+
+```sh
+make -j1 prepare-corpora
+```
+
+`prepare-corpora` is the stable entry point for **all** generated test corpora.
+It works from a fresh checkout with Python 3 and GNU Make, without an installed
+SDK, compiler or container. Future generated families will join this target;
+standalone and cross-target callers can keep using the same name. Prepare on
+the native host before copying the tree into environments without Python.
+Existing corrupt caches fail; the target does not silently replace them.
 
 
 `tests/corpus/` holds the oracle's answers for every function: 19,431 inputs each for
@@ -186,7 +196,7 @@ removes these two generated grids. `make check-atan-oracle` independently
 regenerates them with the pinned container and compares complete bytes; native
 reconstruction is not an additional proof of transcendental accuracy.
 Directly compiled corpus probes also need these prepared files. Run
-`make prepare-atan-corpus` before copying the tree into a cross environment
+`make prepare-corpora` before copying the tree into a cross environment
 without Python; version-header generation alone does not prepare test data.
 The SDK itself does not depend on the test cache.
 
