@@ -94,3 +94,7 @@ fn asin 99b5c314ca65f0cd 4556
 fn acos f88dbe19b7b1fb16 4556
 fn asinf e39c4062a5a8df41 3214
 fn acosf 8272c9884e2ccee5 3214
+fn log1p db73a2ff8344df2c 6354
+fn expm1 b537391b882b1966 6354
+fn log1pf c2a4baf3aa5bd85e 5412
+fn expm1f fc3b6c40331a6ea6 5412

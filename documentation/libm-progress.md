@@ -1,5 +1,15 @@
 # Libm gap closure
 
+## Cancellation-safe logarithm/exponential family
+
+The four log1p/expm1 APIs in Float and Double share compensated odd/Taylor
+series and ln2 reduction. Old runtime modules, tables, 91 result sets and the
+legacy aggregate are unchanged. Focused numerical/state/defect checks and
+independent directed MPFR/mpmath references accompany the family. Focused GCC16,
+Clang and ASan/UBSan checks pass. One clean default GCC16 full suite exits zero:
+105 gates, 38 main binaries, 263 passes and one expected native32-long skip. See
+[log1p-expm1.md](log1p-expm1.md) for contracts, mathematics and coverage limits.
+
 ## Inverse sine/cosine family
 
 The four gmath_asin/acos/asinf/acosf APIs complete Float/Double inverse circular
@@ -63,9 +73,9 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 35 verified phases add 63 APIs, seven performance optimizations
-and certificate maintenance. Classic real-function name coverage is 83/171
-(42 Double, 41 Float, no long double); 31 Float/Double additions remain, or 88
+Current snapshot: 36 verified phases add 67 APIs, seven performance optimizations
+and certificate maintenance. Classic real-function name coverage is 87/171
+(44 Double, 43 Float, no long double); 27 Float/Double additions remain, or 84
 including long double. The phase
 sections below retain historical counts and measurements.
 

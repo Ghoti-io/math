@@ -5,6 +5,11 @@ Deterministic elementary functions that give the same bits on every host. It is 
 
 ## What is implemented
 
+`gmath_log1p`, `gmath_expm1` and their Float forms retain near-zero corrections
+without cancellation. They share independently derived compensated series,
+nearest one-result-ULP contracts and explicit raw special/state behavior. See
+[log1p-expm1.md](documentation/log1p-expm1.md).
+
 `gmath_asin`, `gmath_acos`, `gmath_asinf` and `gmath_acosf` complete the
 inverse circular family alongside atan/atan2. They share series and half-angle
 reduction, a one-result-ULP nearest target and explicit raw special-value/state

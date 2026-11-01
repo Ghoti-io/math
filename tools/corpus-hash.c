@@ -409,6 +409,38 @@ static int hash_inverse_trig(const char *directory) {
   return status;
 }
 
+static int hash_log1p_expm1(const char *directory) {
+  char path[4096],line[512];
+  if (snprintf(path,sizeof path,"%s/log1p-expm1.corpus",directory)>=(int)sizeof path) return 1;
+  FILE *file=fopen(path,"rb");
+  if (!file) {fprintf(stderr,"corpus-hash: cannot open %s\n",path);return 1;}
+  uint64_t hashes[4]={UINT64_C(14695981039346656037),UINT64_C(14695981039346656037),
+                     UINT64_C(14695981039346656037),UINT64_C(14695981039346656037)};
+  unsigned long counts[4]={0,0,0,0};unsigned rows=0;
+  if (!fgets(line,sizeof line,file)||strncmp(line,"# log1p-expm1-v1 seed=",22)||
+      !fgets(line,sizeof line,file)||strncmp(line,"# width input ",14)) {fclose(file);return 1;}
+  while (fgets(line,sizeof line,file)) {
+    gmath_inverse_row row;
+    if (++rows>100000||gmath_parse_inverse_row(line,&row)) {fclose(file);return 1;}
+    unsigned width=row.width;uint64_t word=row.input;
+    for (unsigned cosine=0;cosine<2;++cosine) {
+      unsigned index=(width==64?0:2)+cosine;double y;
+      if (width==64) y=cosine?gmath_expm1(double_of(word)):gmath_log1p(double_of(word));
+      else {
+        uint32_t raw=(uint32_t)word;float x;memcpy(&x,&raw,sizeof x);
+        y=(double)(cosine?gmath_expm1f(x):gmath_log1pf(x));
+      }
+      hashes[index]=gmath_fnv_double(hashes[index],y);++counts[index];
+    }
+  }
+  int status=ferror(file)||!counts[0]||!counts[2];fclose(file);
+  if (!status) {
+    const char *names[]={"log1p","expm1","log1pf","expm1f"};
+    for (unsigned i=0;i<4;++i) printf("math.%s.hash %016" PRIx64 "\nmath.%s.count %lu\n",names[i],hashes[i],names[i],counts[i]);
+  }
+  return status;
+}
+
 int main(int argc, char ** argv) {
   if (argc != 2) {
     fprintf(stderr, "usage: corpus-hash DIR\n");
@@ -548,5 +580,6 @@ int main(int argc, char ** argv) {
     }
   }
   if (hash_inverse_trig(argv[1])) status = 1;
+  if (hash_log1p_expm1(argv[1])) status = 1;
   return status;
 }

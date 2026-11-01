@@ -142,11 +142,15 @@ def check_pin(timeout=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "fit-explog", "fit-logbase", "fit-cbrt", "fit-floattrig-reduce", "fit-atan2", "fit-hypot", "corpus", "fresh", "logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt", "floatbasic", "fresh-floatbasic", "floattrig", "fresh-floattrig", "exp2f", "fresh-exp2f", "expf", "fresh-expf", "logf", "fresh-logf", "log10f", "fresh-log10f", "hypotf", "fresh-hypotf", "atan2f", "fresh-atan2f", "atanf", "fresh-atanf", "atan", "fresh-atan", "inverse_trig", "ieee_remainder", "fresh-ieee_remainder", "intround", "fresh-intround", "cbrtf", "fresh-cbrtf", "long_scale", "fresh-long_scale", "exponent_value", "fresh-exponent_value", "positive_difference", "fresh-positive_difference", "currentint", "fresh-currentint", "nearby", "fresh-nearby", "fraction_split", "fresh-fraction_split", "float_scale", "fresh-float_scale", "adjacent", "fresh-adjacent", "budget-log10f", "budget-hypotf", "budget-atan2f", "budget-atan"))
+    ap.add_argument("cmd", choices=("version", "fit", "fit-kernel", "fit-explog", "fit-logbase", "fit-cbrt", "fit-floattrig-reduce", "fit-atan2", "fit-hypot", "corpus", "fresh", "logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt", "floatbasic", "fresh-floatbasic", "floattrig", "fresh-floattrig", "exp2f", "fresh-exp2f", "expf", "fresh-expf", "logf", "fresh-logf", "log10f", "fresh-log10f", "hypotf", "fresh-hypotf", "atan2f", "fresh-atan2f", "atanf", "fresh-atanf", "atan", "fresh-atan", "inverse_trig", "log1p_expm1", "ieee_remainder", "fresh-ieee_remainder", "intround", "fresh-intround", "cbrtf", "fresh-cbrtf", "long_scale", "fresh-long_scale", "exponent_value", "fresh-exponent_value", "positive_difference", "fresh-positive_difference", "currentint", "fresh-currentint", "nearby", "fresh-nearby", "fraction_split", "fresh-fraction_split", "float_scale", "fresh-float_scale", "adjacent", "fresh-adjacent", "budget-log10f", "budget-hypotf", "budget-atan2f", "budget-atan"))
     ap.add_argument("--out")
     ap.add_argument("--seed", type=int)
     ap.add_argument("--count", type=int, default=3000)
+    ap.add_argument("--midpoint-search", action="store_true")
     a = ap.parse_args()
+    if a.midpoint_search and a.cmd != "log1p_expm1":
+        sys.stderr.write("oracle.py: --midpoint-search is specific to log1p_expm1\n")
+        return 2
     try:
         ref, prov = check_pin()
     except Unavailable as e:
@@ -199,10 +203,12 @@ def main():
     if not out.startswith(ROOT + os.sep):
         sys.stderr.write("oracle.py: --out must be inside %s\n" % ROOT)
         return 2
-    if a.cmd in ("logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt", "floatbasic", "fresh-floatbasic", "floattrig", "fresh-floattrig", "exp2f", "fresh-exp2f", "expf", "fresh-expf", "logf", "fresh-logf", "log10f", "fresh-log10f", "hypotf", "fresh-hypotf", "atan2f", "fresh-atan2f", "atanf", "fresh-atanf", "atan", "fresh-atan", "inverse_trig", "ieee_remainder", "fresh-ieee_remainder", "intround", "fresh-intround", "cbrtf", "fresh-cbrtf", "long_scale", "fresh-long_scale", "exponent_value", "fresh-exponent_value", "positive_difference", "fresh-positive_difference", "currentint", "fresh-currentint", "nearby", "fresh-nearby", "fraction_split", "fresh-fraction_split", "float_scale", "fresh-float_scale", "adjacent", "fresh-adjacent"):
+    if a.cmd in ("logbase", "fresh-logbase", "exp2", "fresh-exp2", "cbrt", "fresh-cbrt", "floatbasic", "fresh-floatbasic", "floattrig", "fresh-floattrig", "exp2f", "fresh-exp2f", "expf", "fresh-expf", "logf", "fresh-logf", "log10f", "fresh-log10f", "hypotf", "fresh-hypotf", "atan2f", "fresh-atan2f", "atanf", "fresh-atanf", "atan", "fresh-atan", "inverse_trig", "log1p_expm1", "ieee_remainder", "fresh-ieee_remainder", "intround", "fresh-intround", "cbrtf", "fresh-cbrtf", "long_scale", "fresh-long_scale", "exponent_value", "fresh-exponent_value", "positive_difference", "fresh-positive_difference", "currentint", "fresh-currentint", "nearby", "fresh-nearby", "fraction_split", "fresh-fraction_split", "float_scale", "fresh-float_scale", "adjacent", "fresh-adjacent"):
         family = a.cmd.removeprefix("fresh-")
         argv = ["python", "tools/oracle/gen_corpus_" + family + ".py", "--out", out,
                 "--seed", str(a.seed), "--count", str(a.count)]
+        if a.midpoint_search:
+            argv.append("--midpoint-search")
         if a.cmd.startswith("fresh-"):
             argv.append("--fresh")
         return engine_run(ref, argv).returncode

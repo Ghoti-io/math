@@ -354,6 +354,32 @@ GMATH_API float gmath_log2f(float x);
 GMATH_API double gmath_pow(double x, double y);
 
 /**
+ * @brief Cancellation-safe log(1+x) and exp(x)-1 in Double and Float.
+ *
+ * Within one result ulp under nearest rounding; general correct/directed
+ * rounding and full libm errno semantics are not promised. Signed zeros are
+ * exact. Raw NaNs canonicalize; signaling NaNs add invalid only. log1p(-1)
+ * returns negative infinity with divide-by-zero only, and values below -1
+ * return canonical NaN with invalid only. log1p(+Inf) is exact. expm1(+Inf)
+ * returns +Inf and expm1(-Inf) returns -1, without new flags.
+ * Other valid finite nonzero inputs add inexact, underflow only for subnormal
+ * rounded outputs, and overflow/inexact at expm1's nearest overflow boundary.
+ * Inputs below 2^-60 magnitude (Double), 2^-26 (Float) return input bits in
+ * every mode. Finite expm1 inputs <=-40 (Double) / <=-20 (Float) return -1;
+ * finite overflow returns +Inf in every mode. Other numerical accuracy assumes
+ * nearest rounding. Preserve errno, mode, incoming standard flags and coherent
+ * nontrapping controls; no rounding-control writes.
+ * @param x The argument.
+ * @return log(1+x) or exp(x)-1.
+ * @{
+ */
+GMATH_API double gmath_log1p(double x);
+GMATH_API double gmath_expm1(double x);
+GMATH_API float gmath_log1pf(float x);
+GMATH_API float gmath_expm1f(float x);
+/** @} */
+
+/**
  * @brief Principal inverse sine/cosine, within one result ulp in nearest mode.
  *
  * Shared positive-series and compensated half-angle evaluation. Numerical
