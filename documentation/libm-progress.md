@@ -1,5 +1,18 @@
 # Libm gap closure
 
+## Inverse hyperbolic family
+
+Six asinh/acosh/atanh APIs in Float and Double share independently derived
+compensated logarithms and square-root residual corrections. Earlier runtime
+modules, helpers, tables, 101 result sets and the legacy aggregate remain
+unchanged. GCC16, Clang and ASan/UBSan focused checks pass on default and larger
+independent samples. Strict two-precision MPFR/mpmath regeneration and pinned
+midpoint selection pass. One cold default GCC16 suite exits zero: 107 gates,
+40 main binaries, 274 tests: 273 pass and one expected native32-long skip.
+All five inverse hyperbolic tests pass. See
+[inverse-hyperbolic.md](inverse-hyperbolic.md) for contracts, sampled witnesses
+and coverage limits.
+
 ## Hyperbolic family
 
 Six sinh/cosh/tanh APIs in Float and Double share independently derived
@@ -84,9 +97,9 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 37 verified phases add 73 APIs, seven performance optimizations
-and certificate maintenance. Classic real-function name coverage is 93/171
-(47 Double, 46 Float, no long double); 21 Float/Double additions remain, or 78
+Current snapshot: 38 verified phases add 79 APIs, seven performance optimizations
+and certificate maintenance. Classic real-function name coverage is 99/171
+(50 Double, 49 Float, no long double); 15 Float/Double additions remain, or 72
 including long double. The phase
 sections below retain historical counts and measurements.
 
@@ -398,9 +411,7 @@ validation limits and complete timing envelopes are retained in
 
 ## Next work
 
-Continue by coherent missing families, using the completed inverse circular
-family as the verification pattern. Paired log1p/expm1 in Float and Double or a
-hyperbolic family are candidates after checking the remaining inventory and
+Continue by coherent missing families after checking the current inventory and
 usage. Functions in a family should share mathematical investigation, reference
 construction and focused numerical/state/defect checks. Run cheap integration
 checks early, then the full suite once the family is complete and reviewed.

@@ -100,3 +100,7 @@ tests/corpus/log1p-expm1.sha256 text eol=lf
 # Hyperbolic literal references require complete canonical LF bytes.
 tests/corpus/hyperbolic.corpus text eol=lf
 tests/corpus/hyperbolic.sha256 text eol=lf
+
+# Inverse hyperbolic reference bytes must remain canonical LF.
+tests/corpus/inverse-hyperbolic.corpus text eol=lf
+tests/corpus/inverse-hyperbolic.sha256 text eol=lf

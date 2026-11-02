@@ -380,6 +380,39 @@ GMATH_API float gmath_expm1f(float x);
 /** @} */
 
 /**
+ * @brief Inverse hyperbolic sine/cosine/tangent, one result ulp nearest target.
+ *
+ * Compensated logarithm/square-root reductions. General correct or directed
+ * rounding, long double and complete libm errno semantics are outside contract.
+ * Preserve errno, mode, incoming standard flags and coherent nontrapping
+ * controls; production never writes controls. All NaNs canonicalize positive
+ * quiet, adding invalid only for signaling inputs. Asinh/atanh preserve signed
+ * zero exactly. Asinh signed infinities and acosh positive infinity are exact.
+ * Acosh(1) is exact +0; x<1 (including either zero/negative infinity) is invalid
+ * only. Atanh signed1 is signed infinity/divide-by-zero only; abs(x)>1 including
+ * infinities is invalid only. Other finite valid nonzero calls add inexact,
+ * with underflow only for subnormal asinh/atanh outputs; no valid finite overflow.
+ * Asinh/atanh magnitudes below2^-60 Double/2^-26 Float return input bits in every
+ * mode. Ordinary numerical accuracy assumes nearest rounding.
+ * @param x Asinh real input, acosh x>=1, or atanh x in [-1,1].
+ * @return Inverse hyperbolic value, or the specified domain/pole result.
+ * @{
+ */
+/** @brief Inverse hyperbolic sine for any real input; signed zeros/infinities exact. */
+GMATH_API double gmath_asinh(double x);
+/** @brief Inverse hyperbolic cosine for x>=1; x<1 invalid, acosh(1)=+0 exact. */
+GMATH_API double gmath_acosh(double x);
+/** @brief Inverse hyperbolic tangent for abs(x)<1; signed1 poles, larger magnitudes invalid. */
+GMATH_API double gmath_atanh(double x);
+/** @brief Float asinh; any real input, tiny threshold 2^-26; see family contract. */
+GMATH_API float gmath_asinhf(float x);
+/** @brief Float acosh; x>=1, x<1 invalid, acoshf(1)=+0 exact. */
+GMATH_API float gmath_acoshf(float x);
+/** @brief Float atanh; abs(x)<1, signed1 poles; tiny threshold 2^-26. */
+GMATH_API float gmath_atanhf(float x);
+/** @} */
+
+/**
  * @brief Hyperbolic sine/cosine/tangent, one result ulp in nearest mode.
  *
  * Independently derived compensated exponential reduction. General correct or
