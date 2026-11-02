@@ -1,5 +1,21 @@
 # Libm gap closure
 
+## Remaining Float/Double entry points
+
+All fifteen remaining names are implemented together: powf; erf/erfc/tgamma/lgamma
+in both precisions; nan/nanf; nexttoward/nexttowardf; and fma/fmaf. The new
+integer arithmetic preserves every earlier runtime, helper, table and literal
+corpus byte, plus the 107 prior result sets and legacy aggregate. Focused GCC16,
+Clang and ASan/UBSan checks pass on 17,908 canonical and 44,783 larger-sample
+rows, including exact-arithmetic calibrations, native state checks and 30
+compiled defects. Independent review findings are resolved. One cold default
+GCC16 full suite exits zero: 108 gates, 41 main binaries, 284 tests, with 283
+passes and one expected native32-long skip. All ten new family tests pass.
+See [remaining-fifteen.md](remaining-fifteen.md) for contracts and coverage
+limits. Float/Double name coverage is complete; long-double additions and
+consumer migrations remain outstanding. Name coverage is not behavioral parity
+or a global accuracy proof.
+
 ## Inverse hyperbolic family
 
 Six asinh/acosh/atanh APIs in Float and Double share independently derived
@@ -97,10 +113,10 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 38 verified phases add 79 APIs, seven performance optimizations
-and certificate maintenance. Classic real-function name coverage is 99/171
-(50 Double, 49 Float, no long double); 15 Float/Double additions remain, or 72
-including long double. The phase
+Current snapshot: 39 verified phases add 94 APIs, seven performance optimizations
+and certificate maintenance. Classic real-function name coverage is 114/171
+(57 Double, 57 Float, no long double); Float/Double name coverage is complete,
+with 57 long-double names remaining. The phase
 sections below retain historical counts and measurements.
 
 ## Current-mode integer conversion

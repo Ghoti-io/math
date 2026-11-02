@@ -27,9 +27,12 @@
  * division in a fixed order, integer arithmetic and, in `gmath_hypot`, this
  * library's own correctly rounded square root (basic.h).  It never calls the
  * C library's `<math.h>` (`make check-libm` refuses every libm symbol), never
- * relies on a fused multiply-add, and never computes in extended precision, so
+ * contracts operations into a fused multiply-add, and never computes in
+ * extended precision, so
  * the result does not depend on the libm, the CPU or the byte order of the host
- * (AD-17, AD-22).  The library must be built with `-ffp-contract=off` and, on
+ * (AD-17, AD-22). Explicit integer `gmath_fma`/`gmath_fmaf` APIs in basic.h
+ * round an exact product-plus-sum once without changing these kernels.
+ * The library must be built with `-ffp-contract=off` and, on
  * 32-bit x86, with SSE math;
  * `make check-fp-contract` and `make check-no-x87` enforce both.
  */
@@ -568,6 +571,31 @@ GMATH_API double gmath_hypot(double x, double y);
  * @return The length of the hypotenuse as a float.
  */
 GMATH_API float gmath_hypotf(float x, float y);
+
+/** Float power, with raw Float special dispatch and integer final packing.
+ * Nearest one-result-ULP target; ordinary directed accuracy unclaimed.
+ * Preserve errno, controls and incoming flags. Signaling NaNs take priority
+ * over unit-base/zero-exponent identities, returning canonical NaN with IV. */
+GMATH_API float gmath_powf(float x, float y);
+/** Error/complementary-error and gamma/log-absolute-gamma functions.
+ * Nearest one-result-ULP measured target, not a global correct-rounding proof;
+ * ordinary directed accuracy unclaimed. Preserve errno, controls, incoming
+ * flags; lgamma has no signgam side effect. NaNs canonicalize positive quiet,
+ * raising invalid only for signaling inputs. Erf signed zeros/infinities and
+ * erfc zeros/infinities are exact. Tgamma signed-zero poles give signed Inf/DZ;
+ * negative integers and negative Inf are invalid. Lgamma nonpositive integers
+ * give positive Inf/DZ; either infinity gives positive Inf. Inputs 1 and 2
+ * give exact positive zero.
+ * Other finite results add inexact (including other exact factorials), range
+ * flags only at result boundaries. */
+GMATH_API double gmath_erf(double x);
+GMATH_API float gmath_erff(float x);
+GMATH_API double gmath_erfc(double x);
+GMATH_API float gmath_erfcf(float x);
+GMATH_API double gmath_tgamma(double x);
+GMATH_API float gmath_tgammaf(float x);
+GMATH_API double gmath_lgamma(double x);
+GMATH_API float gmath_lgammaf(float x);
 
 #ifdef __cplusplus
 }

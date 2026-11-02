@@ -40,6 +40,7 @@
 #include <ghoti.io/math/decimal.h>
 #include <ghoti.io/math/elementary.h>
 
+#include <float.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -503,6 +504,131 @@ static int hash_inverse_hyperbolic(const char *directory) {
   return status;
 }
 
+
+/* Numeric-only final fifteen overlay. FMA canonical-nearest rows alone are
+ * hashed; directed modes and caller state belong to the focused public gate.
+ * Keep this copied-client path free of new headers and platform fenv calls. */
+static const char * const rh_names[15] = {"erf", "erfc", "tgamma", "lgamma",
+    "erff", "erfcf", "tgammaf", "lgammaf", "powf", "fma", "fmaf", "nexttoward",
+    "nexttowardf", "nan", "nanf"};
+static uint64_t rh_bits(double x) {
+  uint64_t u;
+  memcpy(&u, &x, 8);
+  return u;
+}
+static double rh_double(uint64_t u) {
+  double x;
+  memcpy(&x, &u, 8);
+  return x;
+}
+static float rh_float(uint64_t u) {
+  uint32_t b = (uint32_t)u;
+  float x;
+  memcpy(&x, &b, 4);
+  return x;
+}
+static uint64_t rh_fbits(float x) {
+  uint32_t u;
+  memcpy(&u, &x, 4);
+  return u;
+}
+/* Exact binary64 object expansion; no floating conversion may quiet sNaNs. */
+static void rh_direction_bytes(unsigned char *bytes,size_t size,uint64_t y){
+ memset(bytes,0,size);
+#if LDBL_MANT_DIG == 53 && LDBL_MAX_EXP == 1024
+ memcpy(bytes,&y,8);
+#elif LDBL_MANT_DIG == 106 && LDBL_MAX_EXP == 1024
+ memcpy(bytes,&y,8);
+#elif (LDBL_MANT_DIG == 64 || LDBL_MANT_DIG == 113) && LDBL_MAX_EXP == 16384
+ uint64_t fraction=y&UINT64_C(0x000fffffffffffff),m=fraction;unsigned field=(unsigned)((y>>52)&2047);int exponent=0;
+ if(field&&field!=2047){m|=UINT64_C(0x0010000000000000);exponent=(int)field-1023;}
+ else if(!field&&m){unsigned top=0;uint64_t t=m;while(t>>1){t>>=1;++top;}unsigned shift=52-top;m<<=shift;exponent=-1022-(int)shift;}
+ unsigned native_exp=field==2047?32767:m?(unsigned)(exponent+16383):0;
+#if LDBL_MANT_DIG == 64
+ uint64_t mant=field==2047?(fraction|UINT64_C(0x0010000000000000))<<11:m<<11;uint16_t se=(uint16_t)((y>>48)&UINT64_C(0x8000));se|=(uint16_t)native_exp;
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+ memcpy(bytes,&se,2);memcpy(bytes+size-8,&mant,8);
+#else
+ memcpy(bytes,&mant,8);memcpy(bytes+8,&se,2);
+#endif
+#else
+ uint64_t f=field==2047?fraction:m&UINT64_C(0x000fffffffffffff);uint64_t hi=(y&UINT64_C(0x8000000000000000))|((uint64_t)native_exp<<48)|(f>>4),lo=f<<60;
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+ memcpy(bytes,&hi,8);memcpy(bytes+8,&lo,8);
+#else
+ memcpy(bytes,&lo,8);memcpy(bytes+8,&hi,8);
+#endif
+#endif
+#else
+#error Unsupported native long double representation in raw test caller
+#endif
+}
+
+static uint64_t rh_call(unsigned fn, uint64_t x, uint64_t y, uint64_t z) {
+  double dx = rh_double(x), dy = rh_double(y), dz = rh_double(z);
+  float fx = rh_float(x), fy = rh_float(y), fz = rh_float(z);
+  switch (fn) {
+  case 0:
+    return rh_bits(gmath_erf(dx));
+  case 1:
+    return rh_bits(gmath_erfc(dx));
+  case 2:
+    return rh_bits(gmath_tgamma(dx));
+  case 3:
+    return rh_bits(gmath_lgamma(dx));
+  case 4:
+    return rh_fbits(gmath_erff(fx));
+  case 5:
+    return rh_fbits(gmath_erfcf(fx));
+  case 6:
+    return rh_fbits(gmath_tgammaf(fx));
+  case 7:
+    return rh_fbits(gmath_lgammaf(fx));
+  case 8:
+    return rh_fbits(gmath_powf(fx, fy));
+  case 9:
+    return rh_bits(gmath_fma(dx, dy, dz));
+  case 10:
+    return rh_fbits(gmath_fmaf(fx, fy, fz));
+  /* Raw source double NaNs must retain signaling classification while widening
+   * a direction. Construct native representation rather than floating convert.
+   */
+  case 11:
+  case 12: {
+    long double direction;
+    unsigned char bytes[sizeof direction];
+    rh_direction_bytes(bytes,sizeof bytes,y);
+    memcpy(&direction,bytes,sizeof direction);
+    return fn == 11 ? rh_bits(gmath_nexttoward(dx, direction))
+                    : rh_fbits(gmath_nexttowardf(fx, direction));
+  }
+  case 13:
+  case 14: {
+    const char * tags[] = {NULL, "", "payload", (const char *)(uintptr_t)1};
+    return fn == 13 ? rh_bits(gmath_nan(tags[x % 4]))
+                    : rh_fbits(gmath_nanf(tags[x % 4]));
+  }
+  }
+  return 0;
+}
+
+static int hash_remaining(const char *directory){
+ char path[4096],line[1024];if(snprintf(path,sizeof path,"%s/remaining-fifteen.corpus",directory)>=(int)sizeof path)return 1;
+ FILE *file=fopen(path,"rb");if(!file)return 1;
+ uint64_t hashes[15];unsigned long counts[15]={0};for(unsigned i=0;i<15;++i)hashes[i]=GMATH_FNV_BASIS;
+ int status=0;if(!fgets(line,sizeof line,file)||gmath_parse_remaining_header(line)||!fgets(line,sizeof line,file)||strcmp(line,"# name width mode x y z target required allowed residual-low residual-high; residual scale=2^30 ULP\n")){fclose(file);return 1;}
+ unsigned rows=0;while(fgets(line,sizeof line,file)){
+  gmath_remaining_row row;if(++rows>100000||gmath_parse_remaining_row(line,&row)){status=1;break;}
+  if(row.mode)continue;
+  uint64_t result=rh_call(row.fn,row.x,row.y,row.z);
+  hashes[row.fn]=gmath_fnv_u64(hashes[row.fn],result);++counts[row.fn];
+ }
+ if(ferror(file)||!feof(file))status=1;
+ fclose(file);
+ for(unsigned i=0;i<15;++i){if(!counts[i])status=1;printf("math.%s.hash  %016" PRIx64 "\nmath.%s.count  %lu\n",rh_names[i],hashes[i],rh_names[i],counts[i]);}
+ return status;
+}
+
 int main(int argc, char ** argv) {
   if (argc != 2) {
     fprintf(stderr, "usage: corpus-hash DIR\n");
@@ -645,5 +771,6 @@ int main(int argc, char ** argv) {
   if (hash_log1p_expm1(argv[1])) status = 1;
   if (hash_hyperbolic(argv[1])) status = 1;
   if (hash_inverse_hyperbolic(argv[1])) status = 1;
+  if (hash_remaining(argv[1])) status = 1;
   return status;
 }

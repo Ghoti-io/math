@@ -265,7 +265,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 # check-symbols is right to reject in a shipping library.
 PRODUCTION_LINK_GATE := $(if $(filter Linux,$(OS_NAME)),check-production-link)
 X87_ROUNDING_GATE := $(if $(filter Linux,$(OS_NAME)),check-x87-rounding)
-TEST_GATES ?= check-symbols check-inverse-hyperbolic check-hyperbolic check-log1p-expm1 check-inverse-trig check-grid-cache $(X87_ROUNDING_GATE) $(PRODUCTION_LINK_GATE) check-atan-cache check-atan-bench-controls check-atan-oracle-controls check-atan-controls check-atan-harness check-planted-atan check-atan check-atan-oracle check-positive-difference-bench-controls check-positive-difference-oracle-controls check-positive-difference check-positive-difference-harness check-positive-difference-controls check-planted-positive-difference check-positive-difference-oracle check-currentint-baseline-controls check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-symbols check-remaining check-inverse-hyperbolic check-hyperbolic check-log1p-expm1 check-inverse-trig check-grid-cache $(X87_ROUNDING_GATE) $(PRODUCTION_LINK_GATE) check-atan-cache check-atan-bench-controls check-atan-oracle-controls check-atan-controls check-atan-harness check-planted-atan check-atan check-atan-oracle check-positive-difference-bench-controls check-positive-difference-oracle-controls check-positive-difference check-positive-difference-harness check-positive-difference-controls check-planted-positive-difference check-positive-difference-oracle check-currentint-baseline-controls check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -2413,3 +2413,44 @@ check-inverse-hyperbolic-oracle:
 	@cmp '$(CORPUS_DIR)/inverse-hyperbolic.sha256' '$(INVH_ORACLE_DIR)/inverse-hyperbolic.sha256'
 	@$(ORACLE) inverse_hyperbolic --out '$(INVH_ORACLE_DIR)/midpoint-search' --seed 20261108 --count 4096 --midpoint-search
 	@python3 tools/select-inverse-hyperbolic-midpoints.py --directory '$(INVH_ORACLE_DIR)/midpoint-search' --check
+
+# The final fifteen Float/Double entry points have an isolated exact/MP core.
+REMAINING_PROBE := $(APP_DIR)/tools/probe-remaining$(EXE_EXTENSION)
+$(REMAINING_PROBE): tools/probe-remaining.c tests/remaining_probe.h $(APP_DIR)/$(STATIC_TARGET) $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) $< $(APP_DIR)/$(STATIC_TARGET) $(DEP_LIBS) $(TEST_LINK_FLAGS) -o $@
+REMAINING_MP_PROBE := $(APP_DIR)/tools/probe-remaining-mp$(EXE_EXTENSION)
+$(REMAINING_MP_PROBE): tools/probe-remaining-mp.c src/elementary/remaining_mp.h $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) $< -o $@
+.PHONY: check-remaining check-remaining-numerical check-remaining-oracle
+check-remaining-numerical: $(REMAINING_PROBE) $(REMAINING_MP_PROBE) $(APP_DIR)/testRemaining$(EXE_EXTENSION)
+	@$(REMAINING_DECODE_PROBE)
+	@python3 tools/check-remaining-optimization.py
+	@python3 tools/gen-remaining-coefficients.py --check
+	@REMAINING_OBJECTS='$(OBJ_DIR)/elementary/remaining_exact.o $(OBJ_DIR)/elementary/error_gamma.o $(OBJ_DIR)/elementary/float_pow.o' \
+	 LD_LIBRARY_PATH='$(TEST_LD_PATH)' python3 tools/check-remaining.py --probe '$(REMAINING_PROBE)' \
+	 --mp-probe '$(REMAINING_MP_PROBE)' --test '$(APP_DIR)/testRemaining$(EXE_EXTENSION)' \
+	 --directory '$(CORPUS_DIR)' --work '$(BUILD_DIR)/remaining-check'
+check-remaining: check-remaining-numerical
+	@REMAINING_CC='$(CC)' REMAINING_CFLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 REMAINING_LINK='$(DEP_LIBS) $(TEST_LINK_FLAGS)' REMAINING_ARCHIVE='$(APP_DIR)/$(STATIC_TARGET)' \
+	 python3 tools/check-remaining-plants.py --directory '$(CORPUS_DIR)' --work '$(BUILD_DIR)/remaining-plants'
+REMAINING_ORACLE_DIR ?= $(BUILD_DIR)/oracle-remaining
+check-remaining-oracle:
+	@python3 tools/run-remaining-oracle.py --out '$(REMAINING_ORACLE_DIR)' --seed 20261109 --count 128
+	@cmp '$(CORPUS_DIR)/remaining-fifteen.corpus' '$(REMAINING_ORACLE_DIR)/remaining-fifteen.corpus'
+	@cmp '$(CORPUS_DIR)/remaining-fifteen.sha256' '$(REMAINING_ORACLE_DIR)/remaining-fifteen.sha256'
+.PHONY: check-remaining-fresh
+REMAINING_FRESH_DIR ?= $(BUILD_DIR)/fresh-remaining
+REMAINING_FRESH_SEED ?= 20261110
+REMAINING_FRESH_COUNT ?= 1024
+check-remaining-fresh: $(REMAINING_PROBE) $(APP_DIR)/testRemaining$(EXE_EXTENSION)
+	@python3 tools/check-remaining.py --probe '$(REMAINING_PROBE)' --test '$(APP_DIR)/testRemaining$(EXE_EXTENSION)' --directory '$(REMAINING_FRESH_DIR)' --work '$(BUILD_DIR)/remaining-fresh-check' --fresh --seed '$(REMAINING_FRESH_SEED)' --count '$(REMAINING_FRESH_COUNT)'
+$(REMAINING_PROBE): tests/corpus_hash.h tests/fp_controls.h
+$(REMAINING_MP_PROBE): | $(LIBVER_GEN)
+REMAINING_DECODE_PROBE := $(APP_DIR)/tools/probe-remaining-decode$(EXE_EXTENSION)
+$(REMAINING_DECODE_PROBE): tools/probe-remaining-decode.c src/elementary/remaining_exact.c src/elementary/remaining_mp.h $(FLAGS_STAMP) | $(LIBVER_GEN)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) $< $(TEST_LINK_FLAGS) -o $@
+check-remaining-numerical: $(REMAINING_DECODE_PROBE)

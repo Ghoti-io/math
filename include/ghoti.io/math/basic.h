@@ -669,6 +669,21 @@ GMATH_API float gmath_fminf(float x, float y);
  */
 GMATH_API float gmath_fmaxf(float x, float y);
 
+/** Canonical positive quiet NaNs; tags (including NULL) are never read. */
+GMATH_API double gmath_nan(const char *tag);
+GMATH_API float gmath_nanf(const char *tag);
+/** Exact product-plus-sum, rounded once in the caller's standard mode.
+ * Tininess is tested after rounding. Exact cancellation is negative zero
+ * only under downward rounding; same-signed zero terms retain their sign.
+ * Canonical NaNs; inf*0 and conflicting infinities raise invalid. */
+GMATH_API double gmath_fma(double x, double y, double z);
+GMATH_API float gmath_fmaf(float x, float y, float z);
+/** Native long-double direction, decoded without narrowing or arithmetic.
+ * Equal values retain destination zero sign, otherwise move one value with
+ * the same range exception policy as nextafter. */
+GMATH_API double gmath_nexttoward(double x, long double y);
+GMATH_API float gmath_nexttowardf(float x, long double y);
+
 #ifdef __cplusplus
 }
 #endif

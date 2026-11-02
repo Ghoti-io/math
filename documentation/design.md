@@ -2582,3 +2582,13 @@ not a newly proved global approximation bound. Literal seeded answers and
 compact whole-file SHA anchors reconstruct the deterministic grid without a
 container, preserving every per-input check. Verification and remaining limits
 are in [unary-arctangent.md](unary-arctangent.md).
+
+## Remaining fifteen Float/Double names
+
+[Remaining fifteen](remaining-fifteen.md) records the isolated integer MP256
+error/gamma kernels, raw Float power packing, 4224-bit exact fused multiply-add,
+native long-double direction decoding and canonical tag-ignoring constructors.
+The public gates authenticate complete populations, closed numerical cells,
+all-mode caller state, native ABI behavior and fifteen appended result hashes;
+previous runtime/helpers/tables, literal answers, 107 result sets and the legacy
+aggregate remain unchanged. Accuracy claims are scoped per API in that document.

@@ -129,4 +129,118 @@ static inline int gmath_parse_hyperbolic_row(const char *line, gmath_hyperbolic_
   return !(*cursor=='\n' && cursor[1]=='\0');
 }
 
+/* Final fifteen raw rows: every numeric token is checked before accumulation.
+ */
+typedef struct {
+  unsigned fn, width, mode, required, allowed;
+  uint64_t x, y, z, target;
+  int64_t low, high;
+} gmath_remaining_row;
+static const char * const gmath_remaining_names[15] = {"erf", "erfc", "tgamma",
+    "lgamma", "erff", "erfcf", "tgammaf", "lgammaf", "powf", "fma", "fmaf",
+    "nexttoward", "nexttowardf", "nan", "nanf"};
+static inline int gmath_remaining_uint(
+    const char ** cursor, unsigned base, uint64_t bound, uint64_t * value) {
+  const char * start = *cursor;
+  uint64_t v = 0;
+  while (**cursor && **cursor != ' ' && **cursor != '\n') {
+    unsigned d = **cursor >= '0' && **cursor <= '9' ? (unsigned)(**cursor - '0')
+        : **cursor >= 'a' && **cursor <= 'f' ? (unsigned)(**cursor - 'a' + 10)
+                                             : 16u;
+    if (d >= base || v > (bound - d) / base || d > bound)
+      return 1;
+    v = v * base + d;
+    ++*cursor;
+  }
+  if (*cursor == start)
+    return 1;
+  *value = v;
+  return 0;
+}
+static inline int gmath_parse_remaining_header(const char * line) {
+  const char * prefix = "# remaining-fifteen-v1 seed=";
+  size_t n = strlen(prefix);
+  if (strncmp(line, prefix, n))
+    return 1;
+  const char * c = line + n;
+  uint64_t seed, count;
+  if (gmath_remaining_uint(&c, 10, UINT64_MAX, &seed) ||
+      strncmp(c, " count=", 7))
+    return 1;
+  c += 7;
+  if (gmath_remaining_uint(&c, 10, 2048, &count) ||
+      strcmp(c, " MPFR-directed1200/2400 mpmath Fraction-FMA/MPFR5000\n"))
+    return 1;
+  (void)seed;
+  (void)count;
+  return 0;
+}
+static inline int gmath_parse_remaining_row(
+    const char * line, gmath_remaining_row * r) {
+  const char *c = line, *start = line;
+  while (*c && *c != ' ')
+    ++c;
+  size_t len = (size_t)(c - start);
+  unsigned fn = 0;
+  while (fn < 15 &&
+      (strlen(gmath_remaining_names[fn]) != len ||
+          memcmp(start, gmath_remaining_names[fn], len)))
+    ++fn;
+  if (fn == 15 || *c != ' ')
+    return 1;
+  r->fn = fn;
+  uint64_t fields[10] = {0};
+  int negatives[10] = {0};
+  for (unsigned i = 0; i < 10; ++i) {
+    if (*c != ' ')
+      return 1;
+    ++c;
+    if (*c == '-') {
+      negatives[i] = 1;
+      ++c;
+    }
+    unsigned base = i >= 2 && i <= 5 ? 16u : 10u;
+    const char * token = c;
+    uint64_t bound = i == 0 ? 64
+        : i == 1            ? 3
+        : i <= 5            ? UINT64_MAX
+        : i <= 7            ? 31
+                            : UINT64_C(536870913);
+    if (gmath_remaining_uint(&c, base, bound, &fields[i]) ||
+        (negatives[i] && i < 8) || (base == 16 && (size_t)(c - token) != 16))
+      return 1;
+  }
+  if (strcmp(c, "\n"))
+    return 1;
+  r->width = (unsigned)fields[0];
+  r->mode = (unsigned)fields[1];
+  r->x = fields[2];
+  r->y = fields[3];
+  r->z = fields[4];
+  r->target = fields[5];
+  r->required = (unsigned)fields[6];
+  r->allowed = (unsigned)fields[7];
+  r->low = negatives[8] ? -(int64_t)fields[8] : (int64_t)fields[8];
+  r->high = negatives[9] ? -(int64_t)fields[9] : (int64_t)fields[9];
+  unsigned width =
+      (fn >= 4 && fn <= 8) || fn == 10 || fn == 12 || fn == 14 ? 32 : 64;
+  if (r->width != width || (fn != 9 && fn != 10 && r->mode) ||
+      r->required & ~r->allowed || r->low > r->high)
+    return 1;
+  if (width == 32 &&
+      (r->x > UINT32_MAX || r->z > UINT32_MAX || r->target > UINT32_MAX ||
+          (fn != 12 && r->y > UINT32_MAX)))
+    return 1;
+  if (fn < 8 && (r->y || r->z))
+    return 1;
+  if (fn == 8 && r->z)
+    return 1;
+  if ((fn == 11 || fn == 12) && r->z)
+    return 1;
+  if (fn >= 13 && (r->x > 3 || r->y || r->z))
+    return 1;
+  return 0;
+}
+
+
 #endif /* GHOTI_IO_GMATH_CORPUS_HASH_H */

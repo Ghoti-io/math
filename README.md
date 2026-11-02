@@ -49,7 +49,9 @@ shape library takes nothing from libm: `gmath_sqrt` (correctly rounded: the targ
 where it rounds correctly, a portable method with the same bits elsewhere, both gated),
 `gmath_floor`, `gmath_ceil`, `gmath_trunc`, `gmath_round` (half away from zero), `gmath_rint`
 (half to even, whatever the rounding mode), `gmath_fabs`, `gmath_copysign`, `gmath_scalbn`,
-`gmath_ldexp`, `gmath_frexp` and `gmath_ilogb`. There is no `fma`: fusing is forbidden.
+`gmath_ldexp`, `gmath_frexp` and `gmath_ilogb`. Existing elementary algorithms never fuse operations. The explicit
+`gmath_fma`/`gmath_fmaf` APIs compute an exact product-plus-sum in integers and
+round once; they do not enable contraction in those algorithms.
 `make check-libm` refuses every libm symbol, in this library and in the shape libraries.
 
 `gmath_scalbln(double, long)` and `gmath_scalblnf(float, long)` extend the
@@ -294,3 +296,9 @@ violation.
 
 LGPL-3.0-only. See `COPYING` and `COPYING.LESSER`. Patches are not being
 accepted at this time; see `CONTRIBUTING.md`.
+
+The final fifteen Float/Double math names (`powf`, error/gamma functions,
+NaN constructors, native-direction nexttoward, and exact fused multiply-add)
+are described in [remaining-fifteen.md](documentation/remaining-fifteen.md).
+The native default suite includes `make check-remaining`; required independent
+regeneration is the explicit preflight `make check-remaining-oracle`.

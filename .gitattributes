@@ -104,3 +104,6 @@ tests/corpus/hyperbolic.sha256 text eol=lf
 # Inverse hyperbolic reference bytes must remain canonical LF.
 tests/corpus/inverse-hyperbolic.corpus text eol=lf
 tests/corpus/inverse-hyperbolic.sha256 text eol=lf
+tests/corpus/remaining-fifteen.corpus text eol=lf
+tests/corpus/remaining-fifteen.sha256 text eol=lf
+tests/corpus/remaining-fifteen.hash text eol=lf
