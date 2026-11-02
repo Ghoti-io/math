@@ -1,5 +1,16 @@
 # Libm gap closure
 
+## Hyperbolic family
+
+Six sinh/cosh/tanh APIs in Float and Double share independently derived
+compensated exponential reduction. Prior runtime modules, helpers, tables,
+95 result sets and the legacy aggregate remain unchanged. The family includes
+compact directed MPFR/mpmath references and focused numerical/state/defect checks.
+All five focused tests pass with GCC16, Clang and ASan/UBSan on default/larger
+samples. One cold default GCC16 suite exits zero: 106 gates, 39 main binaries,
+268 passes and one expected native32-long skip.
+See [hyperbolic.md](hyperbolic.md) for contracts, mathematics and coverage limits.
+
 ## Cancellation-safe logarithm/exponential family
 
 The four log1p/expm1 APIs in Float and Double share compensated odd/Taylor
@@ -73,9 +84,9 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 36 verified phases add 67 APIs, seven performance optimizations
-and certificate maintenance. Classic real-function name coverage is 87/171
-(44 Double, 43 Float, no long double); 27 Float/Double additions remain, or 84
+Current snapshot: 37 verified phases add 73 APIs, seven performance optimizations
+and certificate maintenance. Classic real-function name coverage is 93/171
+(47 Double, 46 Float, no long double); 21 Float/Double additions remain, or 78
 including long double. The phase
 sections below retain historical counts and measurements.
 

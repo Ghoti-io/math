@@ -441,6 +441,37 @@ static int hash_log1p_expm1(const char *directory) {
   return status;
 }
 
+static int hash_hyperbolic(const char *directory) {
+  char path[4096],line[512];
+  if (snprintf(path,sizeof path,"%s/hyperbolic.corpus",directory)>=(int)sizeof path) return 1;
+  FILE *file=fopen(path,"rb");
+  if (!file) {fprintf(stderr,"corpus-hash: cannot open %s\n",path);return 1;}
+  uint64_t hashes[6];for(unsigned i=0;i<6;++i)hashes[i]=UINT64_C(14695981039346656037);
+  unsigned long counts[6]={0,0,0,0,0,0};unsigned rows=0;
+  if (!fgets(line,sizeof line,file)||strncmp(line,"# hyperbolic-v1 seed=",20)||
+      !fgets(line,sizeof line,file)||strncmp(line,"# width input ",14)) {fclose(file);return 1;}
+  while (fgets(line,sizeof line,file)) {
+    gmath_hyperbolic_row row;
+    if (++rows>100000||gmath_parse_hyperbolic_row(line,&row)) {fclose(file);return 1;}
+    unsigned width=row.width;uint64_t word=row.input;
+    for (unsigned cosine=0;cosine<3;++cosine) {
+      unsigned index=(width==64?0:3)+cosine;double y;
+      if (width==64) y=cosine==0?gmath_sinh(double_of(word)):cosine==1?gmath_cosh(double_of(word)):gmath_tanh(double_of(word));
+      else {
+        uint32_t raw=(uint32_t)word;float x;memcpy(&x,&raw,sizeof x);
+        y=(double)(cosine==0?gmath_sinhf(x):cosine==1?gmath_coshf(x):gmath_tanhf(x));
+      }
+      hashes[index]=gmath_fnv_double(hashes[index],y);++counts[index];
+    }
+  }
+  int status=ferror(file)||!counts[0]||!counts[3];fclose(file);
+  if (!status) {
+    const char *names[]={"sinh","cosh","tanh","sinhf","coshf","tanhf"};
+    for (unsigned i=0;i<6;++i) printf("math.%s.hash %016" PRIx64 "\nmath.%s.count %lu\n",names[i],hashes[i],names[i],counts[i]);
+  }
+  return status;
+}
+
 int main(int argc, char ** argv) {
   if (argc != 2) {
     fprintf(stderr, "usage: corpus-hash DIR\n");
@@ -581,5 +612,6 @@ int main(int argc, char ** argv) {
   }
   if (hash_inverse_trig(argv[1])) status = 1;
   if (hash_log1p_expm1(argv[1])) status = 1;
+  if (hash_hyperbolic(argv[1])) status = 1;
   return status;
 }

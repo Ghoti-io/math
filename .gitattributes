@@ -96,3 +96,7 @@ tests/corpus/inverse-trig.sha256 text eol=lf
 # Cancellation-safe log/exp family byte pins.
 tests/corpus/log1p-expm1.corpus text eol=lf
 tests/corpus/log1p-expm1.sha256 text eol=lf
+
+# Hyperbolic literal references require complete canonical LF bytes.
+tests/corpus/hyperbolic.corpus text eol=lf
+tests/corpus/hyperbolic.sha256 text eol=lf

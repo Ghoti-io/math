@@ -5,6 +5,10 @@ Deterministic elementary functions that give the same bits on every host. It is 
 
 ## What is implemented
 
+`gmath_sinh`, `gmath_cosh`, `gmath_tanh` and their Float forms share compensated
+exponential reduction with cancellation-safe local formulas and explicit
+special-value/state contracts. See [hyperbolic.md](documentation/hyperbolic.md).
+
 `gmath_log1p`, `gmath_expm1` and their Float forms retain near-zero corrections
 without cancellation. They share independently derived compensated series,
 nearest one-result-ULP contracts and explicit raw special/state behavior. See

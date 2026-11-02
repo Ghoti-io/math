@@ -380,6 +380,33 @@ GMATH_API float gmath_expm1f(float x);
 /** @} */
 
 /**
+ * @brief Hyperbolic sine/cosine/tangent, one result ulp in nearest mode.
+ *
+ * Independently derived compensated exponential reduction. General correct or
+ * directed rounding, long double and complete libm errno semantics are outside
+ * this contract. Preserve errno, mode, incoming standard flags and coherent
+ * nontrapping controls; no production control writes. NaNs canonicalize positive
+ * quiet, adding invalid only for signaling inputs. Signed zero sinh/tanh remains
+ * exact, cosh zero is exact1. Infinite sinh is signed infinity, cosh positive
+ * infinity, tanh signed1, with no new flags. Other finite nonzero calls add
+ * inexact; underflow only for subnormal sinh/tanh outputs. Finite sinh/cosh
+ * overflow adds overflow/inexact, returning signed infinity/positive infinity.
+ * Magnitudes below2^-60 (Double)/2^-26 (Float) return input bits for sinh/tanh
+ * and1 for cosh in every mode. Tanh magnitudes >=20/10 return signed1 in every
+ * mode. General ordinary numerical accuracy assumes nearest rounding.
+ * @param x Real input.
+ * @return Hyperbolic sine, cosine or tangent.
+ * @{
+ */
+GMATH_API double gmath_sinh(double x);
+GMATH_API double gmath_cosh(double x);
+GMATH_API double gmath_tanh(double x);
+GMATH_API float gmath_sinhf(float x);
+GMATH_API float gmath_coshf(float x);
+GMATH_API float gmath_tanhf(float x);
+/** @} */
+
+/**
  * @brief Principal inverse sine/cosine, within one result ulp in nearest mode.
  *
  * Shared positive-series and compensated half-angle evaluation. Numerical
