@@ -498,6 +498,20 @@ def main():
     expect_test_fails("atan2/pi/2 low part dropped", [define_patch(AT, "GMATH_PIO2_LO", "0x0p+0")])
     expect_test_fails("atan2/pi low part dropped", [define_patch(AT, "GMATH_PI_LO", "0x0p+0")])
     expect_test_fails("atan2/quotient taken as the result below 2^-20", [define_patch(A, "GMATH_ATAN2_TINY", "0x1p-20")])
+    range_test = ("Elementary.Atan2RangeFlagsReflectFinalAngle",)
+    expect_test_fails("atan2/tiny classifier performs an underflowing product", [(A,
+        "if (atan2_ratio_below(swap ? ax : ay, swap ? ay : ax, GMATH_ATAN2_TINY))",
+        "if (u < v * GMATH_ATAN2_TINY)")], wanted=range_test)
+    expect_test_fails("atan2/reflected tiny quotient underflows", [(A,
+        "hi = code && atan2_ratio_below(swap ? ax : ay, swap ? ay : ax, 0x1p-60)\n        ? 0.0 : u / v;",
+        "hi = u / v;")], wanted=range_test)
+    expect_test_fails("atan2/direct tiny angle loses genuine underflow", [(A,
+        "hi = code && atan2_ratio_below(swap ? ax : ay, swap ? ay : ax, 0x1p-60)",
+        "hi = atan2_ratio_below(swap ? ax : ay, swap ? ay : ax, 0x1p-60)")], wanted=range_test)
+    expect_test_fails("atan2/reflected constant silently loses inexact", [(A,
+        "hi = code && atan2_ratio_below(swap ? ax : ay, swap ? ay : ax, 0x1p-60)\n        ? 0.0 : u / v;",
+        "if (code && atan2_ratio_below(swap ? ax : ay, swap ? ay : ax, 0x1p-60))\n      return gmath_double(gmath_bits(bh) | ys);\n    hi = u / v;")], wanted=range_test)
+
     expect_test_fails("atan2/direct polynomial taken up to 1/4", [define_patch(A, "GMATH_ATAN2_DIRECT", "0.25")])
     expect_test_fails("atan2/qm cut at 27 bits", [define_patch(A, "GMATH_ATAN2_LOW27", "0x3ffffffull")])
     expect_test_fails("atan2/high half of v has 29 bits", [define_patch(A, "GMATH_ATAN2_LOW26", "0xffffffull")])
@@ -547,7 +561,7 @@ def main():
     sp("special/atan2(+-0, -0) is +-0", [(A, "    return gmath_double(xneg ? (gmath_bits(GMATH_PI_HI) | ys) : ys);\n  }\n  if (ax == 0) {", "    return gmath_double(ys);\n  }\n  if (ax == 0) {")], "Elementary.Atan2QuadrantsAndSignedZeros", ORACLE_TEST)
     sp("special/atan2(inf, -inf) is pi/4", [(A, "gmath_bits(xneg ? GMATH_3PIO4 : GMATH_PIO4)", "gmath_bits(GMATH_PIO4)")], "Elementary.Atan2QuadrantsAndSignedZeros", ORACLE_TEST)
     sp("special/atan2(y, +-0) is not +-pi/2", [(A, "    return gmath_double(gmath_bits(GMATH_PIO2_HI) | ys);\n  }\n  if (ay == GMATH_INF_BITS) {", "    return gmath_double(gmath_bits(GMATH_PIO4) | ys);\n  }\n  if (ay == GMATH_INF_BITS) {")], "Elementary.Atan2QuadrantsAndSignedZeros", ORACLE_TEST)
-    sp("special/atan2(y, -inf) is 0", [(A, "  return gmath_double(xneg ? (gmath_bits(GMATH_PI_HI) | ys) : ys);\n}\n\ndouble gmath_atan2", "  return gmath_double(ys);\n}\n\ndouble gmath_atan2")], "Elementary.Atan2QuadrantsAndSignedZeros", ORACLE_TEST)
+    sp("special/atan2(y, -inf) is 0", [(A, "  /* ax is infinite, y finite and nonzero */\n  return gmath_double(xneg ? (gmath_bits(GMATH_PI_HI) | ys) : ys);\n}", "  /* ax is infinite, y finite and nonzero */\n  return gmath_double(ys);\n}")], "Elementary.Atan2QuadrantsAndSignedZeros", ORACLE_TEST)
     sp("special/atan2(NaN, y) is not quiet", [(A, "    return gmath_nan_of(ax > GMATH_INF_BITS ? x : y);", "    return ax > GMATH_INF_BITS ? x : y;")], "Elementary.Atan2QuadrantsAndSignedZeros", "Elementary.NonFiniteArgumentsGiveTheSameQuietNan", ORACLE_TEST)
     sp("special/hypot(inf, NaN) is NaN", [(H, "    if (xb == GMATH_INF_BITS || yb == GMATH_INF_BITS) {\n      return gmath_double(GMATH_INF_BITS);\n    }\n", "")], "Elementary.HypotSpecialValues", ORACLE_TEST)
     sp("special/hypot(x, 0) loses x", [(H, "|| bbits == 0) {\n    return a;", "|| bbits == 0) {\n    return b;")], "Elementary.HypotSpecialValues", ORACLE_TEST)

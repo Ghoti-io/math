@@ -17,6 +17,8 @@
 
 #include "test_helpers.h"
 #include "corpus_hash.h"
+#include "fp_controls.h"
+#include <cerrno>
 
 #include <cfenv>
 #include <cmath>
@@ -896,4 +898,93 @@ TEST(Elementary, NonFiniteArgumentsGiveTheSameQuietNan) {
 int main(int argc, char ** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
+}
+
+// Ratio classification and reflected tails must not underflow merely because
+// the inputs or an intermediate quotient are tiny. All expected normal bits
+// are taken from the same exactly scaled ratio in the ordinary domain; the
+// independent committed corpus separately checks the numerical kernel.
+TEST(Elementary, Atan2RangeFlagsReflectFinalAngle) {
+  struct Restore {
+    fenv_t env;
+    int error, status;
+    Restore() : error(errno), status(fegetenv(&env)) {}
+    ~Restore() { if (!status) fesetenv(&env); errno = error; }
+  } restore;
+  ASSERT_EQ(restore.status, 0);
+  const int modes[] = {FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO};
+  const int flag_bits[] = {FE_INVALID, FE_DIVBYZERO, FE_OVERFLOW, FE_UNDERFLOW, FE_INEXACT};
+  struct Case { double y, x, normal_y, normal_x; };
+  const Case cases[] = {
+      {kDenorm, 2*kDenorm, 1.0, 2.0},
+      {2*kDenorm, kDenorm, 2.0, 1.0},
+      {kDenorm, kDenorm, 1.0, 1.0},
+      {kMax, 2.0, 0x1p100, 1.0},
+      {kMax, kDenorm, 0x1p100, 1.0},
+      {kDenorm, kMax, 1.0, 0x1p100},
+      {1023*kDenorm, 0x1p-1034, 1023.0, 0x1p40},
+      {1024*kDenorm, 0x1p-1034, 1024.0, 0x1p40},
+      {1025*kDenorm, 0x1p-1034, 1025.0, 0x1p40},
+      {0x1p-61, 1.0, 0x1p-61, 1.0},
+      {0x1.fffffffffffffp-61, 1.0, 0x1.fffffffffffffp-61, 1.0},
+      {0x1p-60, 1.0, 0x1p-60, 1.0},
+      {0x1.0000000000001p-60, 1.0, 0x1.0000000000001p-60, 1.0},
+      {0x1.fffffffffffffp-31, 1.0, 0x1.fffffffffffffp-31, 1.0},
+      {0x1p-30, 1.0, 0x1p-30, 1.0},
+      {0x1.0000000000001p-30, 1.0, 0x1.0000000000001p-30, 1.0}};
+  for (int mode : modes) {
+    ASSERT_EQ(std::fesetround(mode), 0);
+    if (mode == FE_TONEAREST) {
+      // Independent nearest encodings: these ratios are far smaller than
+      // either pi/2 or pi's distance from its rounding midpoint. For a direct
+      // normal ratio, the cubic atan correction is far below half an ULP.
+      for (double q : {0x1.fffffffffffffp-61, 0x1p-60, 0x1.0000000000001p-60})
+        for (int sy : {-1, 1}) {
+          double sign = sy < 0 ? -1.0 : 1.0;
+          EXPECT_BITS(gmath_atan2(sign*q, 1.0), sign*q);
+          EXPECT_BITS(gmath_atan2(sign*q, -1.0), sign*kPi);
+          EXPECT_BITS(gmath_atan2(sign, q), sign*kPi2);
+          EXPECT_BITS(gmath_atan2(sign, -q), sign*kPi2);
+        }
+    }
+    for (const Case &c : cases) for (int sy : {-1, 1}) for (int sx : {-1, 1}) {
+      // The extreme direct positive-x ratio has a genuinely tiny final angle,
+      // so it belongs in the explicit underflow controls below.
+      if (c.y == kDenorm && c.x == kMax && sx > 0) continue;
+      double y = sy < 0 ? -c.y : c.y, x = sx < 0 ? -c.x : c.x;
+      double ny = sy < 0 ? -c.normal_y : c.normal_y;
+      double nx = sx < 0 ? -c.normal_x : c.normal_x;
+      double expected = gmath_atan2(ny, nx);
+      for (unsigned mask = 0; mask < 32; ++mask) {
+        ASSERT_EQ(std::feclearexcept(FE_ALL_EXCEPT), 0);
+        int incoming = 0;
+        for (unsigned bit = 0; bit < 5; ++bit) if (mask & (1u << bit)) incoming |= flag_bits[bit];
+        ASSERT_EQ(std::feraiseexcept(incoming), 0);
+        int seeded = std::fetestexcept(FE_ALL_EXCEPT);
+        uint64_t controls = gmath_test_controls();
+        errno = 47;
+        double result = gmath_atan2(y, x);
+        int observed = std::fetestexcept(FE_ALL_EXCEPT);
+        EXPECT_BITS(result, expected);
+        EXPECT_EQ(observed & seeded, seeded);
+        if (c.y > c.x || sx < 0) { EXPECT_NE(observed & FE_INEXACT, 0); }
+        EXPECT_EQ(observed & (FE_INVALID|FE_DIVBYZERO|FE_OVERFLOW|FE_UNDERFLOW),
+            seeded & (FE_INVALID|FE_DIVBYZERO|FE_OVERFLOW|FE_UNDERFLOW));
+        EXPECT_EQ(errno, 47);
+        EXPECT_EQ(std::fegetround(), mode);
+        EXPECT_EQ(gmath_test_controls(), controls);
+      }
+    }
+    for (double y : {kDenorm, -kDenorm}) for (double x : {2.0, kMax}) {
+      ASSERT_EQ(std::feclearexcept(FE_ALL_EXCEPT), 0);
+      double result = gmath_atan2(y, x);
+      int flags = std::fetestexcept(FE_UNDERFLOW|FE_INEXACT);
+      // Preserve the established quotient rounding and final sign attachment;
+      // this is not a claim of general directed-mode angle accuracy.
+      double magnitude = mode == FE_UPWARD ? kDenorm : 0.0;
+      double expected = y < 0 ? -magnitude : magnitude;
+      EXPECT_BITS(result, expected);
+      EXPECT_EQ(flags, FE_UNDERFLOW|FE_INEXACT);
+    }
+  }
 }

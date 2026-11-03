@@ -1,5 +1,30 @@
 # Libm gap closure
 
+## Contract consistency correction
+
+Double atan2 now classifies tiny ratios with integer significands/exponents,
+preventing underflow from the classifier itself. Extreme ratios reflected to
+normal pi/2- or pi-sized angles omit an irrelevant quotient while retaining
+inexact; genuine direct tiny-angle range behavior remains. Existing deterministic
+rint, errno, NaN and rounding policies are preserved. Stale no-FMA/inventory
+statements and broad square-root/determinism wording are reconciled with the
+actual per-function specifications.
+
+Focused GCC16, Clang19 and ASan/UBSan checks pass all 14 Elementary tests.
+Four compiled range/IX faults are rejected; 11,112 actual integer comparisons
+agree with independent exact rationals, with stored reflection-tail/midpoint
+bounds checked exactly. All 122 function sets and the legacy aggregate remain
+unchanged. Composite default verification accounts for all 108 gates and runs
+41 main binaries: 285 tests, 284 passes and one expected native32-long skip.
+The original full attempt failed on one stale mutation anchor. That failure is
+retained; the anchor was repaired and its actual compiled mutant rejected.
+All 75 production/main-test objects from original/repaired frozen trees match
+after debug/build-ID removal, all other mutation tasks have identical AST, and
+the 39 remaining default gates plus every main binary completed successfully.
+Temporary build records were archived and verified before reclamation.
+See [the compatibility audit](libm-compatibility-audit.md) for the policy decision
+and evidence limits. This is a self-consistency correction, not host-bit parity.
+
 Float/Double substitution risks and the next compatibility work are recorded in
 [the libm compatibility audit](libm-compatibility-audit.md). Name coverage and
 host behavioral equivalence are separate; the audit changes no runtime contract.
@@ -117,7 +142,7 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 39 verified phases add 94 APIs, seven performance optimizations
+Current snapshot: 40 verified phases add 94 APIs, seven performance optimizations
 and certificate maintenance. Classic real-function name coverage is 114/171
 (57 Double, 57 Float, no long double); Float/Double name coverage is complete,
 with 57 long-double names remaining. The phase

@@ -494,6 +494,15 @@ GMATH_API double gmath_atan(double x);
  * pi/4 are the correctly rounded constants.  A NaN gives the NaN described at
  * ::gmath_sin.
  *
+ * Numerical accuracy assumes round-to-nearest. For finite nonzero inputs,
+ * ratio classification uses integers; an extreme ratio reflected to a normal
+ * pi/2- or pi-sized angle adds inexact without incidental underflow. A direct
+ * positive-x tiny quotient retains its final-result range behavior, including
+ * underflow/inexact when rounding that quotient is tiny and inexact. Preserve
+ * errno, the rounding mode, coherent nontrapping controls and incoming flags.
+ * General directed numerical accuracy and host-libm state equality are not
+ * promised.
+ *
  * @param y The ordinate.
  * @param x The abscissa.
  * @return atan2(@p y, @p x).

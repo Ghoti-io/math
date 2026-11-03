@@ -189,8 +189,10 @@ AD-22 as amended on 2026-10-18 has `math` supply everything the shape family tak
 and `make check-libm` refuses every libm symbol in `math` itself and in the three shape libraries.
 `src/elementary/sqrt_impl.h`, `sqrt.c`, `round.c`, `scale.c`; public in `basic.h`.
 
-`gmath_sqrt` is correctly rounded (IEEE 754 requires it of `sqrt`), so every implementation gives
-the same bits. Two are provided and gated against each other:
+`gmath_sqrt` is correctly rounded under round-to-nearest, the numerical scope
+stated in `basic.h`. Native and portable implementations agree in that scope;
+arbitrary directed-mode agreement is not claimed. Two are provided and gated
+against each other:
 
 * **the instruction** (`sqrtsd` on x86-64 and on i686 with SSE math, `fsqrt` on aarch64, `sqdbr` on
   s390x, `fsqrt` on powerpc when the compiler says the optional instruction exists
@@ -226,9 +228,11 @@ exact. Zero results keep the sign Annex F gives them. `scalbn` (= `ldexp`) write
 and for a subnormal result shifts the integer significand with one round to nearest even, so there is
 no double rounding; `frexp` and `ilogb` read it. Each has one correct answer, so the oracle for them
 is the exact reference (`tools/oracle/gen_corpus_exact.py`: MPFR and exact rationals or integers,
-which must agree), and the test requires equality to the bit. Not provided, because nothing needs
-them and the gate refuses them: `fmod`, `modf`, `fma` (AD-17 forbids fusing), `lrint` and its kin,
-`fmin`, `fmax`, `cbrt`, `exp2`, `log2` and the float (`f`) forms.
+which must agree), and the test requires equality to the bit. Later phases added `fmod`, `modf`, explicit integer `fma`, current-mode integer
+conversion, extrema, cube roots, base-two functions and all tracked Float/Double
+forms. AD-17 still forbids implicit contraction; explicit exact FMA does not
+contract the existing kernels. See [libm-progress.md](libm-progress.md) and the
+public headers for the current inventory and per-function contracts.
 
 ## Decimal conversion
 

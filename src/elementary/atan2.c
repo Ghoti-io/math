@@ -124,6 +124,24 @@ static double atan2_special(double y, double x, uint64_t yb, uint64_t xb) {
   return gmath_double(xneg ? (gmath_bits(GMATH_PI_HI) | ys) : ys);
 }
 
+/* Compare u/v with an exact binary power without evaluating a tiny product
+ * or quotient. Inputs are nonzero finite magnitudes, u<=v; normalizing a
+ * subnormal significand is entirely integer arithmetic. */
+static int atan2_ratio_below(uint64_t ub, uint64_t vb, double cutoff) {
+  uint64_t um = ub & UINT64_C(0x000fffffffffffff);
+  uint64_t vm = vb & UINT64_C(0x000fffffffffffff);
+  int ue = (int)(ub >> 52), ve = (int)(vb >> 52);
+  if (ue) um |= UINT64_C(0x0010000000000000);
+  else ue = 1;
+  if (ve) vm |= UINT64_C(0x0010000000000000);
+  else ve = 1;
+  while (um < UINT64_C(0x0010000000000000)) { um <<= 1; --ue; }
+  while (vm < UINT64_C(0x0010000000000000)) { vm <<= 1; --ve; }
+  int exponent = (int)(gmath_bits(cutoff) >> 52) - 1023;
+  int difference = ue - ve;
+  return difference < exponent || (difference == exponent && um < vm);
+}
+
 double gmath_atan2(double y, double x) {
   uint64_t yb = gmath_bits(y);
   uint64_t xb = gmath_bits(x);
@@ -143,8 +161,14 @@ double gmath_atan2(double y, double x) {
   uint64_t sbit = reflect_sign[code];
 
   double hi, c; /* atan q = hi + c, c below 2^-6 of the result */
-  if (u < v * GMATH_ATAN2_TINY) {
-    hi = u / v;
+  if (atan2_ratio_below(swap ? ax : ay, swap ? ay : ax, GMATH_ATAN2_TINY)) {
+    /* A reflected ratio below 2^-60 cannot move the final rounded constant:
+     * it is smaller than both the nonzero constant tail and its distance to
+     * a nearest midpoint. Keep that tail (and its IX), but do not materialize
+     * a quotient whose UF would describe an intermediate rather than the
+     * normal final angle. The direct positive-x tiny-angle path still divides. */
+    hi = code && atan2_ratio_below(swap ? ax : ay, swap ? ay : ax, 0x1p-60)
+        ? 0.0 : u / v;
     c = 0.0;
   } else {
     if (v > GMATH_ATAN2_SCALE_LIMIT || v < 1 / GMATH_ATAN2_SCALE_LIMIT) {

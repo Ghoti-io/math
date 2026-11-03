@@ -22,20 +22,20 @@
  * @file basic.h
  *
  * The square root, the rounding functions and the exponent functions on
- * `double`, plus binary32 square root, rounding, sign and remainder: the
- * functions of `<math.h>` that C and
- * IEEE 754 specify exactly, implemented here so that no shape library takes
- * anything from libm (AD-22).
+ * `double`, plus binary32 square root, rounding, sign and remainder: basic
+ * operations with explicit exact-value or fixed-rounding contracts, implemented
+ * here so that no shape library takes anything from libm (AD-22).
  *
- * Each has one correct answer (the square root is correctly rounded), so each
- * is exact, not within an error: the result is the same on every target, at
- * every optimization level and in every rounding mode that matters to the
- * result. The nearby functions read the current standard rounding mode;
- * `gmath_rint` remains deterministic half to even.
- * Every NaN returned is the same quiet NaN (all bits fixed), so results hash
- * identically on every target; the sign of a NaN argument is not preserved.
- * There is no `fma`: fusing is forbidden (AD-17).  See elementary.h for the
- * transcendental functions.
+ * Each API has an explicit value and exception contract below. Square-root
+ * accuracy and native/portable agreement assume round-to-nearest. Several
+ * bitwise operations deliberately use fixed nearest or integral rounding rules
+ * in every mode; nearbyint, current-mode integer conversions and explicit FMA
+ * instead observe the caller's standard mode. These choices are deterministic
+ * within their stated environment, not a promise of interchangeable libm state.
+ * Returned NaNs use the documented canonical encodings; payload/sign behavior
+ * is specified per function. Implicit contraction remains forbidden (AD-17).
+ * Explicit gmath_fma/gmath_fmaf compute an integer exact product-plus-sum and
+ * round once. See elementary.h for the transcendental functions.
  */
 
 #ifndef GHOTI_IO_GMATH_BASIC_H

@@ -11,6 +11,51 @@ reporting and observable floating-point state. Canonical NaNs and bounded
 nearest-mode approximations are deliberate project choices. No runtime,
 header, corpus, gate or consumer was changed by this audit.
 
+## Project-standard disposition
+
+The owner clarified that correctness means self-consistency with the published,
+deterministic specifications, rather than emulating version-dependent libm
+behavior. Fixed ties-to-even rint, preserved errno, canonical NaNs, ignored nan
+tags, no signgam side effect and fixed-nearest paths therefore remain intentional
+contracts. They are substitution considerations, not open implementation defects.
+No compatibility adapter or default semantic change is authorized by that goal.
+
+The concrete atan2 intermediate-underflow finding is corrected, including
+the separate classifier multiplication that can underflow for two subnormal
+inputs. Stale no-FMA/unimplemented-function prose is corrected, and broad
+sqrt/determinism wording is qualified by the existing nearest-mode scope. The
+historical comparisons below remain observations of the audited revision.
+
+## Correction verification
+
+The correction preserves all 122 numerical result sets and legacy aggregate.
+Focused GCC16, Clang19 and ASan/UBSan checks pass 14 Elementary tests, including
+all four modes and all 32 incoming-flag subsets. Four compiled defects establish
+that incidental classifier/reflected underflow, lost direct underflow and lost
+reflected inexact are caught at intended assertions. Independent nearest cutoff
+encodings and direct signed zero/subnormal encodings supplement scale-invariance
+checks. An exact-rational instrument validates 11,112 actual C ratio comparisons
+and the stored reflected-constant tail/midpoint margins.
+
+The original default full run stopped at one old adjacency-dependent mutation
+anchor after the classifier was inserted. That attempt remains failed, with its
+full log/status and verified record archive preserved. The repair anchors the
+infinite-x branch itself. A verified resumption establishes identical code/data,
+relocations and symbol sections for all 75 production/main-test objects across
+both frozen trees after removing only debug metadata/build IDs. All other
+mutation tasks have identical AST, all 58 literal source anchors are valid,
+the repaired mutant fails the required quadrant assertion, and the unmodified
+Elementary control passes. The 68 completed default gates are retained; the
+interrupted aggregate is accounted for by its complete prior task record plus
+the corrected item. All 39 later default gates and all main binaries then pass:
+41 binaries, 285 tests, 284 passes and one expected native32-long skip. This is
+composite verification, not a relabeling of the failed initial command.
+
+No runtime/test/Make code changes occur after that verified tree; final edits
+only record these results in Markdown. Initial, resumed and focused build trees
+were reclaimed after archive CRC/tar-inventory verification. The prior unrun
+platform and failed instrumentation scopes below remain unchanged.
+
 ## Evidence and interpretation
 
 The fixed catalog covers all 114 entry points: twelve cases, four standard
@@ -117,20 +162,16 @@ Consequently “no consumers migrated” is too broad: migration of the newly ad
 families remains pending, while earlier gmath integration already exists.
 Nothing in this audit edits or validates those applications end to end.
 
-Recommended sequence:
+Accepted follow-up after the owner's clarification:
 
-1. Resolve the rint contract explicitly and fix Double atan2's unnecessary
-   intermediate UF with focused result/state regressions. Keep these separate
-   from broad accuracy work; no existing deterministic contract changes silently.
-2. Define the supported substitution profile: nearest-only deterministic math
-   versus current-mode C behavior, errno reporting, NaN sign/payload behavior and
-   lgamma sign output. Keep stricter compatibility in adapters where appropriate.
-3. Migrate one consumer family under that profile, using its domain restrictions
-   and end-to-end tests. Geometry's existing nearest-oriented calls make bounds,
-   fenv assumptions and output stability more urgent than gamma signgam support.
-4. Expand numerical and platform evidence where the selected consumer requires
-   it, then consider the 57 missing long-double names. This audit establishes no
-   broad performance, exhaustive-input or cross-libm parity claim.
+1. Correct the demonstrated atan2 incidental-underflow paths, preserving the
+   existing numerical corpus/hash contracts and genuine final tiny behavior.
+2. Retain intentional deterministic contracts; reconcile stale documentation
+   rather than adding adapters to imitate a particular host's policies.
+3. Make future consumer migrations against those explicit numerical/state
+   contracts. The audit's selected-source scan is not end-to-end validation.
+4. Keep unrun numerical/platform work and known instrument limitations explicit.
+   The 57 long-double names remain outside this Float/Double consistency fix.
 
 ## Verification still open
 

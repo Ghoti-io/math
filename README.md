@@ -1,6 +1,8 @@
 # Ghoti.io Math
 
-Deterministic elementary functions that give the same bits on every host. It is part of the
+Deterministic elementary functions under their documented IEEE environment.
+Ordinary elementary accuracy and native/portable square-root agreement assume
+round-to-nearest; mode-aware APIs state their separate contracts. It is part of the
 [Ghoti.io suite](https://github.com/Ghoti-io/suite).
 
 ## What is implemented
@@ -44,8 +46,8 @@ General correct rounding and directed numerical accuracy are not promised.
 IEEE operations in a fixed order and integer arithmetic, with the special values and exceptions
 of C99 Annex F.
 
-And the functions of `<math.h>` that C specifies exactly (`ghoti.io/math/basic.h`), so that a
-shape library takes nothing from libm: `gmath_sqrt` (correctly rounded: the target's instruction
+The basic functions have explicit deterministic contracts (`ghoti.io/math/basic.h`), so that a
+shape library takes nothing from libm: `gmath_sqrt` (correctly rounded under nearest: the target's instruction
 where it rounds correctly, a portable method with the same bits elsewhere, both gated),
 `gmath_floor`, `gmath_ceil`, `gmath_trunc`, `gmath_round` (half away from zero), `gmath_rint`
 (half to even, whatever the rounding mode), `gmath_fabs`, `gmath_copysign`, `gmath_scalbn`,
