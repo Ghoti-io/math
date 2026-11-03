@@ -1,5 +1,9 @@
 # Libm gap closure
 
+Float/Double substitution risks and the next compatibility work are recorded in
+[the libm compatibility audit](libm-compatibility-audit.md). Name coverage and
+host behavioral equivalence are separate; the audit changes no runtime contract.
+
 ## Remaining Float/Double entry points
 
 All fifteen remaining names are implemented together: powf; erf/erfc/tgamma/lgamma
