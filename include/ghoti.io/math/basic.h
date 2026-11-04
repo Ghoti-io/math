@@ -446,6 +446,24 @@ GMATH_API int gmath_ilogbl(long double x);
 GMATH_API long double gmath_logbl(long double x);
 /** @} */
 
+/** Native power-of-two scaling, rounded once nearest/ties-even independently
+ * of caller mode. No narrowing; int/long extrema are classified safely.
+ * Exact finite/subnormal results add no flags; inexact adds IX, tiny rounded
+ * zero/subnormal adds UF/IX, overflow returns signed infinity with OF/IX.
+ * DD uses the exact component sum and its variable representable population;
+ * its minimum normal is 2^-969. NaNs canonicalize, invalid for signaling or
+ * malformed encodings. errno, controls and incoming flags are preserved. */
+GMATH_API long double gmath_ldexpl(long double x,int n);
+GMATH_API long double gmath_scalbnl(long double x,int n);
+GMATH_API long double gmath_scalblnl(long double x,long n);
+/** Immediate native neighbor toward y; equality returns y and its zero sign.
+ * Zero steps to signed minsub; infinity inward to maximum finite. Unequal
+ * subnormal/zero results add UF/IX; finite overflow adds OF/IX; other finite
+ * steps add none. Special values/state follow native scaling above.
+ * Both arguments of nexttowardl have native long-double precision. */
+GMATH_API long double gmath_nextafterl(long double x,long double y);
+GMATH_API long double gmath_nexttowardl(long double x,long double y);
+
 /**
  * @brief Splits @p x into a fraction of magnitude in [0.5, 1) and a power of two:
  * `x = f * 2^*e`.  A subnormal @p x is split exactly.  For a zero, an infinity

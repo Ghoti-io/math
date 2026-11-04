@@ -48,6 +48,7 @@
 
 #include "../tests/corpus_hash.h"
 #include "../tests/long_double_native.h"
+#include "../tests/long_double_scale_native.h"
 
 static double double_of(uint64_t u) {
   double d;
@@ -774,5 +775,6 @@ int main(int argc, char ** argv) {
   if (hash_inverse_hyperbolic(argv[1])) status = 1;
   if (hash_remaining(argv[1])) status = 1;
   if (ldn_corpus(argv[1],0)) status = 1;
+  if (ldsc_corpus(argv[1],0)) status = 1;
   return status;
 }

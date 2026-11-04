@@ -7,6 +7,13 @@ round-to-nearest; mode-aware APIs state their separate contracts. It is part of 
 
 ## What is implemented
 
+`gmath_ldexpl`, `gmath_scalbnl`, `gmath_scalblnl`, `gmath_nextafterl` and
+`gmath_nexttowardl` preserve native binary64/extended80/binary128/IBM DD
+precision. Scaling rounds once nearest/ties-even; adjacency follows the actual
+representable population, including variable DD spacing. See
+[long-double-scaling.md](documentation/long-double-scaling.md) for flags,
+integer proofs, ABI checks and evidence.
+
 `gmath_asinh`, `gmath_acosh`, `gmath_atanh` and their Float forms share
 compensated logarithms and square-root corrections, with raw domain/pole and
 caller-state contracts. See [inverse-hyperbolic.md](documentation/inverse-hyperbolic.md).
@@ -307,11 +314,13 @@ regeneration is the explicit preflight `make check-remaining-oracle`.
 
 ### Native long-double foundation
 
-The first 15 of 57 native long-double interfaces cover sign/value selection,
+The foundation supplies 15 of 57 native long-double interfaces for sign/value selection,
 integer rounding and decomposition. Results preserve format-native precision;
 formats do not promise identical encodings. See
 [the long-double contract and evidence](documentation/long-double.md), including
 the IBM DD frexp deferral and native/synthetic coverage.
 `GMATH_HAVE_FREXPL` is zero on DD; all15 are available on the three binary formats,
 with14 on DD.
+Scaling and adjacency add five more interfaces: 20 are available on the three
+binary formats and 19 on DD, leaving 37 and 38 inventory names respectively.
 The 122 existing Float/Double populations and their aggregate stay separate.

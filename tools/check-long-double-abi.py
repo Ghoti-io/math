@@ -167,12 +167,18 @@ def main():
     assert len(names)==len(set(names)),'duplicate archive members'
     assert sorted(names)==sorted(expected),'unexpected archive member or missing coverage'
     assert names.count('long_double_basic.o')==1,'missing new object'
+    assert names.count('long_double_scale.o')==1,'missing scaling object'
     legacy=[]
     with tempfile.TemporaryDirectory(prefix='gmath-long-double-abi-') as tmp:
         for name in names:
             path=Path(tmp)/name;path.write_bytes(subprocess.check_output([ar,'p',str(args.archive),name]))
             if name=='long_double_basic.o':transfers=check_object(path,objdump)
+            elif name=='long_double_scale.o':
+                import importlib.util
+                spec=importlib.util.spec_from_file_location('scale_abi',Path(__file__).with_name('check-long-double-scale-abi.py'))
+                scale_abi=importlib.util.module_from_spec(spec);spec.loader.exec_module(scale_abi)
+                scale_transfers=scale_abi.check_object(path,objdump)
             else:legacy.append(str(path))
         subprocess.run([str(Path(__file__).with_name('check-no-x87.sh')),*legacy],check=True)
-    print(f'long-double ABI: all {len(names)} members covered; {len(legacy)} legacy objects unchanged gate; {transfers} checked native80 returns')
+    print(f'long-double ABI: all {len(names)} members covered; {len(legacy)} legacy objects unchanged gate; {transfers} foundation and {scale_transfers} scaling checked native80 returns')
 if __name__=='__main__':main()

@@ -1,0 +1,13 @@
+{
+  "seed": 20261114,
+  "counts": {
+    "64": 5289,
+    "80": 5418,
+    "128": 5332,
+    "106": 6149
+  },
+  "files": {
+    "long-double-scale.corpus": "f458dd661ef3d2e174044320994829f1cbb8f77c3e5dbfaa669e8d78db6992ae",
+    "long-double-scale.hash": "12e3c1dc3400a09b9c53be3001d11f9c3d496a41e95076a3bd5b0b8de40b45b4"
+  }
+}

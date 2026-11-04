@@ -49,6 +49,12 @@
 #define gmath_decimal_tier GHOTIIO_MATH(gmath_decimal_tier)
 
 /* Public functions. */
+#define gmath_ldexpl GHOTIIO_MATH(gmath_ldexpl)
+#define gmath_scalbnl GHOTIIO_MATH(gmath_scalbnl)
+#define gmath_scalblnl GHOTIIO_MATH(gmath_scalblnl)
+#define gmath_nextafterl GHOTIIO_MATH(gmath_nextafterl)
+#define gmath_nexttowardl GHOTIIO_MATH(gmath_nexttowardl)
+
 #define gmath_fabsl GHOTIIO_MATH(gmath_fabsl)
 #define gmath_copysignl GHOTIIO_MATH(gmath_copysignl)
 #define gmath_nanl GHOTIIO_MATH(gmath_nanl)

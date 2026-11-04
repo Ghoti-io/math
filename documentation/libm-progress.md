@@ -1,6 +1,22 @@
 # Libm gap closure
 
-## Native long-double foundation
+## Native long-double scaling and adjacency
+
+Five more native interfaces cover power-of-two scaling and immediate neighbors,
+including IBM DD's variable representable population. There are now20 native
+names on binary64/extended80/binary128,19 on DD;37/38 remain. Separate literal
+answers preserve every existing foundation and Float/Double population. See
+[long-double-scaling.md](long-double-scaling.md) for contracts, proofs and focused
+evidence. Focused GCC16 old/new numerical, compiled-control, archive, symbol
+and corpus gates pass. Clang, ASan/UBSan, compiler-selected binary64/128 and
+six emulated ABIs pass. Nineteen compiled faults reject; legacy corpus-hash
+stdout remains byte-identical. One reviewed cold default GCC16 full suite exits
+zero: all 112 gates and 43 main binaries, 290 tests, 289 passes and one expected
+native32-long skip. The integrated family gate runs 24,500 synthetic and 5,948 native80
+rows, 2,304 boundary-matrix rows and 19 compiled faults. All previous runtime/table
+and corpus bytes remain exact. Build evidence was archived, verified and reclaimed.
+
+## Native long-double foundation (preceding phase)
 
 Fifteen of the 57 long-double inventory names now have native interfaces for
 value selection, integer rounding and decomposition. Forty-two remain on
@@ -165,10 +181,11 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 41 verified phases add 109 APIs, seven performance optimizations
-and certificate maintenance. Classic real-function name coverage is 129/171
-(57 Double, 57 Float, 15 long double) on binary64/extended80/binary128, with
-42 long-double names remaining. IBM DD has 128/171 names and 43 remaining because
+Current snapshot: 42 verified phases add 114 APIs, seven performance
+optimizations and certificate maintenance. Classic real-function name
+coverage is134/171 (57 Double,57 Float,20 long double) on
+binary64/extended80/binary128, with37 long-double names remaining.
+IBM DD has133/171 names and38 remaining because
 exact frexpl is unavailable. Float/Double name coverage is complete. The phase
 sections below retain historical counts and measurements.
 
@@ -2065,6 +2082,15 @@ of an overall libm performance win. Compiler-inlined, shared-library, vector,
 and application workloads still need separate measurements.
 
 Standard C types and semantics also need an explicit compatibility boundary:
-long double, complex arithmetic, full fenv/errno compatibility and FMA are not
+general long-double elementary functions, complex arithmetic, full fenv/errno compatibility and FMA are not
 covered by the current library. Existing `gmath_rint` deliberately uses ties to
 even regardless of the host rounding mode.
+
+
+Native long-double scaling and adjacency now have an additive five-function
+integer engine and a separate 22,188-row literal corpus across binary64,
+extended80, binary128 and IBM DD. Scaling uses nearest/ties-even and tininess
+after rounding; DD neighbors use variable component-sum spacing. Independent
+rational interval certificates check that no representable sum was skipped.
+See [long-double-scaling.md](long-double-scaling.md). The reviewed frozen family
+passes one cold default GCC16 full suite; actual counts are recorded above.
