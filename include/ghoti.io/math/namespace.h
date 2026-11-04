@@ -35,6 +35,7 @@
 #define GHOTI_IO_GMATH_NAMESPACE_H
 
 #include <ghoti.io/math/libver.h>
+#include <float.h>
 
 /// @cond HIDDEN_SYMBOLS
 
@@ -48,6 +49,24 @@
 #define gmath_decimal_tier GHOTIIO_MATH(gmath_decimal_tier)
 
 /* Public functions. */
+#define gmath_fabsl GHOTIIO_MATH(gmath_fabsl)
+#define gmath_copysignl GHOTIIO_MATH(gmath_copysignl)
+#define gmath_nanl GHOTIIO_MATH(gmath_nanl)
+#define gmath_fminl GHOTIIO_MATH(gmath_fminl)
+#define gmath_fmaxl GHOTIIO_MATH(gmath_fmaxl)
+#define gmath_floorl GHOTIIO_MATH(gmath_floorl)
+#define gmath_ceill GHOTIIO_MATH(gmath_ceill)
+#define gmath_truncl GHOTIIO_MATH(gmath_truncl)
+#define gmath_roundl GHOTIIO_MATH(gmath_roundl)
+#define gmath_rintl GHOTIIO_MATH(gmath_rintl)
+#define gmath_nearbyintl GHOTIIO_MATH(gmath_nearbyintl)
+#define gmath_modfl GHOTIIO_MATH(gmath_modfl)
+#if LDBL_MANT_DIG != 106 || LDBL_MAX_EXP != 1024
+#define gmath_frexpl GHOTIIO_MATH(gmath_frexpl)
+#endif
+#define gmath_ilogbl GHOTIIO_MATH(gmath_ilogbl)
+#define gmath_logbl GHOTIIO_MATH(gmath_logbl)
+
 #define gmath_powf GHOTIIO_MATH(gmath_powf)
 #define gmath_erf GHOTIIO_MATH(gmath_erf)
 #define gmath_erff GHOTIIO_MATH(gmath_erff)

@@ -1,5 +1,28 @@
 # Libm gap closure
 
+## Native long-double foundation
+
+Fifteen of the 57 long-double inventory names now have native interfaces for
+value selection, integer rounding and decomposition. Forty-two remain on
+binary64/extended80/binary128; DD has forty-three remaining. The
+implementation preserves the 122 Float/Double result sets and legacy aggregate;
+format-specific answers and hashes are supplemental. See
+[long-double.md](long-double.md) for exact contracts, native versus synthetic
+evidence, ABI gate scope and the IBM DD frexp deferral. All15 names
+are available on binary64/extended80/binary128; DD has14 and exposes
+GMATH_HAVE_FREXPL=0 with no declaration/definition for frexpl.
+Focused GCC14/GCC16/Clang19 and Clang ASan/UBSan checks pass; six QEMU target
+ABIs and their object gates pass. Reviewed composite default GCC16 verification
+accounts for all 110 gates and runs 42 main binaries: 288 tests, 287 passes and
+one expected native32-long skip. Two legacy mutation builders needed complete
+object populations. Their mutations/assertions are unchanged and targeted checks
+pass; all 77 production/main-test objects match between the interrupted and
+repaired trees after debug/build-ID removal. Seventy completed gates are retained;
+the remaining aggregate portions, 39 successors and all main binaries pass.
+Earlier failed full attempts remain failures. Logs/results were archived and
+verified before build reclamation. The suite's separate direct archive-gate
+callers still require coordinated adaptation; no suite integration is claimed.
+
 ## Contract consistency correction
 
 Double atan2 now classifies tiny ratios with integer significands/exponents,
@@ -142,10 +165,11 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 40 verified phases add 94 APIs, seven performance optimizations
-and certificate maintenance. Classic real-function name coverage is 114/171
-(57 Double, 57 Float, no long double); Float/Double name coverage is complete,
-with 57 long-double names remaining. The phase
+Current snapshot: 41 verified phases add 109 APIs, seven performance optimizations
+and certificate maintenance. Classic real-function name coverage is 129/171
+(57 Double, 57 Float, 15 long double) on binary64/extended80/binary128, with
+42 long-double names remaining. IBM DD has 128/171 names and 43 remaining because
+exact frexpl is unavailable. Float/Double name coverage is complete. The phase
 sections below retain historical counts and measurements.
 
 ## Current-mode integer conversion

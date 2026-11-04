@@ -1,0 +1,22 @@
+{
+  "seed": 20261104,
+  "availability": {
+    "64": 15,
+    "80": 15,
+    "128": 15,
+    "106": 14
+  },
+  "deferred": [
+    "IBM DD frexpl"
+  ],
+  "sha256": {
+    "64": "705d9ff7c0fb18161184414f4c5d81cff985223a9148da612712c063b2835a1f",
+    "80": "4d65b0a8925798cbee4ec316840229fb2cb099abe5ffb9c20d1a0cdd9134080d",
+    "128": "46f932afeaf6a6bd2576b5f552d6c46f244023cf765f95994ed84a255391c9e1",
+    "106": "036cd9d3648150e3dd89e816ed7e0b59654fb7e9251eaaa5615a1dcc8ab13560"
+  },
+  "files": {
+    "long-double-foundation.corpus": "6bb39596f08ceae46f50b9c9c3c029fd3d3d0469ad7ebe2b3a1c59d739cdc042",
+    "long-double-foundation.hash": "2bf5aa8898a1d4ce19fe62774bef9e793be211f77fa18cdceef7690594c08706"
+  }
+}

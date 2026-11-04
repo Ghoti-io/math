@@ -265,7 +265,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 # check-symbols is right to reject in a shipping library.
 PRODUCTION_LINK_GATE := $(if $(filter Linux,$(OS_NAME)),check-production-link)
 X87_ROUNDING_GATE := $(if $(filter Linux,$(OS_NAME)),check-x87-rounding)
-TEST_GATES ?= check-symbols check-remaining check-inverse-hyperbolic check-hyperbolic check-log1p-expm1 check-inverse-trig check-grid-cache $(X87_ROUNDING_GATE) $(PRODUCTION_LINK_GATE) check-atan-cache check-atan-bench-controls check-atan-oracle-controls check-atan-controls check-atan-harness check-planted-atan check-atan check-atan-oracle check-positive-difference-bench-controls check-positive-difference-oracle-controls check-positive-difference check-positive-difference-harness check-positive-difference-controls check-planted-positive-difference check-positive-difference-oracle check-currentint-baseline-controls check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-long-double check-long-double-controls check-symbols check-remaining check-inverse-hyperbolic check-hyperbolic check-log1p-expm1 check-inverse-trig check-grid-cache $(X87_ROUNDING_GATE) $(PRODUCTION_LINK_GATE) check-atan-cache check-atan-bench-controls check-atan-oracle-controls check-atan-controls check-atan-harness check-planted-atan check-atan check-atan-oracle check-positive-difference-bench-controls check-positive-difference-oracle-controls check-positive-difference check-positive-difference-harness check-positive-difference-controls check-planted-positive-difference check-positive-difference-oracle check-currentint-baseline-controls check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -478,7 +478,7 @@ check-libm: $(APP_DIR)/$(TARGET) $(APP_DIR)/$(STATIC_TARGET) ## Fail if any libm
 	@tools/check-libm.sh $(APP_DIR)/$(TARGET) $(APP_DIR)/$(STATIC_TARGET)
 
 check-no-x87: $(APP_DIR)/$(STATIC_TARGET) ## Fail if an x86 object holds an x87 instruction (AD-17)
-	@tools/check-no-x87.sh $(APP_DIR)/$(STATIC_TARGET)
+	@python3 tools/check-long-double-abi.py --archive $(APP_DIR)/$(STATIC_TARGET) --source-root src
 
 check-gates: ## Prove each gate fails on its planted violation and passes its control
 	@CC='$(CC)' GATE_PROJECT='$(PROJECT)' GATE_ALLOWED='$(EDGES_ALLOWED)' GATE_LIBM_EXEMPT='$(LIBM_EXEMPT)' tools/check-gates.sh
@@ -2454,3 +2454,20 @@ $(REMAINING_DECODE_PROBE): tools/probe-remaining-decode.c src/elementary/remaini
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(INCLUDE) $< $(TEST_LINK_FLAGS) -o $@
 check-remaining-numerical: $(REMAINING_DECODE_PROBE)
+
+# Native long-double adapters have an explicitly partitioned ABI gate. The
+# unchanged legacy script still judges every pre-existing archive member.
+LONG_DOUBLE_PROBE := $(APP_DIR)/tools/probe-long-double$(EXE_EXTENSION)
+$(LONG_DOUBLE_PROBE): tools/probe-long-double.c src/elementary/long_double_basic.c src/elementary/long_double_bits.h src/elementary/nearby_mode.h src/elementary/elem_common.h tests/fp_controls.h $(FLAGS_STAMP) | $(LIBVER_GEN)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) $< -MMD -MP -MF $@.d $(TEST_LINK_FLAGS) -o $@
+-include $(LONG_DOUBLE_PROBE).d
+.PHONY: check-long-double check-long-double-controls
+check-long-double: $(LONG_DOUBLE_PROBE) $(APP_DIR)/testLong_double$(EXE_EXTENSION)
+	@python3 tools/check-long-double.py --probe '$(LONG_DOUBLE_PROBE)' --corpus tests/corpus/long-double-foundation.json
+	@LD_LIBRARY_PATH='$(TEST_LD_PATH)' $(APP_DIR)/testLong_double$(EXE_EXTENSION)
+check-long-double-controls: $(LONG_DOUBLE_PROBE) $(APP_DIR)/$(STATIC_TARGET)
+	@LONG_DOUBLE_CC='$(CC)' LONG_DOUBLE_FLAGS='$(CFLAGS) $(INCLUDE)' \
+	 python3 tools/check-long-double-controls.py --probe '$(LONG_DOUBLE_PROBE)' --work '$(BUILD_DIR)/long-double-controls' --archive '$(APP_DIR)/$(STATIC_TARGET)'
+
+$(HASH_PROBE): tests/long_double_native.h tests/corpus/long-double-foundation.corpus tests/corpus/long-double-foundation.hash

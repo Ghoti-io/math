@@ -304,3 +304,14 @@ NaN constructors, native-direction nexttoward, and exact fused multiply-add)
 are described in [remaining-fifteen.md](documentation/remaining-fifteen.md).
 The native default suite includes `make check-remaining`; required independent
 regeneration is the explicit preflight `make check-remaining-oracle`.
+
+### Native long-double foundation
+
+The first 15 of 57 native long-double interfaces cover sign/value selection,
+integer rounding and decomposition. Results preserve format-native precision;
+formats do not promise identical encodings. See
+[the long-double contract and evidence](documentation/long-double.md), including
+the IBM DD frexp deferral and native/synthetic coverage.
+`GMATH_HAVE_FREXPL` is zero on DD; all15 are available on the three binary formats,
+with14 on DD.
+The 122 existing Float/Double populations and their aggregate stay separate.

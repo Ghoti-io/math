@@ -44,6 +44,15 @@
 #include <ghoti.io/math/macros.h>
 
 #include <limits.h>
+#include <float.h>
+
+/** Native frexpl is unavailable for IBM DD: some exact normalized fractions
+ * cannot be represented as the sum of two binary64 components. */
+#if LDBL_MANT_DIG == 106 && LDBL_MAX_EXP == 1024
+#define GMATH_HAVE_FREXPL 0
+#else
+#define GMATH_HAVE_FREXPL 1
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -382,6 +391,60 @@ GMATH_API double gmath_scalbln(double x, long n);
  */
 GMATH_API float gmath_scalblnf(float x, long n);
 
+
+/**
+ * @defgroup long_double_foundation Native long-double values and rounding
+ * Exact integer decisions in each native binary64, extended80, binary128 or
+ * IBM double-double format; precision and encoding are format-specific.
+ * fabs/copysign, extrema, integer rounding, modf and frexp add no flags for
+ * ordinary finite inputs. rint is fixed ties-even; nearbyint uses the native
+ * arithmetic rounding control (x87 RC for extended80, independent of MXCSR
+ * and x87 precision control). Neither raises inexact for discarded fractions.
+ * round ties away; floor/ceil/trunc/round/rint ignore caller rounding mode.
+ * All preserve errno, controls and incoming standard flags. All NaN outputs
+ * are canonical positive quiet NaNs; signaling NaNs and malformed extended80
+ * unnormals raise invalid. Pseudo-denormals normalize to their finite value.
+ * IBM DD uses the exact component sum; nonfinite low components, infinity
+ * with nonzero low component, and finite sums beyond
+ * +/- (DBL_MAX + 0x1.fffffffffffffp+969) are invalid/canonical NaN.
+ * copysign reads its second argument only for its raw sign, never signaling.
+ * One quiet NaN in extrema selects the numeric input; any signaling/invalid
+ * operand or two NaNs gives canonical NaN. Opposite-signed zero ties select
+ * -0 for minimum and +0 for maximum; same-sign zeros retain their sign.
+ * nan ignores its tag without dereferencing, including NULL.
+ *
+ * modf accepts a NULL integral pointer; otherwise writes the integral part
+ * after consuming x, so gmath_modfl(x,&x) is valid. frexp accepts a NULL int
+ * pointer; a non-NULL pointer must designate a valid int object and must not
+ * overlap a long-double object. Special inputs write exponent zero. Infinity
+ * modf yields signed zero fraction and the same infinity integral part.
+ * ilogb returns GMATH_ILOGB0 for zero, GMATH_ILOGBNAN for NaN, INT_MAX for
+ * infinity, raising invalid for all three. logb returns negative infinity
+ * with divide-by-zero for zero, positive infinity for infinity, and an exact
+ * finite exponent otherwise. Padding bytes are not numerical identity.
+ * IBM DD frexpl is deferred: GMATH_HAVE_FREXPL is zero and no declaration
+ * or native definition is provided. The other three formats provide all15.
+ * Native ABI transfer may set architecture-specific denormal status for a
+ * returned extended80 subnormal; no standard underflow or inexact is added.
+ * @{ */
+GMATH_API long double gmath_fabsl(long double x);
+GMATH_API long double gmath_copysignl(long double x, long double y);
+GMATH_API long double gmath_nanl(const char * tag);
+GMATH_API long double gmath_fminl(long double x, long double y);
+GMATH_API long double gmath_fmaxl(long double x, long double y);
+GMATH_API long double gmath_floorl(long double x);
+GMATH_API long double gmath_ceill(long double x);
+GMATH_API long double gmath_truncl(long double x);
+GMATH_API long double gmath_roundl(long double x);
+GMATH_API long double gmath_rintl(long double x);
+GMATH_API long double gmath_nearbyintl(long double x);
+GMATH_API long double gmath_modfl(long double x, long double * integral);
+#if GMATH_HAVE_FREXPL
+GMATH_API long double gmath_frexpl(long double x, int * e);
+#endif
+GMATH_API int gmath_ilogbl(long double x);
+GMATH_API long double gmath_logbl(long double x);
+/** @} */
 
 /**
  * @brief Splits @p x into a fraction of magnitude in [0.5, 1) and a power of two:
