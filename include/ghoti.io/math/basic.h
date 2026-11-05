@@ -93,6 +93,13 @@ extern "C" {
  */
 GMATH_API double gmath_sqrt(double x);
 
+/** @brief Correctly rounded native long-double root, fixed nearest/ties-even.
+ * Requires 2 MiB of usable thread stack.
+ * Exact results add no flags; nonexact tiny results add underflow/inexact.
+ * Canonical NaNs; errno, controls and incoming flags are preserved.
+ * See documentation/long-double.md for the format and exceptional-value contract. */
+GMATH_API long double gmath_sqrtl(long double x);
+
 /**
  * @brief Correctly rounded binary32 square root under round-to-nearest.
  *

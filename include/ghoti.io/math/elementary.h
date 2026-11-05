@@ -161,6 +161,13 @@ GMATH_API float gmath_tanf(float x);
  */
 GMATH_API double gmath_exp(double x);
 
+/** @brief Native long double; certified one-local-ULP enclosure, fixed nearest/ties-even.
+ * Requires 2 MiB of usable thread stack.
+ * Exact results add no flags; nonexact tiny results add underflow/inexact.
+ * Canonical NaNs; errno, controls and incoming flags are preserved.
+ * See documentation/long-double.md for the format and exceptional-value contract. */
+GMATH_API long double gmath_expl(long double x);
+
 /**
  * @brief Binary32 e raised to @p x, within 1 float ulp under nearest rounding.
  *
@@ -194,6 +201,13 @@ GMATH_API float gmath_expf(float x);
  * @return 2^@p x.
  */
 GMATH_API double gmath_exp2(double x);
+
+/** @brief Native long double; certified one-local-ULP enclosure, fixed nearest/ties-even.
+ * Requires 2 MiB of usable thread stack.
+ * Exact results add no flags; nonexact tiny results add underflow/inexact.
+ * Canonical NaNs; errno, controls and incoming flags are preserved.
+ * See documentation/long-double.md for the format and exceptional-value contract. */
+GMATH_API long double gmath_exp2l(long double x);
 
 /**
  * @brief Binary32 two raised to @p x, within 1 float ulp under nearest rounding.
@@ -229,6 +243,13 @@ GMATH_API float gmath_exp2f(float x);
  */
 GMATH_API double gmath_cbrt(double x);
 
+/** @brief Correctly rounded native long-double root, fixed nearest/ties-even.
+ * Requires 2 MiB of usable thread stack.
+ * Exact results add no flags; nonexact tiny results add underflow/inexact.
+ * Canonical NaNs; errno, controls and incoming flags are preserved.
+ * See documentation/long-double.md for the format and exceptional-value contract. */
+GMATH_API long double gmath_cbrtl(long double x);
+
 /**
  * @brief Real Float cube root, within one Float ULP under nearest rounding.
  *
@@ -259,6 +280,13 @@ GMATH_API float gmath_cbrtf(float x);
  * @return ln(@p x).
  */
 GMATH_API double gmath_log(double x);
+
+/** @brief Native long double; certified one-local-ULP enclosure, fixed nearest/ties-even.
+ * Requires 2 MiB of usable thread stack.
+ * Exact results add no flags; nonexact tiny results add underflow/inexact.
+ * Canonical NaNs; errno, controls and incoming flags are preserved.
+ * See documentation/long-double.md for the format and exceptional-value contract. */
+GMATH_API long double gmath_logl(long double x);
 
 /**
  * @brief Binary32 natural logarithm, within 1 float ulp under nearest rounding.
@@ -292,6 +320,13 @@ GMATH_API float gmath_logf(float x);
  */
 GMATH_API double gmath_log2(double x);
 
+/** @brief Native long double; certified one-local-ULP enclosure, fixed nearest/ties-even.
+ * Requires 2 MiB of usable thread stack.
+ * Exact results add no flags; nonexact tiny results add underflow/inexact.
+ * Canonical NaNs; errno, controls and incoming flags are preserved.
+ * See documentation/long-double.md for the format and exceptional-value contract. */
+GMATH_API long double gmath_log2l(long double x);
+
 /**
  * @brief The base-ten logarithm of @p x, within 1 ulp of the true value.
  *
@@ -304,6 +339,13 @@ GMATH_API double gmath_log2(double x);
  * @return log10(@p x).
  */
 GMATH_API double gmath_log10(double x);
+
+/** @brief Native long double; certified one-local-ULP enclosure, fixed nearest/ties-even.
+ * Requires 2 MiB of usable thread stack.
+ * Exact results add no flags; nonexact tiny results add underflow/inexact.
+ * Canonical NaNs; errno, controls and incoming flags are preserved.
+ * See documentation/long-double.md for the format and exceptional-value contract. */
+GMATH_API long double gmath_log10l(long double x);
 
 /**
  * @brief Binary32 base-ten logarithm, within 1 float ulp under nearest rounding.
@@ -356,6 +398,13 @@ GMATH_API float gmath_log2f(float x);
  */
 GMATH_API double gmath_pow(double x, double y);
 
+/** @brief Native long double; certified one-local-ULP enclosure, fixed nearest/ties-even.
+ * Requires 2 MiB of usable thread stack.
+ * Exact results add no flags; nonexact tiny results add underflow/inexact.
+ * Canonical NaNs; errno, controls and incoming flags are preserved.
+ * See documentation/long-double.md for the format and exceptional-value contract. */
+GMATH_API long double gmath_powl(long double x, long double y);
+
 /**
  * @brief Cancellation-safe log(1+x) and exp(x)-1 in Double and Float.
  *
@@ -377,7 +426,21 @@ GMATH_API double gmath_pow(double x, double y);
  * @{
  */
 GMATH_API double gmath_log1p(double x);
+
+/** @brief Native long double; certified one-local-ULP enclosure, fixed nearest/ties-even.
+ * Requires 2 MiB of usable thread stack.
+ * Exact results add no flags; nonexact tiny results add underflow/inexact.
+ * Canonical NaNs; errno, controls and incoming flags are preserved.
+ * See documentation/long-double.md for the format and exceptional-value contract. */
+GMATH_API long double gmath_log1pl(long double x);
 GMATH_API double gmath_expm1(double x);
+
+/** @brief Native long double; certified one-local-ULP enclosure, fixed nearest/ties-even.
+ * Requires 2 MiB of usable thread stack.
+ * Exact results add no flags; nonexact tiny results add underflow/inexact.
+ * Canonical NaNs; errno, controls and incoming flags are preserved.
+ * See documentation/long-double.md for the format and exceptional-value contract. */
+GMATH_API long double gmath_expm1l(long double x);
 GMATH_API float gmath_log1pf(float x);
 GMATH_API float gmath_expm1f(float x);
 /** @} */
@@ -561,6 +624,13 @@ GMATH_API float gmath_atanf(float x);
  * @return The length of the hypotenuse.
  */
 GMATH_API double gmath_hypot(double x, double y);
+
+/** @brief Correctly rounded native long-double root, fixed nearest/ties-even.
+ * Requires 2 MiB of usable thread stack.
+ * Exact results add no flags; nonexact tiny results add underflow/inexact.
+ * Canonical NaNs; errno, controls and incoming flags are preserved.
+ * See documentation/long-double.md for the format and exceptional-value contract. */
+GMATH_API long double gmath_hypotl(long double x, long double y);
 
 /**
  * @brief Binary32 hypotenuse, correctly rounded to nearest with ties to even.

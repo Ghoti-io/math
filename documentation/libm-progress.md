@@ -1,6 +1,38 @@
 # Libm gap closure
 
-## Native long-double integer arithmetic
+## Native long-double roots, exponentials, logarithms and power
+
+Eleven interfaces add native `sqrtl`, `cbrtl`, `hypotl`, `expl`, `exp2l`,
+`expm1l`, `logl`, `log2l`, `log10l`, `log1pl` and `powl` on binary64,
+extended80, binary128 and IBM DD. Roots use exact midpoint comparisons;
+transcendentals certify the actual predecessor/successor envelope. Caller
+controls, errno and incoming flags survive. Exact dyadic identities add no
+rounding flags. See [the complete contract and focused evidence](long-double.md#roots-exponentials-logarithms-and-power),
+including the 2 MiB usable-stack allowance.
+
+Focused verification passes 642 original pinned reference cells, 184 supplemental
+transition cells, 8,394 state rows and
+1,485 exact primitive calibrations, with required directed MPFR/mpmath checks
+and a fresh 44-cell population. GCC/Clang, sanitizers, compiler-selected native
+ABIs and six QEMU targets pass; targeted post-fix regressions cover 2,252 native
+calls. Publication faults and fully repinned wrong answers are rejected.
+Every previous runtime/table and literal corpus remains byte-identical, as does
+the complete 7,319-byte legacy hash output. Independent review findings are
+resolved, with native transition checks on all four layouts, committed primitive
+and guarded-stack regressions, fresh container-free controls, and required
+MPFR/fresh native-wrapper checks. The clean GCC16.2.0 default suite passes all
+116 gates and 45 main binaries: 294 tests, 293 passes and one expected native32
+long-width skip, in 6,234.93 seconds. Frozen source/index checks pass before and
+after the run and after cleanup. All 8,637 retained build records were archived,
+with gzip CRC and tar inventory verified, before temporary builds and nine
+generated corpus caches were reclaimed. An initial attempt stopped because GCC16
+rejected an injected test mutation's unused value; that attempt remains failed
+and retained. Consuming the volatile value repaired the fixture without disabling
+warnings or changing runtime kernels. The fresh cold retry is the passing run.
+Optional older nested-container oracle checks retain their explicit skips;
+the new family's required oracle checks passed separately.
+
+## Native long-double integer arithmetic (preceding phase)
 
 Nine more names provide integer conversions, exact single-format remainders,
 positive difference and explicit fused multiply-add. Binary64, extended80 and
@@ -218,12 +250,12 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 43 verified phases add 123 APIs, seven performance
-optimizations and certificate maintenance. Classic real-function name
-coverage is143/171 (57 Double,57 Float,29 long double) on
-binary64/extended80/binary128, with28 long-double names remaining.
-IBM DD has139/171 names and32 remaining because exact frexpl and the three
-exact remainder APIs are unavailable. Float/Double name coverage is complete. The phase
+The 44 verified phases add 134 APIs, seven performance optimizations
+and certificate maintenance. The eleven-function phase is complete.
+Current classic real-function implementation coverage is154/171 (57 Double,
+57 Float,40 long double) on binary64/extended80/binary128, with17 long-double
+names remaining. IBM DD has150/171 names and21 remaining because exact frexpl
+and the three exact remainder APIs are unavailable. Float/Double name coverage is complete. The phase
 sections below retain historical counts and measurements.
 
 ## Current-mode integer conversion

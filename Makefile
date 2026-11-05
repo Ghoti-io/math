@@ -244,7 +244,7 @@ INCLUDE := -I include/ -I $(GEN_DIR)/
 
 # libver-gen is here so that suite/tools/xarch/shape.sh can write the generated
 # header for a cross build without any dependency installed.
-DEPLESS_GOALS := docs docs-pdf clean fuzz-clean cloc help libver-gen prepare-corpora prepare-atan-corpus prepare-grid-corpora prepare-long-double-nine-corpus clean-long-double-nine-corpus
+DEPLESS_GOALS := docs docs-pdf clean fuzz-clean cloc help libver-gen prepare-corpora prepare-atan-corpus prepare-grid-corpora prepare-long-double-nine-corpus clean-long-double-nine-corpus prepare-long-double-eleven-corpus clean-long-double-eleven-corpus
 ifeq ($(filter-out $(DEPLESS_GOALS),$(or $(MAKECMDGOALS),all)),)
 SKIP_DEP_CHECK := 1
 endif
@@ -265,7 +265,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 # check-symbols is right to reject in a shipping library.
 PRODUCTION_LINK_GATE := $(if $(filter Linux,$(OS_NAME)),check-production-link)
 X87_ROUNDING_GATE := $(if $(filter Linux,$(OS_NAME)),check-x87-rounding)
-TEST_GATES ?= check-long-double-nine check-long-double-nine-controls check-long-double-scale check-long-double-scale-controls check-long-double check-long-double-controls check-symbols check-remaining check-inverse-hyperbolic check-hyperbolic check-log1p-expm1 check-inverse-trig check-grid-cache $(X87_ROUNDING_GATE) $(PRODUCTION_LINK_GATE) check-atan-cache check-atan-bench-controls check-atan-oracle-controls check-atan-controls check-atan-harness check-planted-atan check-atan check-atan-oracle check-positive-difference-bench-controls check-positive-difference-oracle-controls check-positive-difference check-positive-difference-harness check-positive-difference-controls check-planted-positive-difference check-positive-difference-oracle check-currentint-baseline-controls check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-long-double-eleven check-long-double-eleven-controls check-long-double-nine check-long-double-nine-controls check-long-double-scale check-long-double-scale-controls check-long-double check-long-double-controls check-symbols check-remaining check-inverse-hyperbolic check-hyperbolic check-log1p-expm1 check-inverse-trig check-grid-cache $(X87_ROUNDING_GATE) $(PRODUCTION_LINK_GATE) check-atan-cache check-atan-bench-controls check-atan-oracle-controls check-atan-controls check-atan-harness check-planted-atan check-atan check-atan-oracle check-positive-difference-bench-controls check-positive-difference-oracle-controls check-positive-difference check-positive-difference-harness check-positive-difference-controls check-planted-positive-difference check-positive-difference-oracle check-currentint-baseline-controls check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -2347,7 +2347,7 @@ clean-grid-corpora:
 # Stable entry point for standalone/native/cross corpus consumers. Future
 # generated corpus families belong here; callers need not track their names.
 .PHONY: prepare-corpora
-prepare-corpora: prepare-atan-corpus prepare-grid-corpora prepare-long-double-nine-corpus
+prepare-corpora: prepare-atan-corpus prepare-grid-corpora prepare-long-double-nine-corpus prepare-long-double-eleven-corpus
 
 .PHONY: check-inverse-trig
 check-inverse-trig: $(APP_DIR)/testInverse_trig$(EXE_EXTENSION)
@@ -2527,3 +2527,42 @@ $(TEST_GATES) test test-asan test-valgrind test-valgrind-quiet $(HASH_PROBE) $(A
 clean: clean-long-double-nine-corpus
 clean-long-double-nine-corpus:
 	@rm -f -- '$(CORPUS_DIR)/long-double-nine.corpus'
+
+# Eleven roots, exponentials, logarithms and power: separate mandatory evidence.
+LONG_DOUBLE_ELEVEN_PROBE := $(APP_DIR)/tools/probe-long-double-eleven$(EXE_EXTENSION)
+LONG_DOUBLE_ELEVEN_CALLER := $(OBJ_DIR)/tools/probe-long-double-eleven.o
+$(OBJ_DIR)/elementary/long_double_eleven.o: LIB_CFLAGS += -fno-lto
+$(LONG_DOUBLE_ELEVEN_CALLER): tools/probe-long-double-eleven.c src/elementary/long_double_eleven.c src/elementary/long_double_eleven_bits.h src/elementary/long_double_eleven_interval.h src/elementary/long_double_eleven_exact.h tests/long_double_eleven_abi.h tests/fp_controls.h $(FLAGS_STAMP) | $(LIBVER_GEN)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -fno-lto -c $< -MMD -MP -MF $@.d -o $@
+$(LONG_DOUBLE_ELEVEN_PROBE): $(LONG_DOUBLE_ELEVEN_CALLER) $(OBJ_DIR)/elementary/long_double_eleven.o $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -fno-lto $(LONG_DOUBLE_ELEVEN_CALLER) $(OBJ_DIR)/elementary/long_double_eleven.o $(TEST_LINK_FLAGS) -o $@
+-include $(LONG_DOUBLE_ELEVEN_CALLER).d
+.PHONY: check-long-double-eleven check-long-double-eleven-controls prepare-long-double-eleven-corpus clean-long-double-eleven-corpus
+check-long-double-eleven: $(LONG_DOUBLE_ELEVEN_PROBE) $(APP_DIR)/testLong_double_eleven$(EXE_EXTENSION)
+	@python3 tools/check-long-double-eleven-abi.py --self-test
+	@python3 tools/check-long-double-eleven-abi.py --object '$(OBJ_DIR)/elementary/long_double_eleven.o'
+	@python3 tools/check-long-double-eleven-abi.py --caller-object '$(LONG_DOUBLE_ELEVEN_CALLER)'
+	@python3 tools/check-long-double-eleven.py --probe '$(LONG_DOUBLE_ELEVEN_PROBE)' --directory '$(CORPUS_DIR)'
+	@LD_LIBRARY_PATH='$(TEST_LD_PATH)' $(APP_DIR)/testLong_double_eleven$(EXE_EXTENSION)
+check-long-double-eleven-controls: $(LONG_DOUBLE_ELEVEN_PROBE) $(APP_DIR)/$(STATIC_TARGET)
+	@LONG_DOUBLE_ELEVEN_CC='$(CC)' LONG_DOUBLE_ELEVEN_FLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 python3 tools/check-long-double-eleven-controls.py --probe '$(LONG_DOUBLE_ELEVEN_PROBE)' --work '$(BUILD_DIR)/long-double-eleven-controls' --directory '$(CORPUS_DIR)'
+prepare-long-double-eleven-corpus:
+	@python3 tools/prepare-long-double-eleven.py --directory '$(CORPUS_DIR)'
+$(TEST_GATES) test test-asan test-valgrind test-valgrind-quiet $(APP_DIR)/testLong_double_eleven$(EXE_EXTENSION) $(ASAN_APP_DIR)/testLong_double_eleven$(EXE_EXTENSION): | prepare-long-double-eleven-corpus
+clean: clean-long-double-eleven-corpus
+clean-long-double-eleven-corpus:
+	@rm -f -- '$(CORPUS_DIR)/long-double-eleven.corpus'
+
+# Required host preflight/fresh validation before the frozen default suite.
+# Kept separate because target compiler containers do not expose an engine.
+.PHONY: check-long-double-eleven-oracle
+check-long-double-eleven-oracle: $(LONG_DOUBLE_ELEVEN_PROBE)
+	@python3 tools/check-long-double-eleven-oracle.py --directory '$(CORPUS_DIR)' --probe '$(LONG_DOUBLE_ELEVEN_PROBE)'
+
+# Host entry point: required external oracle must succeed before any suite work.
+.PHONY: validate-long-double-eleven-host
+validate-long-double-eleven-host:
+	+$(MAKE) check-long-double-eleven-oracle && $(MAKE) test

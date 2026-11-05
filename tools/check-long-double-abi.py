@@ -169,6 +169,7 @@ def main():
     assert names.count('long_double_basic.o')==1,'missing new object'
     assert names.count('long_double_scale.o')==1,'missing scaling object'
     assert names.count('long_double_nine.o')==1,'missing integer-arithmetic object'
+    assert names.count('long_double_eleven.o')==1,'missing roots/explog object'
     legacy=[]
     with tempfile.TemporaryDirectory(prefix='gmath-long-double-abi-') as tmp:
         for name in names:
@@ -184,7 +185,12 @@ def main():
                 spec=importlib.util.spec_from_file_location('nine_abi',Path(__file__).with_name('check-long-double-nine-abi.py'))
                 nine_abi=importlib.util.module_from_spec(spec);spec.loader.exec_module(nine_abi)
                 nine_transfers=nine_abi.check_object(path,objdump)
+            elif name=='long_double_eleven.o':
+                import importlib.util
+                spec=importlib.util.spec_from_file_location('eleven_abi',Path(__file__).with_name('check-long-double-eleven-abi.py'))
+                eleven_abi=importlib.util.module_from_spec(spec);spec.loader.exec_module(eleven_abi)
+                eleven_transfers=eleven_abi.check_object(path,objdump)
             else:legacy.append(str(path))
         subprocess.run([str(Path(__file__).with_name('check-no-x87.sh')),*legacy],check=True)
-    print(f'long-double ABI: all {len(names)} members covered; {len(legacy)} legacy objects unchanged gate; {transfers} foundation, {scale_transfers} scaling and {nine_transfers} integer-arithmetic checked native80 returns')
+    print(f'long-double ABI: all {len(names)} members covered; {len(legacy)} legacy objects unchanged gate; {transfers} foundation, {scale_transfers} scaling and {nine_transfers} integer-arithmetic and {eleven_transfers} roots/explog checked native80 returns')
 if __name__=='__main__':main()

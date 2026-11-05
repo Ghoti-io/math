@@ -30,3 +30,7 @@ docs
 # Exact integer-family state expansion is pinned; per-input literals stay tracked.
 /tests/corpus/long-double-nine.corpus
 /tests/corpus/.long-double-nine-cache-*
+
+# Reconstructed from compact pinned eleven-family literals.
+/tests/corpus/long-double-eleven.corpus
+/tests/corpus/.long-double-eleven.*

@@ -151,3 +151,189 @@ temporary builds reclaimed after each run.
 The library and every caller must use the same native long-double ABI and
 compiler ABI flags. The compiler-selected binary64/binary128 test modes are
 separate builds and cannot be mixed with an extended80 library.
+
+## Roots, exponentials, logarithms and power
+
+The eleven additional interfaces are `sqrtl`, `cbrtl`, `hypotl`, `expl`,
+`exp2l`, `expm1l`, `logl`, `log2l`, `log10l`, `log1pl` and `powl`.
+They use the same four native representations and raw NaN classification.
+Their integer decisions target nearest/ties-even independently of caller RC,
+precision control and DAZ/FTZ. Roots are correctly rounded. Transcendentals
+return a value whose actual predecessor and successor enclose the real
+result; correctly rounded transcendental or directed-output guarantees are
+not made. DD neighbors are exact sums of two binary64 components.
+
+Square/cube roots use restoring integer recurrences. With root prefix r and
+square s=r*r, the next square trial is 4*r+1 and the cube trial is 12*s+6*r+1.
+The residual remains nonnegative and smaller than the next trial. For DD,
+retaining through 2^-1076 requires at most 2101 digits, including hypot near
+the finite upper limit. The cube square/residual needs fewer than 4208 bits;
+216 32-bit scratch limbs cover that bound. Single formats retain at least
+three guard digits, down to the complete binary128 minimum-subnormal grid.
+Final selection compares the exact square/cube of the *sum* of the adjacent
+candidates with 2^degree times the exact radicand. It never halves that sum
+on the output grid. Exact powers decide ties and exactness flags.
+
+The transcendental intervals use 4352 fractional bits and 64 integer bits.
+The latter cover the reduced logarithms and the bounded exponential input;
+out-of-range magnitudes are classified before multiplication or projection.
+Normalization preserves the entire DD component span:2098 bits from 2^1023
+to 2^-1074. No input conversion rounds away a near-unit remote tail.
+Positive directed division and signed directed multiplication enclose every
+truncation. Logarithms use twice the positive atanh series at
+0<=t<=1/3+2^-4352. Its 1400 terms leave a positive tail smaller than 2^-4430;
+one upper fixed-point unit encloses it. The logarithm of two is obtained
+from the same series at 1/3. Exponentials reduce by an interval for k*log(2),
+with k selected using the upper endpoint, so 0<=r<log(2)+2^-4200.
+Their 1000-term positive Taylor series has remainder below 3/1001!<2^-8500.
+Negative reduced arguments use outward reciprocals.
+
+Writing u=2^-4352, term-width recurrence for atanh contracts by less than
+1/8 after each product; including division rounding, a term width is below
+32 u. Summing 1400 terms, scaling by two and allowing the input-division width
+gives less than 2^18*u. Multiplication by the largest decoded exponent
+(less than 2^15) gives logarithm width below 2^34*u. Exp reduction multiplies
+the logarithm-of-two interval by k<24000; its endpoint error is below 2^34*u.
+The Taylor recurrence, including 1000 directed divisions, gives endpoint
+error below 2^38*u. These are conservative bounds, rather than observed
+accuracy measurements.
+
+For finite power with base other than one, the smallest nonzero magnitude
+of log(abs(base)) exceeds 2^-1075: the closest DD base to one differs by
+2^-1074, and the single-format gaps are larger. A power argument that can
+remain in the evaluated exponential range therefore has exponent-parameter
+leading exponent at most 1090. Normalized multiplication and rescaling give
+argument width below 2^1125*u, and combined exponential width below
+2^1128*u relative to its binary scale. At the largest DD finite output,
+the absolute enclosure width is below 2^-2200, much smaller than the
+absolute DD minimum gap 2^-1074. Single formats retain over 3000 spare bits
+relative to their normal gaps; at gradual underflow the exact wide output
+grid reaches 2^-32988. Thus these fixed iteration and precision bounds are
+complete for the supported inputs; there is no unchecked precision fallback.
+The final finite result is checked against both actual neighbors after any
+single candidate correction. An impossible internal certificate failure
+traps instead of substituting a numerical answer.
+
+For log1p/expm1 inputs below 2^-128 in single formats, returning the exact
+operand has quadratic error below 1/8 of a local gap. DD uses the stricter
+2^-550 threshold, whose quadratic error is below its absolute minimum gap.
+This path retains binary128/extended80 minimum subnormals, including inputs
+far below the absolute fixed-point floor. Tiny exp/pow arguments below
+2^-1100 return one with inexact; their changes are inside both neighbors.
+
+Exact identities bypass intervals: powers of two for exp2/log2, exact
+positive powers of ten for log10, and representable dyadic powers. Power
+first classifies all signaling/malformed operands, then applies quiet-NaN
+unit/zero identities, signed zeros/infinities and poles. A finite negative
+base requires an exactly integral exponent; parity is read from its complete
+integer encoding. Exact dyadic roots of an odd significand are established
+by restoring integer square roots before exponentiation. Negative or
+fractional exponents do not pass through a narrowed integer cast.
+
+Nonexact finite outputs add inexact, and nonexact rounded tiny outputs add
+underflow/inexact. DD rounded-result tininess uses 2^-969. Exact representable
+roots, powers and identities add no rounding flags. Pole/domain cases add
+divide-by-zero/invalid as specified by their counterparts; all NaNs are
+canonical positive quiet NaNs. Hypot lets infinity dominate a quiet NaN only
+after signaling/malformed priority. Incoming flags, errno and controls are
+preserved. The kernels allocate no heap and have no mutable global state.
+
+The eleven-family corpus, hash, mandatory pinned MPFR/mpmath oracle and
+separate raw/ABI probe are independent of the legacy corpus-hash CLI and
+its unchanged stdout. Reconstruction creates only a missing cache using
+atomic linking; an existing corrupt cache fails unchanged. Coverage and
+executed compiler/target evidence are recorded separately as validation is
+completed; the preceding foundation-family execution counts do not claim
+execution of these eleven APIs.
+
+The supported allowance for this family is **2 MiB of usable thread stack**;
+a smaller stack is not claimed. GCC 14 stack-usage measurements sum every
+production function frame conservatively to 595,136 bytes atO0 and 297,672
+bytes atO2; the largest individual frames are 58,032 and 54,080 bytes.
+SeparateO0/O2 threads with exactly 2 MiB of writable stack and inaccessible
+guard pages at both ends execute all eleven native calls and the DD
+near-unit/minimum-tail witnesses. The integer call graph is acyclic, scratch
+arrays are fixed, and the wrapper's explicit stack reservation is bounded.
+
+Focused verification executes 642 pinned synthetic cells and 159 native80
+literal cells with GCC 14, plus 7,986 mixed synthetic/native80 state calls.
+GCC 14 O0, Clang 19 O2, Clang 19 ASan/UBSan and the compiler-selected binary64 and
+binary128 ABI builds each execute their 159 native literal cells. Independent
+exact integer calibration checks 1,485 signed directed add/multiply/divide/shift
+cases, including zeros, carry and sticky boundaries. The required host target
+`make check-long-double-eleven-oracle` checks the public pinned runtime
+versions, recomputes all 642 cells with directed MPFR and independent mpmath,
+and checks a fresh 44-cell production population. Absence or a version mismatch
+fails that target. Rebuilt images with the same public runtime pin are accepted;
+immutable identities are recorded only in private validation evidence.
+The frozen default probes remain container-free; host oracle validation is a
+required separate step before the cold default suite.
+
+| Executed target ABI under GCC 16/QEMU | Native literal cells | Additional targeted native state/special calls |
+| --- | ---: | ---: |
+| PowerPC32 IBM DD | 165 | 284 |
+| PowerPC64 IBM DD | 165 | 284 |
+| ARM64 binary128 | 159 | 228 |
+| s390x binary128 | 159 | 228 |
+| SPARC64 binary128 | 159 | 228 |
+| i686 extended80 | 159 | 272 |
+
+The additional calls cover negative zeros/infinities, infinity to negative
+powers, all eleven raw signaling/malformed priorities, exact exp2 range
+boundaries, repeated odd-significand roots and DD remote-tail exponent parity.
+They vary rounding controls, precision settings, incoming flags and supported
+DAZ/FTZ. Host binary64/binary128 ABI builds execute 228 such calls each, and
+Clang ASan/UBSan executes 272 native80 calls. Native80 byte callers avoid operand
+loads through x87 on both AMD64 and i686; full wrapper operands, helper targets,
+stack restoration and CFA rows are checked for both ABIs. Target execution is
+under emulation; physical execution on these six target machines is not claimed.
+
+Clean controls pass before five compiled numerical defects and five compiled
+arithmetic/control/wrapper/unwind/caller defects are rejected. An additional
+i686 wrong-slot and wrong-CFA object pair is rejected, alongside mocked frame
+and instruction fixtures. Cold, warm and racing preparation, unchanged corrupt
+caches, bounded canonical fields and optimized-Python rejection are checked.
+Injected short/corrupt writes and flush/fsync/close failures publish no cache and
+leave no temporary file. A deliberately wrong answer with its JSON, hash and
+source pin all repinned passes structural loading and is then rejected by the
+independent numerical oracle. The complete 38-member archive partition and
+namespace/host-math gates pass. The unchanged legacy CLI still emits exactly its
+original 7,319 bytes, with aggregate `f5fa269eb60ee34f` over 292,711 results and 122
+function sets. Focused records retain failed tool/calibration attempts separately;
+default-suite evidence is reported separately.
+
+The original 642 literal cells remain unchanged. A separately pinned supplement
+adds 184 directed-MPFR-certified adjacent transition cells for exp, expm1 and
+power, including signed odd powers, plus finite hypot overflow. The first 148
+answers are preserved; 36 additional positive-base-two cases cover fractional
+exponents around overflow, half-minsub and minimum-normal transitions. Required
+oracle verification regenerates the complete input registry; default checks
+reject duplicate or incomplete per-format/function populations. Supplementary
+transcendental checks use the selected result's actual neighbor enclosure and
+selected-result tininess, rather than requiring correctly rounded results.
+`make validate-long-double-eleven-host` executes the required host oracle target
+and then the default suite, stopping before the suite if the oracle fails.
+`make test` itself remains container-free.
+
+The primitive calibration and O0/O2 guarded-stack fixtures are committed and run
+from the eleven-family controls target. Primitive checks run wherever the
+supported C toolchain is available; the guarded pthread/mmap fixture explicitly
+reports unsupported platforms outside Linux. Default controls also exercise a
+fresh container-free population using exact dyadic identities and rational
+series bounds, independently of the required separate MPFR preflight.
+
+GCC16.2.0 focused verification also passes both family targets under the
+repository's default strict warning flags: 826 synthetic cells, 205 native80
+cells, 8,394 state rows, compiled faults, 1,485 primitive cases and guarded
+O0/O2 stacks. The first cold default attempt stopped on a warning in an injected
+mutation before that gate's intended assertion. A local volatile read repairs
+the test without disabling warnings; the failed attempt remains failed and
+retained. The fresh cold GCC16.2.0 default retry passes all 116 gates and
+45 main binaries: 294 tests, 293 passes and one expected native32 long-width
+skip, in 6,234.93 seconds. The tracked source and index stayed frozen throughout.
+After the run, all 8,637 build records were archived and the gzip CRC and tar
+inventory verified; temporary builds and all nine generated corpus caches were
+then reclaimed, followed by another frozen-source check. Every prior runtime,
+table, literal corpus and legacy hash output remains unchanged. Optional older
+nested-container oracle checks retain their explicit skips; the required oracle
+checks for this family passed separately. No new format deferral was introduced.

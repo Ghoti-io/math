@@ -7,6 +7,13 @@ round-to-nearest; mode-aware APIs state their separate contracts. It is part of 
 
 ## What is implemented
 
+`gmath_sqrtl`, `gmath_cbrtl`, `gmath_hypotl`, the long-double exponential and
+logarithm forms, and `gmath_powl` retain native precision in all four supported
+layouts. Roots are correctly rounded nearest; transcendental results have a
+certified one-local-ULP envelope, independently of caller rounding controls.
+These kernels require 2 MiB of usable thread stack. See
+[the numerical contracts and evidence](documentation/long-double.md#roots-exponentials-logarithms-and-power).
+
 `gmath_ldexpl`, `gmath_scalbnl`, `gmath_scalblnl`, `gmath_nextafterl` and
 `gmath_nexttowardl` preserve native binary64/extended80/binary128/IBM DD
 precision. Scaling rounds once nearest/ties-even; adjacency follows the actual
@@ -323,4 +330,7 @@ the IBM DD frexp deferral and native/synthetic coverage.
 with14 on DD.
 Scaling and adjacency add five more interfaces: 20 are available on the three
 binary formats and 19 on DD, leaving 37 and 38 inventory names respectively.
+Subsequent integer-arithmetic and roots/exponential/logarithm/power families bring
+the current totals to 40 of 57 names on the three binary formats and 36 on DD,
+leaving 17 and 21 respectively. The four DD deferrals remain unchanged.
 The 122 existing Float/Double populations and their aggregate stay separate.
