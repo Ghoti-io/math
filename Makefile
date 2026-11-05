@@ -244,7 +244,7 @@ INCLUDE := -I include/ -I $(GEN_DIR)/
 
 # libver-gen is here so that suite/tools/xarch/shape.sh can write the generated
 # header for a cross build without any dependency installed.
-DEPLESS_GOALS := docs docs-pdf clean fuzz-clean cloc help libver-gen prepare-corpora prepare-atan-corpus prepare-grid-corpora
+DEPLESS_GOALS := docs docs-pdf clean fuzz-clean cloc help libver-gen prepare-corpora prepare-atan-corpus prepare-grid-corpora prepare-long-double-nine-corpus clean-long-double-nine-corpus
 ifeq ($(filter-out $(DEPLESS_GOALS),$(or $(MAKECMDGOALS),all)),)
 SKIP_DEP_CHECK := 1
 endif
@@ -265,7 +265,7 @@ TESTFLAGS := `PKG_CONFIG_PATH=$(PKG_CONFIG_LOOKUP_PATH) pkg-config --libs --cfla
 # check-symbols is right to reject in a shipping library.
 PRODUCTION_LINK_GATE := $(if $(filter Linux,$(OS_NAME)),check-production-link)
 X87_ROUNDING_GATE := $(if $(filter Linux,$(OS_NAME)),check-x87-rounding)
-TEST_GATES ?= check-long-double-scale check-long-double-scale-controls check-long-double check-long-double-controls check-symbols check-remaining check-inverse-hyperbolic check-hyperbolic check-log1p-expm1 check-inverse-trig check-grid-cache $(X87_ROUNDING_GATE) $(PRODUCTION_LINK_GATE) check-atan-cache check-atan-bench-controls check-atan-oracle-controls check-atan-controls check-atan-harness check-planted-atan check-atan check-atan-oracle check-positive-difference-bench-controls check-positive-difference-oracle-controls check-positive-difference check-positive-difference-harness check-positive-difference-controls check-planted-positive-difference check-positive-difference-oracle check-currentint-baseline-controls check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
+TEST_GATES ?= check-long-double-nine check-long-double-nine-controls check-long-double-scale check-long-double-scale-controls check-long-double check-long-double-controls check-symbols check-remaining check-inverse-hyperbolic check-hyperbolic check-log1p-expm1 check-inverse-trig check-grid-cache $(X87_ROUNDING_GATE) $(PRODUCTION_LINK_GATE) check-atan-cache check-atan-bench-controls check-atan-oracle-controls check-atan-controls check-atan-harness check-planted-atan check-atan check-atan-oracle check-positive-difference-bench-controls check-positive-difference-oracle-controls check-positive-difference check-positive-difference-harness check-positive-difference-controls check-planted-positive-difference check-positive-difference-oracle check-currentint-baseline-controls check-currentint-bench-controls check-currentint-link check-currentint-controls check-currentint check-planted-currentint check-currentint-oracle check-currentint-oracle-controls check-nearby-mode-plants check-nearby-link check-nearby check-planted-nearby check-nearby-controls check-nearby-oracle check-nearby-oracle-controls check-ieee-remainder-prior-driver check-ieee-remainder-portable check-ieee-remainder check-planted-ieee-remainder check-ieee-remainder-reference-controls check-ieee-remainder-oracle check-cbrtf-fast-budget check-cbrtf-compat-driver check-cbrtf check-planted-cbrtf check-cbrtf-oracle check-long-scale check-planted-long-scale check-long-scale-oracle check-exponent-domain-driver check-exponent-value check-planted-exponent-value check-exponent-value-oracle check-fraction-split-oracle check-fraction-split check-planted-fraction-split check-aliasing check-stamps check-fp-contract check-edges check-libm check-no-x87 check-gates check-corpus-hash check-planted check-oracle-fresh check-remainder-corpus check-extrema-corpus check-logbase-oracle check-exp2-oracle check-exp2f-oracle check-exp2f-special check-expf-oracle check-expf-special check-logf-oracle check-logf-special check-log10f-oracle check-log10f-special check-hypotf-oracle check-hypotf-special check-atan2f-oracle check-atan2f-special check-budget-optimization check-adjacent-oracle check-adjacent-special check-planted-adjacent check-adjacent-compat-driver check-floatscale-oracle check-floatscale-special check-planted-floatscale check-intround-oracle check-intround-special check-planted-intround check-planted-atanf check-atanf-special check-atanf-compat check-atanf-oracle check-cbrt-oracle check-floatbasic-oracle check-floatbasic-special check-floattrig-oracle check-floattrig-special check-floattrig-wide run-examples
 
 VALGRIND_FLAGS := --leak-check=full --show-leak-kinds=definite,indirect,possible --track-origins=yes --error-exitcode=1 --suppressions=tests/valgrind.supp
 
@@ -2347,7 +2347,7 @@ clean-grid-corpora:
 # Stable entry point for standalone/native/cross corpus consumers. Future
 # generated corpus families belong here; callers need not track their names.
 .PHONY: prepare-corpora
-prepare-corpora: prepare-atan-corpus prepare-grid-corpora
+prepare-corpora: prepare-atan-corpus prepare-grid-corpora prepare-long-double-nine-corpus
 
 .PHONY: check-inverse-trig
 check-inverse-trig: $(APP_DIR)/testInverse_trig$(EXE_EXTENSION)
@@ -2493,3 +2493,37 @@ check-long-double-scale-controls: $(LONG_DOUBLE_SCALE_PROBE) $(APP_DIR)/$(STATIC
 	@LONG_DOUBLE_SCALE_CC='$(CC)' LONG_DOUBLE_SCALE_FLAGS='$(CFLAGS) $(INCLUDE)' \
 	 python3 tools/check-long-double-scale-controls.py --probe '$(LONG_DOUBLE_SCALE_PROBE)' --work '$(BUILD_DIR)/long-double-scale-controls' --archive '$(APP_DIR)/$(STATIC_TARGET)'
 $(HASH_PROBE): tests/long_double_scale_native.h tests/corpus/long-double-scale.corpus tests/corpus/long-double-scale.hash
+
+# Nine integer-arithmetic APIs: independent literal references plus actual ABI.
+export GMATH_LONG_DOUBLE_NINE_CORPUS_DIR ?= $(CORPUS_DIR)
+LONG_DOUBLE_NINE_PROBE := $(APP_DIR)/tools/probe-long-double-nine$(EXE_EXTENSION)
+LONG_DOUBLE_NINE_CALLER := $(OBJ_DIR)/tools/probe-long-double-nine.o
+$(OBJ_DIR)/elementary/long_double_nine.o: LIB_CFLAGS += -fno-lto
+$(LONG_DOUBLE_NINE_CALLER): tools/probe-long-double-nine.c src/elementary/long_double_nine.c src/elementary/long_double_nine_bits.h src/elementary/long_double_bits.h src/elementary/long_double_scale_bits.h tests/fp_controls.h tests/long_double_nine_abi.h $(FLAGS_STAMP) | $(LIBVER_GEN)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INCLUDE) -fno-lto -c $< -MMD -MP -MF $@.d -o $@
+$(LONG_DOUBLE_NINE_PROBE): $(LONG_DOUBLE_NINE_CALLER) $(OBJ_DIR)/elementary/long_double_nine.o $(FLAGS_STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -fno-lto $(LONG_DOUBLE_NINE_CALLER) $(OBJ_DIR)/elementary/long_double_nine.o $(TEST_LINK_FLAGS) -o $@
+-include $(LONG_DOUBLE_NINE_CALLER).d
+.PHONY: check-long-double-nine check-long-double-nine-controls
+check-long-double-nine: $(LONG_DOUBLE_NINE_PROBE) $(APP_DIR)/testLong_double_nine$(EXE_EXTENSION)
+	@python3 tools/check-long-double-nine-abi.py --object '$(OBJ_DIR)/elementary/long_double_nine.o'
+	@python3 tools/check-long-double-nine-abi.py --caller-object '$(LONG_DOUBLE_NINE_CALLER)'
+	@python3 tools/check-long-double-nine.py --probe '$(LONG_DOUBLE_NINE_PROBE)' --directory '$(CORPUS_DIR)'
+	@GMATH_LONG_DOUBLE_NINE_CORPUS_DIR='$(CORPUS_DIR)' LD_LIBRARY_PATH='$(TEST_LD_PATH)' $(APP_DIR)/testLong_double_nine$(EXE_EXTENSION)
+check-long-double-nine-controls: $(LONG_DOUBLE_NINE_PROBE) $(APP_DIR)/$(STATIC_TARGET)
+	@LONG_DOUBLE_NINE_CC='$(CC)' LONG_DOUBLE_NINE_CXX='$(CXX)' LONG_DOUBLE_NINE_FLAGS='$(LIB_CFLAGS) $(INCLUDE)' \
+	 LONG_DOUBLE_NINE_LINK='$(TEST_LINK_FLAGS)' LONG_DOUBLE_NINE_CALLER='$(LONG_DOUBLE_NINE_CALLER)' \
+	 python3 tools/check-long-double-nine-controls.py --probe '$(LONG_DOUBLE_NINE_PROBE)' --work '$(BUILD_DIR)/long-double-nine-controls' --archive '$(APP_DIR)/$(STATIC_TARGET)' --directory '$(CORPUS_DIR)'
+$(HASH_PROBE): tests/long_double_nine_native.h tests/corpus/long-double-nine.seeds tests/corpus/long-double-nine.hash tests/corpus/long-double-nine.json
+
+.PHONY: prepare-long-double-nine-corpus
+prepare-long-double-nine-corpus:
+	@python3 tools/prepare-long-double-nine.py --directory '$(CORPUS_DIR)'
+
+$(TEST_GATES) test test-asan test-valgrind test-valgrind-quiet $(HASH_PROBE) $(APP_DIR)/testLong_double_nine$(EXE_EXTENSION) $(ASAN_APP_DIR)/testLong_double_nine$(EXE_EXTENSION): | prepare-long-double-nine-corpus
+.PHONY: clean-long-double-nine-corpus
+clean: clean-long-double-nine-corpus
+clean-long-double-nine-corpus:
+	@rm -f -- '$(CORPUS_DIR)/long-double-nine.corpus'

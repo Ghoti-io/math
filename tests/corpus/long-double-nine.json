@@ -1,0 +1,18 @@
+{
+  "schema": 2,
+  "seed": 20261104,
+  "count": 32,
+  "rows": 77016,
+  "bytes": 22257624,
+  "formats": [
+    64,
+    80,
+    128,
+    106
+  ],
+  "literal_cells": 8421,
+  "literal_bytes": 612833,
+  "corpus_sha256": "c3d71ecd913aa55fad2f98b83ee4ac8beb330ee73edf699f574811184009a1f1",
+  "hash_sha256": "145a0752109842d251853f7bdc863ec5b28178ca9d50662e1fba2973da7c49da",
+  "literal_sha256": "319ca31ddf8254c938aef7ad404891d671b29522e39dd369ce3001f21c0e058b"
+}

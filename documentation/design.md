@@ -2596,3 +2596,14 @@ The public gates authenticate complete populations, closed numerical cells,
 all-mode caller state, native ABI behavior and fifteen appended result hashes;
 previous runtime/helpers/tables, literal answers, 107 result sets and the legacy
 aggregate remain unchanged. Accuracy claims are scoped per API in that document.
+
+
+## Long-double integer arithmetic
+
+Nine native APIs add exact conversions, single-format remainders and wide-grid
+positive difference/FMA. The new product/sum grid reaches binary128 minsub
+squared at 2^-32988. DD conversions and rounded arithmetic use exact component
+sums and the variable representable population; its three exact remainder APIs
+are explicitly unavailable. Existing runtime and reference populations remain
+unchanged. See [long-double-integer-arithmetic.md](long-double-integer-arithmetic.md)
+for numerical decisions, exception/state contracts and verification boundaries.

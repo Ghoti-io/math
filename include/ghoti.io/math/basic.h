@@ -53,6 +53,15 @@
 #else
 #define GMATH_HAVE_FREXPL 1
 #endif
+/** Exact DD remainders are not always sums of two binary64 components. */
+#if LDBL_MANT_DIG == 106 && LDBL_MAX_EXP == 1024
+#define GMATH_HAVE_LONG_DOUBLE_REMAINDER 0
+#else
+#define GMATH_HAVE_LONG_DOUBLE_REMAINDER 1
+#endif
+#define GMATH_HAVE_FMODL GMATH_HAVE_LONG_DOUBLE_REMAINDER
+#define GMATH_HAVE_REMAINDERL GMATH_HAVE_LONG_DOUBLE_REMAINDER
+#define GMATH_HAVE_REMQUOL GMATH_HAVE_LONG_DOUBLE_REMAINDER
 
 #ifdef __cplusplus
 extern "C" {
@@ -463,6 +472,40 @@ GMATH_API long double gmath_scalblnl(long double x,long n);
  * Both arguments of nexttowardl have native long-double precision. */
 GMATH_API long double gmath_nextafterl(long double x,long double y);
 GMATH_API long double gmath_nexttowardl(long double x,long double y);
+
+/** Long-double integer conversions use exact component sums on IBM DD.
+ * lround/llround tie away and never add inexact; lrint/llrint use the caller
+ * mode (x87 RC for extended80) and add inexact for valid fractional inputs.
+ * Range is checked after rounding: invalid/nonfinite inputs return destination
+ * MIN with invalid only. Signaling NaNs and malformed encodings are invalid.
+ * All nine operations below preserve errno, controls and incoming flags.
+ * Supported calls require at least2MiB of free usable stack, excluding guards;
+ * see documentation/long-double-integer-arithmetic.md for measured bounds. */
+GMATH_API long gmath_lroundl(long double x);
+GMATH_API long long gmath_llroundl(long double x);
+GMATH_API long gmath_lrintl(long double x);
+GMATH_API long long gmath_llrintl(long double x);
+/** Exact remainders: fmod truncates the quotient; remainder/remquo choose
+ * nearest/even. Zero keeps x's sign. remquo optionally writes signed low seven
+ * quotient bits; NULL is accepted. NaN/domain results write quotient zero.
+ * Infinite dividend or zero divisor raises invalid; both NaNs are inspected
+ * for signaling. No valid result adds flags. IBM DD has no declarations or
+ * definitions for these three APIs; availability macros above are zero. */
+#if GMATH_HAVE_LONG_DOUBLE_REMAINDER
+GMATH_API long double gmath_fmodl(long double x,long double y);
+GMATH_API long double gmath_remainderl(long double x,long double y);
+GMATH_API long double gmath_remquol(long double x,long double y,int *q);
+#endif
+/** Positive difference rounded nearest/even once, independently of mode;
+ * ordered x<=y returns positive zero. FMA rounds exact x*y+z once in caller
+ * mode, with no intermediate range exception. Cancellation zero is negative
+ * under downward rounding, otherwise positive, except matching signed zeros
+ * retain that sign. FMA invalid priority matches the Float/Double APIs.
+ * Canonical NaNs follow the foundation policy. Inexact adds IX; tiny inexact
+ * rounded results add UF/IX (DD minimum normal 2^-969); overflow adds OF/IX.
+ * DD rounding uses its variable sum population, never fixed106 precision. */
+GMATH_API long double gmath_fdiml(long double x,long double y);
+GMATH_API long double gmath_fmal(long double x,long double y,long double z);
 
 /**
  * @brief Splits @p x into a fraction of magnitude in [0.5, 1) and a power of two:

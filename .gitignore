@@ -26,3 +26,7 @@ docs
 /tests/corpus/fdim64-special.corpus
 /tests/corpus/fdim.corpus
 /tests/corpus/.grid-cache-*
+
+# Exact integer-family state expansion is pinned; per-input literals stay tracked.
+/tests/corpus/long-double-nine.corpus
+/tests/corpus/.long-double-nine-cache-*

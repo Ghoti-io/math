@@ -1,5 +1,42 @@
 # Libm gap closure
 
+## Native long-double integer arithmetic
+
+Nine more names provide integer conversions, exact single-format remainders,
+positive difference and explicit fused multiply-add. Binary64, extended80 and
+binary128 now provide29 of57 names; IBM DD provides25, with exact frexpl and
+three remainder APIs deferred. The new product/sum grid reaches2^-32988 and DD
+rounding follows the variable component-sum population. Every older runtime,
+table and literal corpus is preserved; legacy hash stdout remains byte-identical.
+See [long-double-integer-arithmetic.md](long-double-integer-arithmetic.md).
+
+The committed reference has8,421 literal answer cells /612,833 bytes. Pinned
+state expansion produces77,016 rows /22,257,624 bytes in an ignored cache.
+Cold reconstruction, corrupt-cache refusal, short/partial/close/write failures,
+publication races and repinned wrong answers have actual rejecting controls.
+Focused GCC14 numerical/unit, symbol/archive/hash checks pass;27 compiled
+faults and11 strict C-loader/hash corruptions reject. Both new unit tests pass.
+GCC O0/O2, Clang O0/O2, ASan/UBSan and compiler-selected native64/128 profiles
+pass complete synthetic and actual native calls. A fresh512-sample-per-format
+reference passes161,496 synthetic and36,985 native128 calls.
+
+GCC16/QEMU checks pass on PowerPC64, PowerPC32, AArch64, s390x, SPARC64 and
+i686. Each executes77,016 synthetic calls and the complete eligible native
+population: DD/long64=14,901; DD/long32=13,453; binary128/long64=17,785;
+extended80/long32=15,489. Native host extended80/long64 has15,513 calls. Every
+call checks values, quotient/destination width, flags, errno and controls.
+Actual entry flags are captured because a platform's flag-seeding routine may
+merge IX into requested UF/OF; clear-entry calls require an empty entry state.
+Production/caller instruction and native80 CFI gates pass. Completed temporary
+builds and references were archived, checksum/inventory verified and reclaimed.
+Earlier failed or interrupted attempts remain failed and retained. These are
+focused/emulated probes, not physical-host/full cross-target GoogleTest or
+performance results. Independent review and its targeted fixes pass. One cold
+default GCC16 full suite exits zero: all 114 gates, 44 main binaries, 292 tests, 291 passes and
+one expected native32-long skip. All 112 preceding gates remain in order.
+Frozen source/index/worktree checks and verified archive/pruning complete.
+
+
 ## Native long-double scaling and adjacency
 
 Five more native interfaces cover power-of-two scaling and immediate neighbors,
@@ -181,12 +218,12 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-Current snapshot: 42 verified phases add 114 APIs, seven performance
+Current snapshot: 43 verified phases add 123 APIs, seven performance
 optimizations and certificate maintenance. Classic real-function name
-coverage is134/171 (57 Double,57 Float,20 long double) on
-binary64/extended80/binary128, with37 long-double names remaining.
-IBM DD has133/171 names and38 remaining because
-exact frexpl is unavailable. Float/Double name coverage is complete. The phase
+coverage is143/171 (57 Double,57 Float,29 long double) on
+binary64/extended80/binary128, with28 long-double names remaining.
+IBM DD has139/171 names and32 remaining because exact frexpl and the three
+exact remainder APIs are unavailable. Float/Double name coverage is complete. The phase
 sections below retain historical counts and measurements.
 
 ## Current-mode integer conversion

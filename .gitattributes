@@ -107,3 +107,7 @@ tests/corpus/inverse-hyperbolic.sha256 text eol=lf
 tests/corpus/remaining-fifteen.corpus text eol=lf
 tests/corpus/remaining-fifteen.sha256 text eol=lf
 tests/corpus/remaining-fifteen.hash text eol=lf
+
+tests/corpus/long-double-nine.seeds text eol=lf
+tests/corpus/long-double-nine.hash text eol=lf
+tests/corpus/long-double-nine.json text eol=lf
