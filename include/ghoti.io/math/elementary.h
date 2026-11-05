@@ -405,6 +405,30 @@ GMATH_API double gmath_pow(double x, double y);
  * See documentation/long-double.md for the format and exceptional-value contract. */
 GMATH_API long double gmath_powl(long double x, long double y);
 
+/* Native real long-double functions; fixed nearest/ties-even with an
+ * actual-population one-local-ULP envelope. Preserve caller controls, errno
+ * and incoming flags. Nonidentity ordinary results add IX; rounded tiny
+ * results add UF/IX; range overflow adds OF/IX. No signgam side effect.
+ * Requires 2 MiB of usable thread stack. See
+ * documentation/long-double-seventeen.md for the numerical and ABI contract. */
+GMATH_API long double gmath_sinl(long double x);
+GMATH_API long double gmath_cosl(long double x);
+GMATH_API long double gmath_tanl(long double x);
+GMATH_API long double gmath_asinl(long double x);
+GMATH_API long double gmath_acosl(long double x);
+GMATH_API long double gmath_atanl(long double x);
+GMATH_API long double gmath_atan2l(long double y, long double x);
+GMATH_API long double gmath_sinhl(long double x);
+GMATH_API long double gmath_coshl(long double x);
+GMATH_API long double gmath_tanhl(long double x);
+GMATH_API long double gmath_asinhl(long double x);
+GMATH_API long double gmath_acoshl(long double x);
+GMATH_API long double gmath_atanhl(long double x);
+GMATH_API long double gmath_erfl(long double x);
+GMATH_API long double gmath_erfcl(long double x);
+GMATH_API long double gmath_tgammal(long double x);
+GMATH_API long double gmath_lgammal(long double x);
+
 /**
  * @brief Cancellation-safe log(1+x) and exp(x)-1 in Double and Float.
  *
