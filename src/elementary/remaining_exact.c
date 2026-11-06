@@ -270,6 +270,8 @@ static rx_direction rx_decode_dd(uint64_t hi, uint64_t lo) {
   return d;
 }
 static rx_direction rx_decode(const unsigned char * bytes) {
+  /* All decoders are also shared with the synthetic representation probe. */
+  (void)rx_decode64; (void)rx_decode80; (void)rx_decode128; (void)rx_decode_dd;
 #if LDBL_MANT_DIG == 53 && LDBL_MAX_EXP == 1024
   uint64_t u;
   memcpy(&u, bytes, 8);

@@ -156,6 +156,10 @@ static lds17_interval lds17_sinpi(const ld_value *a,int *negative) {
   lds17_interval s,c;lds17_sincos(lds17_mul(f,lds17_pi()),&s,&c);return s;
 }
 static ld_raw lds17_run(unsigned fmt,int op,ld_raw raw,ld_raw second) {
+  /* Reuse the primitive headers; their other family entry points stay private. */
+  (void)lds_run; (void)ldn_run; (void)ldn_mode; (void)ldn_integer;
+  (void)lde_root; (void)lde_ln2; (void)lde_log; (void)lde_exp_endpoint;
+  (void)lde_one; (void)lde_odd; (void)lde_exact_pow; (void)lde_ten_power;
   ld_value a=ld_decode(fmt,raw),b={{0},0,LD_FINITE,0};
   if(op==LDS17_ATAN2)b=ld_decode(fmt,second);
   if(a.invalid || b.invalid)return lde_domain(fmt);

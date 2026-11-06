@@ -77,6 +77,8 @@ static void ld_write(unsigned char *p, ld_raw r) {
 #include "long_double_eleven_exact.h"
 
 static ld_raw lde_trans(unsigned fmt,int op,ld_value a,ld_value b) {
+  /* Reuse header primitives without calling the other family dispatchers. */
+  (void)lds_run; (void)ldn_run; (void)ldn_mode; (void)ldn_integer;
   int az=a.kind==LD_FINITE && ld_top(&a)<0,bz=b.kind==LD_FINITE && ld_top(&b)<0,sign=0;
   ld_value one={{0},0,LD_FINITE,0};ld_set(&one,LD_ZERO_BIT);
   if(op==LDE_POW) {

@@ -77,6 +77,8 @@ GMATH_STATIC_ASSERT((LONG_MAX==INT32_MAX || LONG_MAX==INT64_MAX) &&
 static int64_t ldn_integer_bytes(int current,const unsigned char *x,unsigned bits)
   __asm__("gmath_long_double_nine_integer_bytes") __attribute__((noinline,used));
 static int64_t ldn_integer_bytes(int current,const unsigned char *x,unsigned bits) {
+  /* The shared header also supplies the scaling dispatcher. */
+  (void)lds_run;
   return ldn_integer(LD_NATIVE,ld_read(x),current,current?ldn_mode():0,bits);
 }
 static void ldn_bytes(int op,const unsigned char *x,const unsigned char *y,
