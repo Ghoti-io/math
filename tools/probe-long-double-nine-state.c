@@ -49,7 +49,6 @@ static int population(unsigned fmt,int native) {
   ld_insert(&v,1,min);ld_raw tiny=ld_pack(fmt,&v);ld_shift(&v,1);ld_raw twice=ld_pack(fmt,&v);
   memset(v.w,0,sizeof v.w);ld_insert(&v,1,0);ld_raw one=ld_pack(fmt,&v);ld_shift(&v,-1);ld_raw half=ld_pack(fmt,&v),zero={0,0};
   for(unsigned op=0;op<=10;++op) {
-    if(fmt==106 && ((op>=4&&op<=6)||op==9))continue;
     unsigned public_op=op==10?8:op;ld_raw a=op==7?twice:tiny,b=op<=6||op==9?twice:op==7?tiny:op==10?half:one;
     ld_raw want=op<4||op==10?zero:tiny;
     unsigned required=op==2||op==3?4:op==10?12:0;
@@ -64,6 +63,26 @@ static int population(unsigned fmt,int native) {
       fprintf(stderr,"nine state: fmt%u native%d op%u rejected\n",fmt,native,op);return 3;
     }
     checksum^=got.hi^got.lo;
+  }
+  if(fmt==106) {
+    /* (2^1023+2^-1074)/2^-1074 = 2^2097+1 exactly. This enters
+     * all 2098 quotient positions and the 67-word stream; q mod128 is one. */
+    for(unsigned negative=0;negative<2;++negative)
+      for(unsigned index=0;index<4;++index) {
+        const unsigned ops[4]={4,5,6,9};unsigned op=ops[index];
+        ld_raw a={UINT64_C(0x7fe0000000000000)|((uint64_t)negative<<63),
+                  1|((uint64_t)negative<<63)},divisor={1,0},got;
+        if(feclearexcept(FE_ALL_EXCEPT))return 4;
+        uint64_t control=gmath_test_controls(),integer=0;int q=0;errno=173;
+        if(native)got=state_native(op,a,divisor,zero,&integer,&q);
+        else got=ldn_run(106,op==9?LDN_REMQUO:(int)op-4,a,divisor,zero,0,op==6?&q:NULL);
+        int want_q=op==6?(negative?-1:1):0;
+        if(got.hi!=((uint64_t)negative<<63) || got.lo || integer || q!=want_q ||
+           state_flags() || errno!=173 || control!=gmath_test_controls()) {
+          fprintf(stderr,"nine state: maximum-gap DD native%d op%u negative%u rejected\n",native,op,negative);return 5;
+        }
+        checksum^=got.hi^(uint64_t)(unsigned)q;
+      }
   }
   return 0;
 }
@@ -93,6 +112,7 @@ static void *worker(void *unused) {
   return (void *)(uintptr_t)status;
 }
 int main(void) {
+  (void)lds_run; (void)ldn_mode;
   long page=sysconf(_SC_PAGESIZE);if(page<=0)return 2;
   size_t allocation=LD9_USABLE_STACK+2*(size_t)page;
   unsigned char *memory=mmap(NULL,allocation,PROT_NONE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);

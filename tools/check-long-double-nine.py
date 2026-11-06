@@ -99,6 +99,9 @@ def expected(row):
         if kb=='inf' or not a:return (*pack(fmt,'finite',sa,a),0,0,incoming)
         q=integer(a/y,3 if op==4 else 0);v=a-q*y
         q=(-1 if q<0 else 1)*(abs(q)%128) if op==6 else 0
+        if fmt==106:
+            raw,flags=rounded(fmt,v,int(v<0) if v else sa,0)
+            return (*raw,0,q&MASK,incoming|flags)
         return (*pack(fmt,'finite',int(v<0) if v else sa,v),0,q&MASK,incoming)
     if op==7:
         if ka=='inf' and kb=='inf' and sa==sb:return (0,0,0,0,incoming)
@@ -140,7 +143,7 @@ def fixtures(seed=20261104,count=32):
         values=list(dict.fromkeys(values))
         for index,a in enumerate(values):
             for op in range(10):
-                if fmt==106 and op in (4,5,6,9):continue
+                if fmt==106 and op in (4,5,6,9):continue # Frozen historical reference population.
                 widths=(32,64) if op in (0,2) else (64,)
                 for bits in widths:
                     for mode in range(4):
@@ -169,7 +172,7 @@ def fixtures(seed=20261104,count=32):
                     for sign in (1,-1):
                         for offset in (0,1):triples.append((raw(sign*F(1,2)),raw(nv-v),raw(sign*(v+offset*(nv-v)))))
         for op in (2,3,4,5,6,7,8,9):
-            if fmt==106 and op in (4,5,6,9):continue
+            if fmt==106 and op in (4,5,6,9):continue # Frozen historical reference population.
             for a,y,z in triples:
                 for mode in range(4):
                     for pc in (0,2,3):
@@ -177,7 +180,7 @@ def fixtures(seed=20261104,count=32):
         # Both-operand NaN inspection, invalid-product priority even with qNaN.
         qnan=pack(fmt,'nan',0,F(0));snan=(0x7fff,0x8000000000000001) if fmt==80 else (0x7fff000000000000,1) if fmt==128 else (0x7ff0000000000001,0)
         for op in (4,5,6,7,8,9):
-            if fmt==106 and op in (4,5,6,9):continue
+            if fmt==106 and op in (4,5,6,9):continue # Frozen historical reference population.
             for a,y,z in [(qnan,snan,raw(0)),(snan,qnan,raw(0)),(pack(fmt,'inf',0,F(0)),raw(0),qnan)]:
                 rows.append((fmt,op,*a,*y,*z,0,3,0,64))
     # Append an independent endpoint/tie matrix for all conversion operations.
@@ -210,7 +213,7 @@ def encode(row):return ' '.join(f'{v&MASK:016x}' for v in row)+'\n'
 def validate(row):
     assert len(row)==17
     fmt,op,*_=row
-    assert fmt in FORMATS and op in range(10) and not(fmt==106 and op in (4,5,6,9))
+    assert fmt in FORMATS and op in range(10)
     assert row[8]<4 and row[9] in (0,2,3) and row[10]<=31 and row[11] in (32,64) and row[16]<=31
     assert op in (0,2) or row[11]==64
     assert tuple(row[12:])==expected(row[:12]),('literal wrong answer',row,expected(row[:12]))

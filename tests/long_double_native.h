@@ -89,7 +89,7 @@ static int ldn_corpus(const char *directory,int print) {
   unsigned fmt,op,mode,pc,inc,flags;ldn_raw a,b,r,w;int e;unsigned long count=0;uint64_t hash=UINT64_C(14695981039346656037);
   int status=0,parsed=0;
   while ((parsed=fscanf(file,"%u %u %" SCNx64 " %" SCNx64 " %" SCNx64 " %" SCNx64 " %u %u %u %" SCNx64 " %" SCNx64 " %" SCNx64 " %" SCNx64 " %d %u",&fmt,&op,&a.hi,&a.lo,&b.hi,&b.lo,&mode,&pc,&inc,&r.hi,&r.lo,&w.hi,&w.lo,&e,&flags))==15) {
-    if ((fmt!=64 && fmt!=80 && fmt!=128 && fmt!=106) || op>=15 || mode>=4 || (pc!=0 && pc!=2 && pc!=3) || inc>31 || flags>31 || (fmt==106 && op==12)) {status=1;break;}
+    if ((fmt!=64 && fmt!=80 && fmt!=128 && fmt!=106) || op>=15 || mode>=4 || (pc!=0 && pc!=2 && pc!=3) || inc>31 || flags>31) {status=1;break;}
     if(fmt!=LDN_FORMAT)continue;
     if(fesetround(modes[mode]) || feclearexcept(FE_ALL_EXCEPT)){status=1;break;}
     if(inc)feraiseexcept(((inc&1)?FE_INVALID:0)|((inc&2)?FE_DIVBYZERO:0)|((inc&4)?FE_INEXACT:0)|((inc&8)?FE_UNDERFLOW:0)|((inc&16)?FE_OVERFLOW:0));

@@ -105,9 +105,7 @@
 #define gmath_rintl GHOTIIO_MATH(gmath_rintl)
 #define gmath_nearbyintl GHOTIIO_MATH(gmath_nearbyintl)
 #define gmath_modfl GHOTIIO_MATH(gmath_modfl)
-#if LDBL_MANT_DIG != 106 || LDBL_MAX_EXP != 1024
 #define gmath_frexpl GHOTIIO_MATH(gmath_frexpl)
-#endif
 #define gmath_ilogbl GHOTIIO_MATH(gmath_ilogbl)
 #define gmath_logbl GHOTIIO_MATH(gmath_logbl)
 

@@ -46,19 +46,11 @@
 #include <limits.h>
 #include <float.h>
 
-/** Native frexpl is unavailable for IBM DD: some exact normalized fractions
- * cannot be represented as the sum of two binary64 components. */
-#if LDBL_MANT_DIG == 106 && LDBL_MAX_EXP == 1024
-#define GMATH_HAVE_FREXPL 0
-#else
+/** Native decomposition and remainders are available on all supported formats.
+ * IBM DD uses exact component sums and rounds an unrepresentable result once
+ * to the nearest actual sum of two binary64 values, ties to even. */
 #define GMATH_HAVE_FREXPL 1
-#endif
-/** Exact DD remainders are not always sums of two binary64 components. */
-#if LDBL_MANT_DIG == 106 && LDBL_MAX_EXP == 1024
-#define GMATH_HAVE_LONG_DOUBLE_REMAINDER 0
-#else
 #define GMATH_HAVE_LONG_DOUBLE_REMAINDER 1
-#endif
 #define GMATH_HAVE_FMODL GMATH_HAVE_LONG_DOUBLE_REMAINDER
 #define GMATH_HAVE_REMAINDERL GMATH_HAVE_LONG_DOUBLE_REMAINDER
 #define GMATH_HAVE_REMQUOL GMATH_HAVE_LONG_DOUBLE_REMAINDER
@@ -438,8 +430,8 @@ GMATH_API float gmath_scalblnf(float x, long n);
  * infinity, raising invalid for all three. logb returns negative infinity
  * with divide-by-zero for zero, positive infinity for infinity, and an exact
  * finite exponent otherwise. Padding bytes are not numerical identity.
- * IBM DD frexpl is deferred: GMATH_HAVE_FREXPL is zero and no declaration
- * or native definition is provided. The other three formats provide all15.
+ * IBM DD frexp rounds an unrepresentable normalized fraction nearest/even
+ * once, adding inexact, and renormalizes a carry to preserve [0.5,1).
  * Native ABI transfer may set architecture-specific denormal status for a
  * returned extended80 subnormal; no standard underflow or inexact is added.
  * @{ */
@@ -496,8 +488,10 @@ GMATH_API long long gmath_llrintl(long double x);
  * nearest/even. Zero keeps x's sign. remquo optionally writes signed low seven
  * quotient bits; NULL is accepted. NaN/domain results write quotient zero.
  * Infinite dividend or zero divisor raises invalid; both NaNs are inspected
- * for signaling. No valid result adds flags. IBM DD has no declarations or
- * definitions for these three APIs; availability macros above are zero. */
+ * for signaling. Binary-format results are exact and add no flags. IBM DD
+ * selects the exact quotient before rounding the exact remainder nearest/even
+ * to its actual variable sum population. Inexact adds IX, or UF/IX if tiny.
+ * Remainder bounds and x=n*y+r refer to the exact intermediate in that case. */
 #if GMATH_HAVE_LONG_DOUBLE_REMAINDER
 GMATH_API long double gmath_fmodl(long double x,long double y);
 GMATH_API long double gmath_remainderl(long double x,long double y);

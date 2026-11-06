@@ -1,5 +1,33 @@
 # Libm gap closure
 
+## IBM double-double decomposition and remainders
+
+The four formerly deferred interfaces—`frexpl`, `fmodl`, `remainderl` and
+`remquol`—are implemented on IBM double-double. This brings classic real-name
+coverage to171/171:57 Float,57 Double and57 long double on all four supported
+layouts. Name coverage does not establish complete libm behavioral parity.
+
+DD inputs retain their exact two-component sum. These four interfaces return
+an exact value when representable and otherwise round once to nearest actual
+DD, ties to even, independently of caller rounding mode. The exact quotient is
+selected before rounding; `remquol` retains its signed low seven bits. The
+`frexpl` carry case is renormalized exactly. Inexact marks lost information;
+underflow also requires a tiny selected result. Binary-format exact semantics,
+older literal answers and legacy hash populations remain unchanged. See
+[decomposition](long-double.md) and
+[remainder contracts and bounds](long-double-integer-arithmetic.md).
+
+Focused GCC16 checks pass638 authenticated literals plus144 fresh samples,
+expanded to84,456 state rows, with four supported DAZ/FTZ profiles. Eight compiled
+numerical/state/quotient faults and seven parser/loader faults reject. Guarded
+stack checks at O0/O2 include the2098-position DD quotient stream. Clang19.1.7
+passes the preceding30,720-row focused population. Separate-object/no-LTO calls
+on PowerPC32 and PowerPC64 each pass that30,720-row population under
+GCC14.2/QEMU10.0.13; this is emulation, not physical hardware or GCC16 cross
+execution. Target symbol/relocation checks pass; full independent unwind-row
+assertions remain AMD64-specific. Older corpus payloads and the complete7,319-byte
+legacy hash output are preserved. No new performance claim is made.
+
 ## Native long-double roots, exponentials, logarithms and power
 
 Eleven interfaces add native `sqrtl`, `cbrtl`, `hypotl`, `expl`, `exp2l`,
@@ -250,13 +278,12 @@ Implementation stays within math while independent work proceeds in the other
 libraries. New APIs prepare later migrations; no consumer is migrated here.
 The deterministic contracts in the public headers remain authoritative.
 
-The 44 verified phases add 134 APIs, seven performance optimizations
-and certificate maintenance. The eleven-function phase is complete.
-Current classic real-function implementation coverage is154/171 (57 Double,
-57 Float,40 long double) on binary64/extended80/binary128, with17 long-double
-names remaining. IBM DD has150/171 names and21 remaining because exact frexpl
-and the three exact remainder APIs are unavailable. Float/Double name coverage is complete. The phase
-sections below retain historical counts and measurements.
+The historical phase sections retain their counts and measurements. Current
+classic real-function name coverage is171/171 (57 Double,57 Float,57 long double)
+on binary64, extended80, binary128 and IBM DD. The four DD operations described
+above have an explicit rounded-native exception where exact results cannot fit.
+Float/Double name coverage is complete; consumer migration, exhaustive behavior
+and complete libm behavioral parity are separate claims.
 
 ## Current-mode integer conversion
 

@@ -1,20 +1,23 @@
 # Long-double integer arithmetic
 
-Nine native APIs add exact integer decisions for conversions, remainders,
-positive difference and explicit fused multiply-add. Binary64, extended80 and
-binary128 provide all nine. IBM double-double provides the four conversions,
-fdiml and fmal. GMATH_HAVE_FMODL, GMATH_HAVE_REMAINDERL and GMATH_HAVE_REMQUOL
-are zero on DD, with no declaration or definition for those operations: an
-exact remainder of two DD values need not be a sum of two binary64 numbers.
-A rounded substitute would violate the exact remainder contract.
-For example, x=1+2^-200 and y=3/4+2^-100 are both DD values. Both quotient
-rules select one, leaving 1/4-2^-100+2^-200. Its nearest binary64 leader is
-1/4, whose residual needs100 significant bits. Every sum of two binary64
-values admits a nearest binary64 leader with an exact binary64 residual;
-this remainder therefore has no DD representation.
+Nine native APIs provide integer decisions for conversions, remainders,
+positive difference and explicit fused multiply-add on binary64, extended80,
+binary128 and IBM double-double. The DD remainder interfaces use an explicit
+rounded-native exception: exact when representable, otherwise one nearest/even
+selection over the actual DD population, independently of caller rounding mode.
+`GMATH_HAVE_FMODL`, `GMATH_HAVE_REMAINDERL` and `GMATH_HAVE_REMQUOL` are one
+on all supported layouts. Binary-format remainders remain exact.
 
-The existing foundation/scaling modules, tables and reference populations are
-unchanged. New code lives in long_double_nine.c and long_double_nine_bits.h;
+The representability limitation is real. For example, x=1+2^-200 and
+y=3/4+2^-100 are both DD values. Both quotient rules select one, leaving
+1/4-2^-100+2^-200. Its nearest binary64 leader is 1/4, whose exact residual
+needs100 significant bits; no pair of binary64 components represents the result.
+The DD interfaces return 1/4-2^-100 with inexact. Algebraic reconstruction and
+remainder bounds describe the exact intermediate when the returned DD value
+requires rounding; output is not clamped to force an unrepresentable identity.
+
+Existing scaling arithmetic, tables and historical reference populations are
+unchanged. The remainder engine lives in long_double_nine.c and long_double_nine_bits.h;
 it reuses the existing raw decoder, canonical packer and DD population helper.
 No host math implementation supplied algorithm source or runtime results.
 
@@ -40,6 +43,16 @@ so no valid call adds flags. Exact zero retains the original dividend sign.
 remquo writes the signed quotient magnitude modulo128, or omits it for NULL.
 NaN/domain results deterministically write quotient zero. Both operands are
 classified for signaling NaNs before any special return.
+
+DD remainders retain the entire exact component sum, including tails separated
+by more than106 bits. A bounded67-word residual stream covers the2098-bit input
+span and at most2098 quotient positions. Quotient selection, parity and signed
+low seven bits are exact and precede output rounding. The existing DD population
+rounder selects the final value once. Inexact is added only when that result
+differs from the exact residual; underflow additionally requires a tiny selected
+result. Exact tiny results and intermediate low components add no spurious flags.
+Zero retains the dividend sign and a positive-zero low component. The same NULL
+quotient, NaN/domain and operand-classification rules apply on every format.
 
 FMA uses 2064 unsigned32 limbs on a 2^-32988 grid: binary128 minsub squared fits
 at the low endpoint, and products below 2^32768 fit at the high endpoint.
@@ -73,7 +86,7 @@ controls and incoming standard flags. Native80 returns may set architectural
 The independent Fraction oracle recomputes every committed answer cell and
 every expanded state row, including raw malformed encodings, all operands,
 mode, precision control, incoming flags, destination width, results and quotient
-bits. There are8,421 literal answer cells (612,833 bytes), preserving the seeded
+bits. The historical nine-function reference population contains8,421 literal answer cells (612,833 bytes), preserving the seeded
 and fixed per-input answers. A deterministic recipe expands them to77,016 rows
 (22,257,624 bytes) in an ignored cache at the ordinary loader path. The complete
 cache SHA256 and per-format/native-width hashes are committed. All previous
@@ -107,8 +120,8 @@ libm-progress.md. The raw probe captures actual seeded entry flags, requires
 clear-entry flags to be zero and validates operation flags against the union of
 that entry state and the independent reference. Observed input/state/output
 SHA256 records supplement the portable literal-state hashes. Unrun physical hosts, Windows/LLP64, exhaustive encodings and
-performance are not claimed. These are exact-operation contracts and sampled
-implementation checks, not complete libm behavioral parity. Consumer and suite
+performance are not claimed. These are specified numerical contracts, including the DD rounded-native
+exception, and sampled implementation checks, not complete libm behavioral parity. Consumer and suite
 migration remain separate work.
 
 

@@ -8,6 +8,11 @@
 #include "elem_common.h"
 #include "nearby_mode.h"
 #include "long_double_bits.h"
+#include "long_double_scale_bits.h"
+/* logb alone needs divide-by-zero; keep flag arithmetic out of decisions. */
+static void __attribute__((noinline,used)) ldb_raise_divbyzero(void) {
+  (void)gmath_div_by_zero(0);
+}
 #if LDBL_MANT_DIG == 53 && LDBL_MAX_EXP == 1024
 #define LD_NATIVE 64
 #elif LDBL_MANT_DIG == 64 && LDBL_MAX_EXP == 16384
@@ -71,20 +76,21 @@ static void ld_write(unsigned char *p, ld_raw r) {
  * results are object bytes, so modf stores never execute an FP instruction. */
 static ld_raw ld_run(unsigned fmt, int op, ld_raw x, ld_raw y,
                      int mode, ld_raw *whole, int *exponent) {
+  (void)lds_run; /* Keep the shared optional scaling dispatcher referenced. */
   ld_value a = {{0},0,LD_FINITE,0}, b;
   if (exponent) *exponent = 0;
   if (op == LD_NAN_OP) { a.kind=LD_NAN; return ld_pack(fmt,&a); }
   a=ld_decode(fmt,x);
   if (op == LD_MIN || op == LD_MAX) {
     b=ld_decode(fmt,y);
-    if (a.invalid || b.invalid) { (void)gmath_invalid(); a.kind=LD_NAN; }
+    if (a.invalid || b.invalid) { lds_raise_invalid(); a.kind=LD_NAN; }
     else if (a.kind == LD_NAN && b.kind != LD_NAN) a=b;
     else if (a.kind != LD_NAN && b.kind != LD_NAN) {
       int cmp=ld_cmp(&a,&b); if (op == LD_MAX ? cmp < 0 : cmp > 0) a=b;
     }
     return ld_pack(fmt,&a);
   }
-  if (a.invalid) (void)gmath_invalid();
+  if (a.invalid) lds_raise_invalid();
   int top=ld_top(&a);
   if (op == LD_ILOGB) {
     int e;
@@ -92,7 +98,7 @@ static ld_raw ld_run(unsigned fmt, int op, ld_raw x, ld_raw y,
     else if (a.kind == LD_INF) e=INT_MAX;
     else if (top < 0) e=GMATH_ILOGB0;
     else e=top+LD_BASE;
-    if (a.kind != LD_FINITE || top < 0) (void)gmath_invalid();
+    if (a.kind != LD_FINITE || top < 0) lds_raise_invalid();
     if (exponent) *exponent=e;
     return ld_pack(fmt,&a);
   }
@@ -101,12 +107,25 @@ static ld_raw ld_run(unsigned fmt, int op, ld_raw x, ld_raw y,
   else if (op == LD_COPY) a.sign=fmt == 80 ? (int)((y.hi>>15)&1) : (int)(y.hi>>63);
   else if (op == LD_LOGB) {
     if (a.kind == LD_INF) a.sign=0;
-    else if (top < 0) { (void)gmath_div_by_zero(0); a.kind=LD_INF; a.sign=1; }
+    else if (top < 0) { ldb_raise_divbyzero(); a.kind=LD_INF; a.sign=1; }
     else { int e=top+LD_BASE; memset(&a,0,sizeof a); a.sign=e<0; ld_insert(&a,(uint64_t)(e<0 ? -e : e),0); }
   } else if (op == LD_FREXP) {
-    /* DD has no public frexpl; raw callers reject that unavailable opcode. */
-    if (fmt != 106 && a.kind == LD_FINITE && top >= 0) {
-      int e=top+LD_BASE+1; if (exponent) *exponent=e; ld_shift(&a,-e);
+    if (a.kind == LD_FINITE && top >= 0) {
+      int e=top+LD_BASE+1; ld_shift(&a,-e);
+      if (fmt==106) {
+        /* Retain the entire component sum, including normalized remote tails.
+         * The population rounder chooses once, independently of caller RC. */
+        ld_raw r=lds_dd(&a,0); ld_value rounded=ld_decode(106,r);
+        int inexact=!lds_equal(&a,&rounded);
+        if (ld_top(&rounded)==LD_ZERO_BIT) {
+          /* Carry to one: exact re-encoding preserves the fraction interval. */
+          ld_shift(&rounded,-1); r=ld_pack(106,&rounded); ++e;
+        }
+        if (exponent) *exponent=e;
+        if (inexact) lds_raise_inexact();
+        return r;
+      }
+      if (exponent) *exponent=e;
     }
   } else if (op == LD_MODF) {
     b=a;
@@ -124,6 +143,7 @@ static ld_raw ld_run(unsigned fmt, int op, ld_raw x, ld_raw y,
   }
   return ld_pack(fmt,&a);
 }
+#ifndef GMATH_LONG_DOUBLE_BASIC_RAW_ONLY
 /* Native extended80 uses x87 RC even when binary32/64 use MXCSR. */
 #if (defined(__GNUC__) || defined(__clang__)) && (defined(__i386__) || defined(__x86_64__))
 static inline int nearby_mode_extended80(void) {
@@ -213,3 +233,5 @@ long double gmath_frexpl(long double x,int *e) { long double out; ld_bytes(LD_FR
 #endif
 int gmath_ilogbl(long double x) { long double out; return ld_bytes(LD_ILOGB,(const unsigned char *)&x,0,(unsigned char *)&out,0); }
 #endif
+
+#endif /* GMATH_LONG_DOUBLE_BASIC_RAW_ONLY */

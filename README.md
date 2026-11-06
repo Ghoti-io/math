@@ -321,20 +321,22 @@ regeneration is the explicit preflight `make check-remaining-oracle`.
 
 ### Native long-double foundation
 
-The foundation supplies 15 of 57 native long-double interfaces for sign/value selection,
-integer rounding and decomposition. Results preserve format-native precision;
-formats do not promise identical encodings. See
-[the long-double contract and evidence](documentation/long-double.md), including
-the IBM DD frexp deferral and native/synthetic coverage.
-`GMATH_HAVE_FREXPL` is zero on DD; all 15 are available on the three binary formats,
-with 14 on DD.
-Scaling and adjacency add five more interfaces: 20 are available on the three
-binary formats and 19 on DD, leaving 37 and 38 inventory names respectively.
-Subsequent integer-arithmetic and roots/exponential/logarithm/power families bring
-the current totals to 40 of 57 names on the three binary formats and 36 on DD,
-leaving 17 and 21 respectively. The final seventeen-function module supplies
-those remaining classic real functions, bringing the implemented catalog to 57
-names on the three binary formats and 53 on DD. The four DD deferrals remain
-unchanged. See [the final-family numerical design](documentation/long-double-seventeen.md) and
-[its container-free reference gates and required oracle preflight](documentation/long-double-seventeen-corpus.md).
+The library supplies all 57 classic real long-double interface names on binary64,
+extended80, binary128 and IBM double-double. See
+[the long-double contract and evidence](documentation/long-double.md),
+[integer arithmetic](documentation/long-double-integer-arithmetic.md), and
+[the final-family numerical design](documentation/long-double-seventeen.md).
+Name coverage does not establish complete libm behavioral parity.
+
+The fifteen-interface foundation includes `frexpl`; scaling and adjacency add
+five, integer arithmetic adds nine, roots/exponentials/logarithms/power add
+eleven, and the final family adds seventeen. All four previously deferred DD
+interfaces are available. DD `frexpl`, `fmodl`, `remainderl` and `remquol` return
+exact results when representable and otherwise round once to nearest actual DD,
+ties to even, independently of the caller's rounding mode. This explicit DD
+exception preserves the exact component-sum input and exact quotient selection;
+it cannot promise an unrepresentable exact result. The binary formats retain
+exact decomposition and remainder semantics.
+
+See [the container-free reference gates and required oracle preflight](documentation/long-double-seventeen-corpus.md).
 The 122 existing Float/Double populations and their aggregate stay separate.

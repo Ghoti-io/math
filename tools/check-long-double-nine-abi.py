@@ -149,9 +149,6 @@ def check_object(path,objdump='objdump'):
     assert functions and sum(map(len,functions.values())),'missing instruction coverage'
     wrappers={}
     for n in NAMES:
-        if native==106 and n in ('fmodl','remainderl','remquol'):
-            assert not any(k=='gmath_'+n or k.endswith('_gmath_'+n) for k in functions),'deferred DD remainder exposed'
-            continue
         matches=[k for k in functions if k.endswith('_gmath_'+n) or k=='gmath_'+n]
         assert len(matches)==1, 'missing/duplicate wrapper '+n
         wrappers[matches[0]]=n
@@ -220,7 +217,7 @@ def check_caller(path,objdump='objdump'):
     assert '.gnu.lto_' not in run(objdump,'-h',str(path)),'LTO caller is not an external ABI certificate'
     native=re.findall(r'^\S+\s+[a-zA-Z]\s+gmath_long_double_nine_format_(64|80|128|106)$',symbols,re.M)
     assert len(native)==1,'missing caller format marker'
-    names=[n for n in NAMES if int(native[0])!=106 or n not in ('fmodl','remainderl','remquol')]
+    names=list(NAMES)
     targets={};defined=[];private_engine=False
     for line in symbols.splitlines():
         fields=line.split()

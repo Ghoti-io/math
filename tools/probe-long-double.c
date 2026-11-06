@@ -59,9 +59,9 @@ int main(void) {
       fputs("long-double probe: invalid row fields\n",stderr);return 2;
     }
     unsigned fmt=(unsigned)fields[0],op=(unsigned)fields[1],mode=(unsigned)fields[6],pc=(unsigned)fields[7],incoming=(unsigned)fields[8];
+    (void)pc; /* Precision-control requests apply only to x87. */
     ld_raw a={(uint64_t)fields[2],(uint64_t)fields[3]},b={(uint64_t)fields[4],(uint64_t)fields[5]};
     ++rows;
-    if ((!fmt ? LD_NATIVE : fmt)==106 && op==LD_FREXP) { fputs("IBM DD frexpl unavailable\n",stderr);return 2; }
     unsigned before_mx=0,after_mx=0; unsigned short before_cw=0,after_cw=0;
     feclearexcept(FE_ALL_EXCEPT);
     fesetround((int[]){FE_TONEAREST,FE_DOWNWARD,FE_UPWARD,FE_TOWARDZERO}[mode]);

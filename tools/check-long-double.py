@@ -57,7 +57,6 @@ def pack(fmt,k,s,v):
     return h,l if l&~SIGN else 0
 
 def expected(fmt,op,a,b,mode,incoming):
-    if fmt==106 and op==12:raise ValueError("IBM DD frexpl unavailable by contract")
     k,s,invalid,v=decode(fmt,a); flags=incoming; whole=(0,0);e=0
     if op==2:return pack(fmt,'nan',0,F(0)),whole,e,flags
     if op in (3,4):
@@ -85,7 +84,16 @@ def expected(fmt,op,a,b,mode,incoming):
         elif not v:k='inf';s=1;flags|=2
         else:v=F(exponent(v));s=int(v<0)
     elif op==12:
-        if k=='finite' and v:e=exponent(v)+1;v/=scale(1,e)
+        if k=='finite' and v:
+            e=exponent(v)+1;v/=scale(1,e)
+            if fmt==106:
+                import importlib.util
+                spec=importlib.util.spec_from_file_location('frexp_scale_oracle',Path(__file__).with_name('check-long-double-scale.py'))
+                oracle=importlib.util.module_from_spec(spec);spec.loader.exec_module(oracle)
+                result=oracle.rounded(106,v,s);rv=decode(106,result)[3]
+                if rv!=v:flags|=4
+                if abs(rv)==1:e+=1;result=pack(106,'finite',s,rv/2)
+                return result,whole,e,flags
     elif op==11:
         if k=='inf':whole=pack(fmt,k,s,v);k='finite';v=F(0)
         else:
@@ -128,7 +136,7 @@ def fixtures():
             values.append((h,l))
         for idx,a in enumerate(values):
             for op in range(15):
-                if fmt==106 and op==12:continue
+                if fmt==106 and op==12:continue # Frozen historical population; DD supplemental gate covers frexp.
                 bs=[values[(idx+7)%len(values)]] if op not in (1,3,4) else [values[0],values[1],values[(idx+7)%len(values)],pack(fmt,'nan',0,F(0))]
                 for b in bs:
                     for mode in range(4) if op==10 else [0]:rows.append((fmt,op,a,b,mode,(0,2,3)[idx%3],(0,4,31)[idx%3]))
@@ -155,7 +163,7 @@ def check(probe,corpus=None):
     if corpus:
         data=json.loads(Path(corpus).read_text());assert digest==data['sha256'],(digest,data)
         for name,sha in data.get('files',{}).items():assert hashlib.sha256(Path(corpus).with_name(name).read_bytes()).hexdigest()==sha,'frozen answer/hash payload differs: '+name
-    print('long-double: IBM DD frexpl unavailable; exact witness 0.5+2^-1075 is outside the DD lattice')
+    print('long-double: historical 14-operation DD reference population retained; rounded frexp is checked separately')
     print(f'long-double: {len(rows)} synthetic exact-rational rows across four formats; {len(native_rows)} native ABI rows (format {native}); state/flags/errno passed')
     return digest
 def write_corpus(path):

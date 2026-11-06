@@ -52,7 +52,6 @@ static int ld9_record(FILE *file,uint64_t *fields,unsigned count) {
 }
 static int ld9_valid(const uint64_t *v) {
   return (v[0]==64||v[0]==80||v[0]==128||v[0]==106) && v[1]<=9 &&
-    !(v[0]==106 && ((v[1]>=4 && v[1]<=6)||v[1]==9)) &&
     v[8]<4 && (v[9]==0||v[9]==2||v[9]==3) && v[10]<=31 &&
     (v[11]==32||v[11]==64) && (v[1]==0||v[1]==2||v[11]==64) && v[16]<=31;
 }

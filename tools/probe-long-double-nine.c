@@ -54,6 +54,7 @@ static int probe_record(char *line,size_t capacity) {
   line[count]=0;return count?1:0;
 }
 int main(void) {
+  (void)lds_run; (void)ldn_mode;
   printf("native %u size %zu long %zu\n",LD_NATIVE,sizeof(long double),sizeof(long)*CHAR_BIT); fflush(stdout);
   unsigned rows=0;
   char line[512];
@@ -73,7 +74,7 @@ int main(void) {
        (fields[11]!=32 && fields[11]!=64))return 2;
     unsigned fmt=(unsigned)fields[0],op=(unsigned)fields[1],mode=(unsigned)fields[8],pc=(unsigned)fields[9],incoming=(unsigned)fields[10];
     if(fmt && fmt!=64 && fmt!=80 && fmt!=128 && fmt!=106)return 2;
-    if((fmt==106 || (!fmt && LD_NATIVE==106)) && ((op>=4 && op<=6) || op==9))return 2;
+    (void)pc; /* Precision-control requests apply only to x87. */
     ld_raw a={(uint64_t)fields[2],(uint64_t)fields[3]},b={(uint64_t)fields[4],(uint64_t)fields[5]},c={(uint64_t)fields[6],(uint64_t)fields[7]};
     ++rows;
     unsigned before_mx=0,after_mx=0; unsigned short before_cw=0,after_cw=0;

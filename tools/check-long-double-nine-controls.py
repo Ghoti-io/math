@@ -42,7 +42,17 @@ def main():
         case=work/name;src=case/'src/elementary';src.mkdir(parents=True,exist_ok=True);(case/'tools').mkdir(exist_ok=True);(case/'tests').mkdir(exist_ok=True)
         for p in (root/'src/elementary').glob('*.h'):shutil.copy2(p,src/p.name)
         shutil.copy2(root/'src/elementary/long_double_nine.c',src/'long_double_nine.c');shutil.copy2(root/'tools/probe-long-double-nine.c',case/'tools/probe-long-double-nine.c');shutil.copy2(root/'tests/fp_controls.h',case/'tests/fp_controls.h');shutil.copy2(root/'tests/long_double_nine_abi.h',case/'tests/long_double_nine_abi.h')
-        p=src/filename;text=p.read_text();assert text.count(old)==(2 if name=='cfa' else 1),(name,'anchor count');p.write_text(text.replace(old,new,1))
+        p=src/filename;text=p.read_text()
+        if name in ('quotient-width','quotient-parity','remainder-zero-sign'):
+            # These historical plants must still hit the binary-format path;
+            # the independent DD supplement plants its own corresponding faults.
+            prefix,separator,body=text.partition('static ld_raw ldn_remainder(')
+            assert separator and body.count(old)==1,(name,'binary-path anchor count')
+            text=prefix+separator+body.replace(old,new,1)
+        else:
+            assert text.count(old)==(2 if name=='cfa' else 1),(name,'anchor count')
+            text=text.replace(old,new,1)
+        p.write_text(text)
         obj=case/'runtime.o';result=run([*cc,*flags,'-c',str(src/'long_double_nine.c'),'-o',str(obj)],case/'compile.log');assert not result.returncode,(name,'compile failed')
         return case,obj
     # Positive numerical and actual-object gates precede every fault family.

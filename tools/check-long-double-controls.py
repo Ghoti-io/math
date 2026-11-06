@@ -99,21 +99,17 @@ def main():
         assert result.returncode!=0 and 'unexpected archive member or missing coverage' in result.stderr,label+' population control failed for wrong reason'
         (work/(label+'-rejection.log')).write_text(result.stdout+result.stderr)
         print('long-double controls: rejected '+label+' archive member population')
-    # A compiler-macro fixture tests only public availability and definition
-    # omission. It is explicitly not execution of a native DD ABI.
+    # Synthetic macro availability is separate from a real native ABI witness.
     ddflags=['-U__LDBL_MANT_DIG__','-D__LDBL_MANT_DIG__=106','-U__LDBL_MAX_EXP__','-D__LDBL_MAX_EXP__=1024']
     availability=work/'dd-availability.c'
-    availability.write_text('#include <ghoti.io/math/basic.h>\n_Static_assert(GMATH_HAVE_FREXPL == 0, "DD frexpl must be unavailable");\nint main(void) { return 0; }\n')
+    availability.write_text('#include <ghoti.io/math/basic.h>\n_Static_assert(GMATH_HAVE_FREXPL == 1 && GMATH_HAVE_FMODL == 1 && GMATH_HAVE_REMAINDERL == 1 && GMATH_HAVE_REMQUOL == 1, "DD APIs available");\nint main(void) { (void)&gmath_frexpl; (void)&gmath_fmodl; (void)&gmath_remainderl; (void)&gmath_remquol; return 0; }\n')
     subprocess.run([*cc,*flags,*ddflags,'-c',str(availability),'-o',str(work/'dd-availability.o')],check=True)
-    ddobj=work/'dd-definitions.o'
-    subprocess.run([*cc,*flags,*ddflags,'-c',str(root/'src/elementary/long_double_basic.c'),'-o',str(ddobj)],check=True)
-    symbols=subprocess.check_output([os.environ.get('NM','nm'),str(ddobj)],text=True)
-    (work/'dd-definition-symbols.txt').write_text(symbols)
-    assert '_gmath_frexpl' not in symbols,'deferred DD frexpl definition present'
-    availability.write_text('#include <ghoti.io/math/basic.h>\nint main(void) { (void)&gmath_frexpl; return 0; }\n')
-    rejection=subprocess.run([*cc,*flags,*ddflags,'-c',str(availability),'-o',str(work/'dd-rejected.o')],capture_output=True,text=True)
-    assert rejection.returncode!=0 and 'gmath_frexpl' in rejection.stderr and ('undeclared' in rejection.stderr or 'not declared' in rejection.stderr),'DD declaration was not omitted'
-    (work/'dd-unavailable.log').write_text(rejection.stdout+rejection.stderr)
-    print('long-double controls: DD compile-time availability is zero; declaration and definition omitted (synthetic macro fixture only)')
+    for source_name,names in [('basic',['frexpl']),('nine',['fmodl','remainderl','remquol'])]:
+        ddobj=work/('dd-'+source_name+'-definitions.o')
+        subprocess.run([*cc,*flags,*ddflags,'-c',str(root/('src/elementary/long_double_'+source_name+'.c')),'-o',str(ddobj)],check=True)
+        symbols=subprocess.check_output([os.environ.get('NM','nm'),str(ddobj)],text=True)
+        (work/('dd-'+source_name+'-definition-symbols.txt')).write_text(symbols)
+        for name in names:assert '_gmath_'+name in symbols,'missing DD definition '+name
+    print('long-double controls: all four DD declarations and definitions available (synthetic macro fixture only)')
     print('long-double controls: unmodified baseline passes; '+str(len(defects))+' compiled defects and two archive coverage defects rejected')
 if __name__=='__main__':main()

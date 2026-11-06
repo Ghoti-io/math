@@ -180,15 +180,62 @@ static ld_raw ldn_round(unsigned fmt,ldn_wide *a,int mode) {
   result=ldn_project(a,0);ld_raw raw=ld_pack(fmt,&result);
   lds_flags(fmt,raw,0,lost,0);return raw;
 }
+/* An exact DD component sum spans at most 2098 bits (-1074 through
+ * 1023). Normalize both operands to that common width; one extra limb
+ * holds the residual shift carry. Each of at most 2098 quotient positions
+ * compares/subtracts 67 words, never the full foundation grid. */
+static ld_raw ldn_dd_remainder(int op,ld_value a,ld_value b,int *q) {
+  enum { WIDTH=2098, WORDS=67 };
+  int sign=a.sign,original_sign=a.sign,qsign=a.sign^b.sign;
+  int at=ld_top(&a),bt=ld_top(&b),gap=at-bt;
+  unsigned quotient=0; a.sign=b.sign=0;
+  if(gap>=0) {
+    uint32_t r[WORDS]={0},d[WORDS]={0};
+    for(int i=0;i<WIDTH;++i) {
+      r[i/32]|=(uint32_t)ld_bit(&a,at-WIDTH+1+i)<<(i%32);
+      d[i/32]|=(uint32_t)ld_bit(&b,bt-WIDTH+1+i)<<(i%32);
+    }
+    for(int shift=gap;shift>=0;--shift) {
+      int cmp=0;
+      for(int i=WORDS-1;i>=0;--i)if(r[i]!=d[i]) {cmp=r[i]>d[i]?1:-1;break;}
+      int take=cmp>=0;
+      if(take) {
+        uint64_t borrow=0;
+        for(int i=0;i<WORDS;++i) {
+          uint64_t sub=(uint64_t)d[i]+borrow,old=r[i];
+          r[i]=(uint32_t)(old-sub);borrow=old<sub;
+        }
+      }
+      quotient=((quotient<<1)|(unsigned)take)&127;
+      if(shift)for(int i=WORDS-1;i>=0;--i)r[i]=(r[i]<<1)|(i?r[i-1]>>31:0);
+    }
+    memset(a.w,0,sizeof a.w);
+    for(int i=0;i<WIDTH;++i)if((r[i/32]>>(i%32))&1)ld_set(&a,bt-WIDTH+1+i);
+  }
+  if(op!=LDN_FMOD) {
+    ld_value twice=a;ld_shift(&twice,1);
+    int cmp=ld_cmpmag(&twice,&b);
+    if(cmp>0 || (!cmp && (quotient&1))) {
+      ld_value minus=a;minus.sign=1;a=b;ld_add(&a,&minus);
+      quotient=(quotient+1)&127;sign^=1;
+    }
+  }
+  if(ld_top(&a)<0)sign=original_sign;
+  a.sign=sign;
+  if(q)*q=qsign?-(int)quotient:(int)quotient;
+  ld_raw result=lds_dd(&a,0);ld_value rounded=ld_decode(106,result);
+  lds_flags(106,result,0,!lds_equal(&a,&rounded),0);
+  return result;
+}
 static ld_raw ldn_remainder(unsigned fmt,int op,ld_value a,ld_value b,int *q) {
+  if(fmt==106)return ldn_dd_remainder(op,a,b,q);
   int sign=a.sign,original_sign=a.sign,qsign=a.sign^b.sign;
   a.sign=b.sign=0;unsigned quotient=0;
   int gap=ld_top(&a)-ld_top(&b);
   if(gap>=0) {
     /* Binary formats have at most113 significant bits. Stream the quotient
      * positions through a four-limb residual, retaining all quotient zero
-     * bits and only its low seven bits. No fixed precision is used for DD:
-     * that format deliberately has no remainder API. */
+     * bits and only its low seven bits. The separate DD path above retains its entire variable-width sum. */
     uint32_t r[4]={0},d[4]={0};int at=ld_top(&a),bt=ld_top(&b);
     for(int i=0;i<113;++i) {
       r[i/32]|=(uint32_t)ld_bit(&a,at-112+i)<<(i%32);

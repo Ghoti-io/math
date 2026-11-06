@@ -85,6 +85,12 @@ def frame_parser_selftest():
     print('long-double ABI: ELFv1 dotted-entry selection fixtures pass; x86/ELF32/little-endian spellings stay strict (synthetic parser fixtures only)')
     print('long-double ABI: mocked readelf positive passes; intermediate wrong return-address/CFA rows reject')
 
+# Reuse the scaling gate's narrow isolated flag-helper policy.
+import importlib.util
+_flag_spec=importlib.util.spec_from_file_location('scale_abi',Path(__file__).with_name('check-long-double-scale-abi.py'))
+_flag_abi=importlib.util.module_from_spec(_flag_spec);_flag_spec.loader.exec_module(_flag_abi)
+BASIC_FLAG_HELPERS=_flag_abi.FLAG_HELPERS | {'ldb_raise_divbyzero'}
+
 def check_object(path,objdump='objdump'):
     text=run(objdump,'-dr','--no-show-raw-insn',str(path));header=run(objdump,'-f',str(path))
     x86='architecture: i386' in header
@@ -105,21 +111,23 @@ def check_object(path,objdump='objdump'):
     assert functions and sum(map(len,functions.values())),'missing instruction coverage'
     wrappers={}
     for n in NAMES:
-        if native==106 and n=='frexpl':
-            assert not any(k.endswith('_gmath_frexpl') or k=='gmath_frexpl' for k in functions),'unexpected deferred DD frexpl definition'
-            continue
         matches=[k for k in functions if k.endswith('_gmath_'+n) or k=='gmath_'+n]
         assert len(matches)==1, 'missing/duplicate wrapper '+n
         wrappers[matches[0]]=n
     check_byte_engine(functions,header)
+    assert BASIC_FLAG_HELPERS.issubset({_flag_abi.helper_name(fn) for fn in functions}),'missing isolated flag helper coverage'
     transfers=0
     for fn,insns in functions.items():
         loads=0
         for op,operand in insns:
+            assert not _flag_abi.control_write(op,operand,x86),'forbidden control write '+op
+            if _flag_abi.floating_arithmetic(op,x86):
+                assert _flag_abi.helper_name(fn) in BASIC_FLAG_HELPERS,'floating arithmetic outside flag helper '+fn+': '+op
             if x86:
                 assert op not in ('ldmxcsr','vldmxcsr','fldcw','fldenv','frstor','fxrstor','fxrstor64','xrstor','xrstor64'), 'forbidden control write '+op
                 if op.startswith('f'):
                     if op=='fnstcw':assert fn.split('.')[0] in ('gmath_long_double_bytes','ld_native_mode','nearby_mode_extended80'),'unexpected control read'
+                    elif _flag_abi.helper_name(fn) in BASIC_FLAG_HELPERS:pass
                     elif op=='fldt':
                         assert fn in wrappers and wrappers[fn]!='ilogbl' and '(' in operand and '%st' not in operand,'unexpected native80 transfer'
                         loads+=1;transfers+=1
@@ -156,8 +164,49 @@ def check_object(path,objdump='objdump'):
     else:assert transfers==0,'unexpected native80 transfers for format'
     return transfers
 
+def check_caller(path,objdump='objdump'):
+    """Undefined public symbols plus relocations prove a distinct caller TU.
+
+    Some ABIs address function descriptors before an indirect branch. Those
+    target relocations are retained as evidence alongside ordinary call/jumps.
+    Public definitions or a direct byte-engine dependency are never allowed.
+    """
+    symbols=run(os.environ.get('NM','nm'),'-a',str(path))
+    disassembly=run(objdump,'-dr','--no-show-raw-insn',str(path))
+    assert '.gnu.lto_' not in run(objdump,'-h',str(path)),'LTO caller is not an external ABI certificate'
+    native=re.findall(r'^\S+\s+[a-zA-Z]\s+gmath_long_double_format_(64|80|128|106)$',symbols,re.M)
+    assert len(native)==1,'missing caller format marker'
+    names=list(NAMES)
+    targets={};defined=[];private_engine=False
+    for line in symbols.splitlines():
+        fields=line.split()
+        if len(fields)<2:continue
+        kind,name=fields[-2:];name=name.lstrip('.')
+        if name in ('gmath_long_double_bytes',):private_engine=True
+        for public in names:
+            if name=='gmath_'+public or name.endswith('_gmath_'+public):
+                if kind!='U':defined.append(name)
+                else:targets.setdefault(public,set()).add(name)
+    assert not defined,'caller defines public wrapper: '+','.join(defined)
+    assert not private_engine,'caller depends on private byte engine'
+    assert set(targets)==set(names) and all(len(v)==1 for v in targets.values()),'caller missing external public-wrapper references'
+    relocations={name:[] for name in names};previous=''
+    for line in disassembly.splitlines():
+        relocation=re.search(r'\b(R_\S+)\s+(\S+)',line)
+        if relocation:
+            target=re.split(r'[+@-]',relocation[2])[0].lstrip('.')
+            for public,names in targets.items():
+                if target in names:relocations[public].append((relocation[1],previous.strip()))
+        elif re.match(r'\s*[0-9a-f]+:',line):previous=line
+    assert all(relocations.values()),'caller missing public-wrapper target relocations'
+    if 'architecture: i386' in run(objdump,'-f',str(path)):
+        assert all(any(instruction(line.split(':',1)[1])[0] in ('call','callq','jmp','jmpq') for _,line in refs) for refs in relocations.values()),'x86 caller lacks external public call/jump instructions'
+    return relocations
+
 def main():
-    ap=argparse.ArgumentParser();ap.add_argument('--archive',type=Path);ap.add_argument('--object',type=Path);ap.add_argument('--source-root',type=Path,default=Path('src'));ap.add_argument('--self-test-frames',action='store_true');args=ap.parse_args()
+    ap=argparse.ArgumentParser();ap.add_argument('--caller-object',type=Path);ap.add_argument('--archive',type=Path);ap.add_argument('--object',type=Path);ap.add_argument('--source-root',type=Path,default=Path('src'));ap.add_argument('--self-test-frames',action='store_true');args=ap.parse_args()
+    if args.caller_object:
+        refs=check_caller(args.caller_object,os.environ.get('OBJDUMP','objdump'));print('long-double caller: all15 public symbols and call/target relocations verified');return
     if args.self_test_frames:frame_parser_selftest();return
     objdump=os.environ.get('OBJDUMP','objdump');ar=os.environ.get('AR','ar')
     if args.object:check_object(args.object,objdump);print('long-double ABI: new object instruction contract passed');return

@@ -55,19 +55,25 @@ to maximum finite before forming the residual. Raw overlapping component pairs
 are synthetic inputs, not evidence that the native ABI creates a normalized DD
 population. No uniform 106- or 113-bit lattice is assumed.
 
-IBM DD `frexpl` is deliberately unavailable: `GMATH_HAVE_FREXPL` is zero and
-its public declaration and native definition are omitted. For x=(1,2^-1074), the necessary normalized
-fraction is 0.5+2^-1075, outside the lattice of sums of two binary64 components.
+IBM DD `frexpl` is available, with an explicit rounded-native exception to
+exact binary decomposition. For x=(1,2^-1074), the necessary exact normalized
+fraction is 0.5+2^-1075, outside the population of sums of two binary64 components.
 [C11 N1570](https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf)
-§7.12.6.4 requires exact reconstruction; Annex F.10.3.4 specifies exact,
-mode-independent finite binary decomposition.
-[IBM documents DD](https://www.ibm.com/docs/ssw_aix_72/com.ibm.aix.genprogc/128bit_long_double_floating-point_datatype.htm)
-as a variable-precision exact component sum, including the witness above. No approximation or error-as-number
-is substituted. The corpus has no DD frexp numeric row; the oracle proves the
-unrepresentability witness, and a compile-only macro fixture checks availability,
-missing declaration and missing definition. That fixture is not native DD
-execution. All fifteen functions are available on binary64/extended80/binary128;
-DD has fourteen. Existing nexttoward DD decoding is unchanged.
+§7.12.6.4 requires exact reconstruction; this DD exception does not claim that
+property when the exact fraction is unrepresentable. Binary64, extended80 and
+binary128 retain exact decomposition.
+
+The DD path consumes the exact component sum, scales it on the integer grid,
+and selects the nearest actual DD fraction, ties to even, independently of caller
+rounding mode. It adds inexact if and only if that selection loses information.
+If the selected fraction has magnitude one, exact re-encoding to signed 0.5 and
+an incremented exponent preserves the required normalized range without another
+rounding. Thus `frexpl(1+2^-1074)` returns 0.5 and exponent one with inexact.
+It preserves errno, controls and incoming flags. `GMATH_HAVE_FREXPL` is one on
+all supported layouts. The original fourteen-function DD reference population
+and its hashes are historical and unchanged; `long-double-dd.json` separately
+pins the newly available operations, their rounded witnesses and state checks.
+Existing nexttoward DD decoding is unchanged.
 
 On SysV AMD64 native80, naked wrappers pass incoming memory bytes to an integer
 helper and execute one `fldt` only for the final return. Thus an incoming
@@ -107,7 +113,7 @@ fail for their intended reason after an unmodified positive control passes.
 | binary64 | Exact rational fixture population, all15 | GCC16 compiler-selected x86-64 ABI mode |
 | extended80 | Exact rational fixture population | x86-64 SysV with GCC14/GCC16/Clang19; GCC16 i686 under QEMU; mixed controls and precision settings |
 | binary128 | Exact rational fixture population, all15 | GCC16 compiler-selected x86-64 ABI mode; ARM64, s390x and SPARC64 target ABIs under QEMU |
-| IBM double-double | Exact sums, range limits, separated tails and cancellation;14 functions | GCC16 PowerPC32 and PowerPC64 target ABIs under QEMU; frexpl explicitly unavailable |
+| IBM double-double | Exact sums, range limits, separated tails and cancellation; original14 plus supplemental frexpl | GCC16 PowerPC32 and PowerPC64 target ABIs under QEMU; supplemental frexpl checked separately |
 
 Focused GCC14, GCC16 and Clang19 checks pass 10,449 synthetic rational rows.
 GCC16 executes 2,592 native80 rows, 2,484 binary64 ABI-mode rows and 2,565
@@ -117,8 +123,8 @@ Thirteen compiled numerical/state/instruction/wrapper/unwind defects, two archiv
 population defects and thirteen malformed probe inputs fail for their intended
 reason; the unmodified control passes. Mocked frame tables also prove unexpected
 CFA and return-address rules are rejected. Focused Make checks execute the actual
-archive-linked unit binary, and changing either FP helper rebuilds the raw probe. The DD
-compile-only availability fixture also passes. The old hash remains
+archive-linked unit binary, and changing either FP helper rebuilds the raw probe. The historical DD
+compile-only availability fixture was updated to require the newly available symbol. The old hash remains
 f5fa269eb60ee34f over 292,711 aggregate results and all122 function sets.
 Focused validation is recorded under the private build evidence directory.
 GCC16 target binaries additionally pass all 10,449 synthetic rows and their
