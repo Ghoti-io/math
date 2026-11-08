@@ -111,3 +111,6 @@ tests/corpus/remaining-fifteen.hash text eol=lf
 tests/corpus/long-double-nine.seeds text eol=lf
 tests/corpus/long-double-nine.hash text eol=lf
 tests/corpus/long-double-nine.json text eol=lf
+
+# Focused independent error/gamma enclosure bytes.
+tests/corpus/error-gamma.json text eol=lf
