@@ -175,6 +175,11 @@ Accepted follow-up after the owner's clarification:
 
 ## Verification still open
 
+The later [four-function force checks](four-force-flags.md) add independent,
+explicitly calibrated call-site coverage for the masked expf/exp2f UF/IX and
+atanf/cbrtf IX forces. They preserve natural public checks separately; the
+historical absence of a natural deletion witness is not relabeled as one.
+
 The existing family oracle/state/defect evidence remains relevant; this audit
 adds representative host comparisons, not a replacement accuracy certificate.
 The earlier partial Valgrind fenv scopes remain failed, despite zero reported

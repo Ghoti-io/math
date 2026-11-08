@@ -1,5 +1,16 @@
 # Libm gap closure
 
+## Four Float exception-force checks
+
+The four historically masked force checks now have a mandatory default gate.
+Natural public calls cover 5,760 state cases; explicitly instrumented call-site
+controls cover 768 cases and reject five force deletions without changing result
+bits. GCC16 O2/O0 and Clang focused runs pass. Production code and old reference
+payloads remain unchanged. expf/exp2f concern subnormal UF/IX, while atanf/cbrtf
+concern IX. These are calibrated force-obligation checks, not newly discovered
+natural public deletion witnesses. See [the method and evidence limits](four-force-flags.md).
+The historical phase sections below retain their original scan/mutation limits.
+
 ## IBM double-double decomposition and remainders
 
 The four formerly deferred interfaces—`frexpl`, `fmodl`, `remainderl` and
