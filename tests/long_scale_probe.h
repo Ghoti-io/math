@@ -13,6 +13,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+/* The corpus enumerates the five standard exception classes. Some CRTs also
+ * put architectural diagnostics (e.g. x86 denormal operands) in FE_ALL_EXCEPT.
+ * Observe exactly the corpus contract, with exact equality for every class. */
+#define LS_STANDARD_EXCEPTIONS \
+  (FE_INVALID | FE_DIVBYZERO | FE_OVERFLOW | FE_UNDERFLOW | FE_INEXACT)
 #ifdef __cplusplus
 #define LS_STATIC_ASSERT static_assert
 #else
@@ -116,7 +121,7 @@ static int ls_call(uint64_t raw, int64_t n, uint64_t result, unsigned flags,
       feraiseexcept(seed)) {
     return 1;
   }
-  int incoming = fetestexcept(FE_ALL_EXCEPT);
+  int incoming = fetestexcept(LS_STANDARD_EXCEPTIONS);
   errno = error;
   uint64_t got;
   if (width == 64) {
@@ -137,7 +142,7 @@ static int ls_call(uint64_t raw, int64_t n, uint64_t result, unsigned flags,
   int native =
       ((flags & 1u) ? FE_INVALID : 0) | ((flags & 4u) ? FE_OVERFLOW : 0) |
       ((flags & 8u) ? FE_UNDERFLOW : 0) | ((flags & 16u) ? FE_INEXACT : 0);
-  int got_errno = errno, got_flags = fetestexcept(FE_ALL_EXCEPT),
+  int got_errno = errno, got_flags = fetestexcept(LS_STANDARD_EXCEPTIONS),
       got_mode = fegetround();
   if (got != result || got_errno != error || got_flags != (incoming | native) ||
       got_mode != mode) {

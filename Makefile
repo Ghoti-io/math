@@ -244,7 +244,7 @@ INCLUDE := -I include/ -I $(GEN_DIR)/
 
 # libver-gen is here so that suite/tools/xarch/shape.sh can write the generated
 # header for a cross build without any dependency installed.
-DEPLESS_GOALS := prepare-long-double-dd-corpus docs docs-pdf clean fuzz-clean cloc help libver-gen prepare-corpora prepare-atan-corpus prepare-grid-corpora prepare-long-double-nine-corpus clean-long-double-nine-corpus prepare-long-double-eleven-corpus clean-long-double-eleven-corpus prepare-long-double-seventeen-corpus check-long-double-seventeen-oracle validate-long-double-seventeen-host
+DEPLESS_GOALS := check-target-contracts prepare-long-double-dd-corpus docs docs-pdf clean fuzz-clean cloc help libver-gen prepare-corpora prepare-atan-corpus prepare-grid-corpora prepare-long-double-nine-corpus clean-long-double-nine-corpus prepare-long-double-eleven-corpus clean-long-double-eleven-corpus prepare-long-double-seventeen-corpus check-long-double-seventeen-oracle validate-long-double-seventeen-host
 ifeq ($(filter-out $(DEPLESS_GOALS),$(or $(MAKECMDGOALS),all)),)
 SKIP_DEP_CHECK := 1
 endif
@@ -2607,8 +2607,17 @@ validate-long-double-seventeen-host:
 	+$(MAKE) check-long-double-seventeen-oracle && $(MAKE) test
 
 .PHONY: check-strict-build
+TARGET_CONTRACT_ARGS ?=
+.PHONY: check-target-contracts
+check-target-contracts: ## Explicit cross-target contract gate (requires TARGET_CONTRACT_ARGS)
+ifeq ($(strip $(TARGET_CONTRACT_ARGS)),)
+	@echo 'Set TARGET_CONTRACT_ARGS; see tools/check-target-contracts.py --help' >&2
+	@exit 2
+else
+	@python3 tools/check-target-contracts.py $(TARGET_CONTRACT_ARGS)
+endif
 check-strict-build: libver-gen prepare-corpora ## Compile the direct-source client without warning exceptions
-	@python3 tools/check-strict-build.py --cc "$(CC)" --fp-flags="$(ARCH_FP_FLAGS)" --platform-libs="$(TEST_PLATFORM_LIBS)" --generated "$(GEN_DIR)" --work "$(BUILD_DIR)/strict-build"
+	@python3 tools/check-strict-build.py --cc "$(CC)" --fp-flags="$(ARCH_FP_FLAGS)" --exe-suffix="$(EXE_EXTENSION)" --platform-libs="$(TEST_PLATFORM_LIBS)" --generated "$(GEN_DIR)" --work "$(BUILD_DIR)/strict-build"
 
 # Rounded DD supplements preserve every historical corpus population.
 LONG_DOUBLE_DD_BASIC := $(APP_DIR)/tools/probe-long-double-dd-basic$(EXE_EXTENSION)

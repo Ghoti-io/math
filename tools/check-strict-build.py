@@ -14,6 +14,8 @@ def main():
     parser.add_argument('--cc', default='cc')
     parser.add_argument('--fp-flags', default='')
     parser.add_argument('--runner', default='')
+    parser.add_argument('--exe-suffix', choices=('', '.exe'), default='',
+                        help='target executable suffix; Wine requires the real PE filename')
     parser.add_argument('--platform-libs', default='', help='test-client link libraries, e.g. -lm for fenv')
     parser.add_argument('--generated', type=Path, required=True)
     parser.add_argument('--work', type=Path, required=True)
@@ -62,7 +64,7 @@ def main():
                                     ('portable', True, False),
                                     ('planted', False, True),
                                     ('portable-planted', True, True)]:
-        binary = work / tag
+        binary = work / (tag + args.exe_suffix)
         command = shlex.split(args.cc) + flags + extra
         if portable:
             command.append('-DGMATH_SQRT_PORTABLE')
