@@ -92,6 +92,101 @@ def states(probe,data):
     print('eleven state: actual entry flags, exact identities, nonexact modes, malformed/signaling priority and controls',count)
     return count
 
+def transition_result(row,cell,line):
+    fields=line.split()
+    if len(fields)!=6:raise RuntimeError('transition field count')
+    actual=tuple(int(v,16) for v in fields[:2]);flags,err,controls,entry=map(int,fields[2:])
+    if entry&row[8]!=row[8] or not row[8] and entry:raise RuntimeError('transition entry flags')
+    # Verify the fresh required flags even when incoming flags mask them in a
+    # seeded call: every selected cell also has an unseeded control.
+    kind,_,_,value=m.b.decode(cell[0],actual)
+    lo,hi=m.decode_bounds(cell[9])
+    required=20 if kind=='inf' else 0 if lo==hi==value else 12 if abs(value)<m.b.scale(1,-969 if cell[0]==106 else -1022 if cell[0]==64 else -16382) else 4
+    m.verify_boundary_output(cell,actual,(flags&~entry)|(required&entry))
+    if flags!=required|entry:raise RuntimeError('transition result flags')
+    if err!=173 or controls!=1:raise RuntimeError('transition caller state')
+
+def transition_states(probe,directory,work):
+    cells=m.load_boundaries(directory)
+    p=subprocess.run([str(probe)],input='40 0 0 0 0 0 0 3 0 0\n',capture_output=True,text=True,check=True)
+    native=int(p.stdout.splitlines()[0].split()[1]);rows=[];expected=[];counts={}
+    # Cover every mode/PC and mode/flush pair per cell, without the full
+    # mode x PC x flush product. Both clear and all-standard flags use it.
+    profiles=[(mode,pc,(index+mode)%2) for mode in range(4) for index,pc in enumerate((0,2,3))]
+    if {(mode,pc) for mode,pc,_ in profiles}!={(mode,pc) for mode in range(4) for pc in (0,2,3)} or {(mode,flush) for mode,_,flush in profiles}!={(mode,flush) for mode in range(4) for flush in (0,1)}:raise RuntimeError('transition profile pair coverage')
+    # Nine exp/expm1 cells cover each fractional transition's adjacent inputs;
+    # the final nine pow cells use base two and fractional exponents. Retain
+    # both overflow and underflow sides, including their zero/finite outcomes.
+    for fmt in m.FORMATS:
+        for op in (3,5,10):
+            selected=[c for c in cells if c[0]==fmt and c[1]==op]
+            if op==10:selected=[c for c in selected if m.b.decode(fmt,tuple(c[2:4]))[3]==2]
+            if len(selected)!=9:raise RuntimeError('transition selected population')
+            for c in selected:
+                for callfmt in ((fmt,0) if fmt==native else (fmt,)):
+                    for incoming in (0,31):
+                        for mode,pc,flush in profiles:
+                            rows.append([callfmt,*c[1:6],mode,pc,incoming,flush]);expected.append(c)
+                            label='native'+str(native) if callfmt==0 else 'raw'+str(fmt)
+                            counts[label]=counts.get(label,0)+1
+    p=subprocess.run([str(probe)],input=''.join(' '.join(f'{v:x}' for v in r)+'\n' for r in rows),capture_output=True,text=True,timeout=300)
+    if p.returncode:raise RuntimeError('transition probe exit '+str(p.returncode)+' '+p.stderr)
+    lines=p.stdout.splitlines()[1:]
+    if len(lines)!=len(rows):raise RuntimeError('transition row count')
+    for row,cell,line in zip(rows,expected,lines,strict=True):transition_result(row,cell,line)
+    # Positive actual calls precede each metadata fault; no crash counts as a
+    # detection. Each fault must fail its own state assertion.
+    faults={}
+    for fault,column,replacement,reason in [('errno',3,'174','transition caller state'),('controls',4,'0','transition caller state'),('incoming',5,'0','transition entry flags')]:
+        index=next(i for i,r in enumerate(rows) if r[8]==31)
+        row,cell,line=rows[index],expected[index],lines[index]
+        transition_result(row,cell,line);fields=line.split();fields[column]=replacement
+        try:transition_result(row,cell,' '.join(fields))
+        except RuntimeError as error:
+            if str(error)!=reason:raise
+            faults[fault]=reason
+        else:raise RuntimeError('transition state fault accepted '+fault)
+    (work/'transition-states.json').write_text(json.dumps({'counts':counts,'total':len(rows),'profiles':profiles,'faults':faults,'rows':rows,'stdout':p.stdout},sort_keys=True)+'\n')
+    print('supplemental exp/expm1/fractional-pow transition states',len(rows),counts,'calibrated caller-state faults',len(faults))
+
+def boundary_policy_controls(probe,directory,work):
+    cells=m.load_boundaries(directory)
+    # The complete production boundary check is the genuine positive control.
+    m.check(probe,directory,boundary_only=True)
+    c=next(c for c in cells if c[0]==106 and c[1] in (3,5,10) and c[8]==4 and c[6] and c[7] and not m.b.decode(106,tuple(c[6:8]))[1])
+    actual=tuple(c[6:8]);m.verify_boundary_output(c,actual,c[8])
+    outcomes={}
+    def reject(name,cell,output,flags,reason):
+        try:m.verify_boundary_output(cell,output,flags)
+        except RuntimeError as error:
+            if str(error)!=reason:raise
+            outcomes[name]=reason
+        else:raise RuntimeError('boundary policy fault accepted '+name)
+    infinity=next(cell for cell in cells if cell[0]==64 and cell[8]==20 and m.b.decode(64,tuple(cell[6:8]))[0]=='inf')
+    m.verify_boundary_output(infinity,tuple(infinity[6:8]),20)
+    reject('binary64-infinity-reserved-word',infinity,(infinity[6],1),20,'boundary noncanonical inf encoding')
+    swapped=actual[::-1]
+    if m.b.decode(106,swapped)[3]!=m.b.decode(106,actual)[3]:raise RuntimeError('DD fault changed component sum')
+    reject('DD-swapped-components',c,swapped,c[8],'boundary noncanonical finite encoding')
+    reject('DD-wrong-sum',c,m.raw(106,F(0)),4,'boundary selected-neighbor enclosure')
+    for fmt in m.FORMATS:
+        maximum=1023 if fmt in (64,106) else 16383
+        precision=53 if fmt==64 else 64 if fmt==80 else 113
+        gap=m.b.scale(1,917 if fmt==106 else maximum-precision+1)
+        limit=m.s.LIMIT if fmt==106 else m.b.scale(1,maximum+1)-gap
+        for sign in (0,1):
+            value=-limit if sign else limit;output=m.raw(fmt,value)
+            # The finite maximum's virtual outer endpoint admits a near
+            # enclosure, while a farther finite answer must fail both signs.
+            near=(-limit-gap/4,-limit-gap/4) if sign else (limit+gap/4,limit+gap/4)
+            far=(-limit-2*gap,-limit-2*gap) if sign else (limit+2*gap,limit+2*gap)
+            cell=[fmt,3,0,0,0,0,*m.b.pack(fmt,'inf',sign,F(0)),20,m.encode_bounds(*near)]
+            m.verify_boundary_output(cell,output,4)
+            cell[-1]=m.encode_bounds(*far)
+            reject(str(fmt)+'-outer-'+str(sign),cell,output,4,'boundary selected-neighbor enclosure')
+    (work/'boundary-policy-status.json').write_text(json.dumps(outcomes,sort_keys=True)+'\n')
+    print('boundary policy: genuine production/reference and virtual-edge controls pass; noncanonical DD/infinity, wrong sum and signed outer-bound faults reject',len(outcomes))
+
 def loader_controls(directory,work):
     valid=m.load(directory)
     with tempfile.TemporaryDirectory(prefix='cache-',dir=work) as temp:
@@ -318,6 +413,7 @@ if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--probe',type=Path,required=True);p.add_argument('--directory',type=Path,default=Path('tests/corpus'));p.add_argument('--work',type=Path,required=True);p.add_argument('--compiled-only',action='store_true');p.add_argument('--states-only',action='store_true');a=p.parse_args();a.work.mkdir(parents=True,exist_ok=True)
     if not a.compiled_only:
         data=m.prepare(a.directory);states(a.probe,data);range_controls(a.probe);fresh_controls(a.probe,a.work)
+        boundary_policy_controls(a.probe,a.directory,a.work);transition_states(a.probe,a.directory,a.work)
         if not a.states_only:loader_controls(a.directory,a.work);boundary_population_controls(a.directory,a.work);parser_controls(a.probe)
     if not a.states_only:
         compiled_controls(a.work)

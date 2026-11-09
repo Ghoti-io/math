@@ -308,12 +308,18 @@ def verify_boundary_output(cell,actual,flags):
         return
     lo,hi=decode_bounds(cell[9]);kind,sign,_,value=b.decode(fmt,actual)
     if kind=='nan' or sign!=b.decode(fmt,expected)[1]:raise RuntimeError('boundary result kind/sign')
+    if actual!=b.pack(fmt,kind,sign,value):raise RuntimeError('boundary noncanonical '+kind+' encoding')
     if kind=='inf':
         limit=s.LIMIT if fmt==106 else b.scale(1,1024 if fmt==64 else 16384)-b.scale(1,(1023 if fmt==64 else 16383)-(52 if fmt==64 else 63 if fmt==80 else 112))
         if (sign and hi> -limit) or (not sign and lo<limit) or flags!=20:raise RuntimeError('boundary infinity enclosure/flags')
     else:
         predecessor=b.decode(fmt,s.neighbor(fmt,value,-1));successor=b.decode(fmt,s.neighbor(fmt,value,1))
-        if predecessor[0]=='finite' and lo<predecessor[3] or successor[0]=='finite' and hi>successor[3]:raise RuntimeError('boundary selected-neighbor enclosure')
+        # Infinity denotes the signed virtual endpoint beyond the last finite
+        # value. DD's last gap is 2^917, not its leading component's spacing.
+        outer=s.LIMIT+b.scale(1,917) if fmt==106 else b.scale(1,1024 if fmt==64 else 16384)
+        lower=predecessor[3] if predecessor[0]=='finite' else -outer
+        upper=successor[3] if successor[0]=='finite' else outer
+        if lo<lower or hi>upper:raise RuntimeError('boundary selected-neighbor enclosure')
         required=0 if lo==hi==value else 12 if abs(value)<b.scale(1,-969 if fmt==106 else -1022 if fmt==64 else -16382) else 4
         if flags!=required:raise RuntimeError('boundary selected-result flags')
 

@@ -17,7 +17,7 @@
 
 #include "test_helpers.h"
 #include "corpus_hash.h"
-#include "fp_controls.h"
+#include "fp_state_fixture.h"
 #include <cerrno>
 
 #include <cfenv>
@@ -893,6 +893,73 @@ TEST(Elementary, NonFiniteArgumentsGiveTheSameQuietNan) {
     EXPECT_BITS(gmath_hypot(x, 2.0), DoubleOf(kQNaN));
     EXPECT_BITS(gmath_hypot(2.0, x), DoubleOf(kQNaN));
   }
+}
+
+
+using gmath_test::FenvGuard;
+using gmath_test::kStateFlags;
+using gmath_test::StateProfile;
+
+TEST(Elementary, PairedDispatchAndSlowExpPreserveCallerState) {
+  FenvGuard saved;
+  const uint64_t sn = UINT64_C(0x7ff0000000000001);
+  const uint64_t qn = UINT64_C(0x7ff8000000000007);
+  const uint64_t inf = UINT64_C(0x7ff0000000000000);
+  struct Pair { bool power; uint64_t a, b, result; };
+  const Pair pairs[] = {
+      {true, sn, 0, BitsOf(1.0)}, {true, sn, UINT64_C(0x8000000000000000), BitsOf(1.0)},
+      {true, BitsOf(1.0), sn, BitsOf(1.0)},
+      {true, 0, sn, inf | UINT64_C(0x8000000000000)},
+      {true, UINT64_C(0x8000000000000000), sn, inf | UINT64_C(0x8000000000000)},
+      {true, sn, BitsOf(1.0), inf | UINT64_C(0x8000000000000)}, {true, qn, sn, inf | UINT64_C(0x8000000000000)},
+      {true, sn, qn, inf | UINT64_C(0x8000000000000)},
+      {false, inf, sn, inf}, {false, sn, inf, inf},
+      {false, qn, sn, inf | UINT64_C(0x8000000000000)},
+      {false, sn, qn, inf | UINT64_C(0x8000000000000)}};
+  for (int mode : {FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO})
+    for (unsigned profile = 0; profile < 3; ++profile) {
+      ASSERT_EQ(std::fesetround(mode), 0);
+      if (!StateProfile(profile)) continue;
+      for (int seed : {0, FE_INVALID | FE_DIVBYZERO, FE_OVERFLOW | FE_UNDERFLOW, kStateFlags}) {
+        for (const Pair &pair : pairs) {
+          ASSERT_EQ(std::feclearexcept(kStateFlags), 0);
+          ASSERT_EQ(std::feraiseexcept(seed), 0);
+          int entry = std::fetestexcept(kStateFlags);
+          uint64_t controls = gmath_test_controls();
+          errno = E2BIG;
+          double result = pair.power ? gmath_pow(DoubleOf(pair.a), DoubleOf(pair.b))
+                                     : gmath_hypot(DoubleOf(pair.a), DoubleOf(pair.b));
+          int returned_errno = errno;
+          int flags = std::fetestexcept(kStateFlags);
+          EXPECT_EQ(BitsOf(result), pair.result);
+          EXPECT_EQ(returned_errno, E2BIG);
+          EXPECT_EQ(flags & entry, entry);
+          EXPECT_EQ(std::fegetround(), mode);
+          EXPECT_EQ(gmath_test_controls(), controls);
+        }
+        for (double input : {-740.0, -1000.0, 1000.0, DoubleOf(sn)}) {
+          ASSERT_EQ(std::feclearexcept(kStateFlags), 0);
+          ASSERT_EQ(std::feraiseexcept(seed), 0);
+          int entry = std::fetestexcept(kStateFlags);
+          // These fixtures require exactly UF/IX, OF/IX or signaling invalid;
+          // flushing changes result bits, not the documented exception class.
+          int required = (BitsOf(input) & UINT64_C(0x7fffffffffffffff)) > inf
+              ? FE_INVALID : input > 0 ? FE_OVERFLOW | FE_INEXACT
+                                       : FE_UNDERFLOW | FE_INEXACT;
+          uint64_t controls = gmath_test_controls();
+          errno = E2BIG;
+          volatile double result = gmath_exp(input);
+          (void)result;
+          int returned_errno = errno;
+          int flags = std::fetestexcept(kStateFlags);
+          EXPECT_EQ(returned_errno, E2BIG);
+          EXPECT_EQ(flags & (required | entry), required | entry);
+          EXPECT_EQ(flags & ~(required | entry), 0);
+          EXPECT_EQ(std::fegetround(), mode);
+          EXPECT_EQ(gmath_test_controls(), controls);
+        }
+      }
+    }
 }
 
 int main(int argc, char ** argv) {

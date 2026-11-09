@@ -2,10 +2,12 @@
  * @file
  * exp2 against pinned MPFR600/mpmath640 reference values and exact IEEE cases.
  * GMATH_EXP2_CORPUS_DIR selects another required corpus directory.
- * The API requires FE_TONEAREST; these tests restore the incoming environment.
+ * Accuracy checks require FE_TONEAREST; state checks also cover directed modes.
+ * These tests restore the incoming environment.
  * Copyright 2026 by Corey Pennycuff
  */
 #include "test_helpers.h"
+#include "fp_state_fixture.h"
 
 #include <ghoti.io/math/elementary.h>
 
@@ -52,17 +54,7 @@ uint32_t ErrorBits(float x) {
   return word;
 }
 
-struct Environment {
-  fenv_t saved;
-  int saved_errno;
-  Environment() : saved_errno(errno) {
-    std::fegetenv(&saved);
-  }
-  ~Environment() {
-    std::fesetenv(&saved);
-    errno = saved_errno;
-  }
-};
+using Environment = gmath_test::FenvGuard;
 
 struct Policy {
   int required, allowed;
@@ -349,6 +341,39 @@ TEST(Exp2, IncomingExceptionFlagsErrnoAndModeArePreserved) {
       (void)CheckCall(word, seed);
     }
   }
+}
+
+
+using gmath_test::FenvGuard;
+using gmath_test::kStateFlags;
+using gmath_test::StateProfile;
+
+TEST(Exp2, SlowRangeAndSignalingPathsPreserveCallerState) {
+  FenvGuard saved;
+  // Numerical accuracy remains the nearest-mode corpus's responsibility.
+  for (int mode : {FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO})
+    for (unsigned profile = 0; profile < 3; ++profile) {
+      ASSERT_EQ(std::fesetround(mode), 0);
+      if (!StateProfile(profile)) continue;
+      for (int seed : {0, FE_INVALID | FE_DIVBYZERO, FE_OVERFLOW | FE_UNDERFLOW, kStateFlags})
+        for (double input : {-1074.5, -2000.0, 2000.0, Value(kInf | 1)}) {
+          Policy policy = ExpectedPolicy(Bits(input));
+          ASSERT_EQ(std::feclearexcept(kStateFlags), 0);
+          ASSERT_EQ(std::feraiseexcept(seed), 0);
+          int entry = std::fetestexcept(kStateFlags);
+          uint64_t controls = gmath_test_controls();
+          errno = E2BIG;
+          volatile double result = gmath_exp2(input);
+          (void)result;
+          int returned_errno = errno;
+          int flags = std::fetestexcept(kStateFlags);
+          EXPECT_EQ(returned_errno, E2BIG);
+          EXPECT_EQ(flags & (policy.required | entry), policy.required | entry);
+          EXPECT_EQ(flags & ~(policy.allowed | entry), 0);
+          EXPECT_EQ(std::fegetround(), mode);
+          EXPECT_EQ(gmath_test_controls(), controls);
+        }
+    }
 }
 
 int main(int argc, char ** argv) {
